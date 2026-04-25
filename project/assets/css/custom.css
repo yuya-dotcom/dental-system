@@ -1,0 +1,21 @@
+.action-dropdown {
+    max-height: 250px !important;
+    padding-right: 5px;
+}
+.hdr-control {
+    height: 34px !important;
+    padding-top: .25rem !important;
+    padding-bottom: .25rem !important;
+    padding-right: 2rem !important;   /* room for native arrow */
+    font-size: .8125rem !important;
+    min-width: 120px;
+}
+.hdr-btn {
+    height: 33px !important;
+    padding-top: .2rem !important;
+    padding-bottom: .2rem !important;
+    font-size: .6rem !important;
+    white-space: nowrap;
+    display: inline-flex !important;
+    align-items: center !important;
+}

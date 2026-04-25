@@ -1,0 +1,356 @@
+:root {
+            --blue:        #1a56db;
+            --blue-dark:   #1245b5;
+            --blue-light:  #eef3ff;
+            --slate:       #1e2a3b;
+            --muted:       #6b7a90;
+            --border:      #dde3ed;
+            --bg:          #f3f6fb;
+            --surface:     #ffffff;
+            --danger:      #d93025;
+            --success:     #1e8a5f;
+            --radius:      12px;
+            --font-body:   'DM Sans', system-ui, sans-serif;
+            --font-display:'Fraunces', Georgia, serif;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--slate);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Slim top bar ─────────────────────────────────────────────── */
+        .topbar {
+            height: 58px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            flex-shrink: 0;
+        }
+        .topbar-brand img { height: 36px; display: block; }
+        .topbar-back {
+            font-size: .84rem;
+            font-weight: 500;
+            color: var(--muted);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+            transition: color .2s;
+        }
+        .topbar-back:hover { color: var(--blue); }
+
+        /* ── Page wrapper ─────────────────────────────────────────────── */
+        .page-body {
+            flex: 1;
+            display: flex;
+            align-items: stretch;
+        }
+
+        /* ── Left panel — branding / illustration ─────────────────────── */
+        .left-panel {
+            display: none;          /* hidden on mobile, shown on md+ */
+            width: 44%;
+            flex-shrink: 0;
+            background: linear-gradient(155deg, #1245b5 0%, #2066e8 55%, #3b88f8 100%);
+            padding: 3.5rem 3rem;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+        @media (min-width: 900px) { .left-panel { display: flex; } }
+
+        /* Decorative circles */
+        .left-panel::before,
+        .left-panel::after {
+            content: '';
+            position: absolute;
+            border-radius: 50%;
+            opacity: .12;
+            background: #fff;
+        }
+        .left-panel::before { width: 380px; height: 380px; top: -120px; right: -140px; }
+        .left-panel::after  { width: 260px; height: 260px; bottom: -80px; left: -80px; }
+
+        .left-content {
+            position: relative;
+            z-index: 1;
+            color: #fff;
+        }
+        .left-content h2 {
+            font-family: var(--font-display);
+            font-size: 2.1rem;
+            font-weight: 600;
+            line-height: 1.25;
+            margin-bottom: 1rem;
+            letter-spacing: -.3px;
+        }
+        .left-content p {
+            font-size: .95rem;
+            opacity: .82;
+            line-height: 1.65;
+            max-width: 340px;
+        }
+
+        .left-features {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            gap: .75rem;
+        }
+        .feat-row {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            color: rgba(255,255,255,.88);
+            font-size: .87rem;
+        }
+        .feat-icon {
+            width: 34px; height: 34px;
+            border-radius: 8px;
+            background: rgba(255,255,255,.15);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            font-size: .95rem;
+        }
+
+        /* ── Right panel — auth form ──────────────────────────────────── */
+        .right-panel {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2.5rem 1.5rem;
+            overflow-y: auto;
+        }
+
+        .auth-card {
+            width: 100%;
+            max-width: 448px;
+        }
+
+        .auth-header { margin-bottom: 1.75rem; }
+        .portal-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            background: var(--blue-light);
+            color: var(--blue);
+            font-size: .75rem;
+            font-weight: 700;
+            letter-spacing: .5px;
+            text-transform: uppercase;
+            padding: .28rem .7rem;
+            border-radius: 50px;
+            margin-bottom: .7rem;
+        }
+        .auth-header h1 {
+            font-family: var(--font-display);
+            font-size: 1.85rem;
+            font-weight: 600;
+            color: var(--slate);
+            letter-spacing: -.4px;
+            line-height: 1.2;
+            margin-bottom: .35rem;
+        }
+        .auth-header p { font-size: .9rem; color: var(--muted); }
+
+        /* ── Tabs ─────────────────────────────────────────────────────── */
+        .tab-bar {
+            display: flex;
+            background: var(--bg);
+            border-radius: 10px;
+            padding: 4px;
+            margin-bottom: 1.6rem;
+            gap: 4px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: .55rem .5rem;
+            border: none;
+            background: transparent;
+            border-radius: 7px;
+            font-family: var(--font-body);
+            font-size: .88rem;
+            font-weight: 600;
+            color: var(--muted);
+            cursor: pointer;
+            transition: background .2s, color .2s, box-shadow .2s;
+        }
+        .tab-btn.active {
+            background: var(--surface);
+            color: var(--blue);
+            box-shadow: 0 1px 5px rgba(0,0,0,.1);
+        }
+
+        /* ── Form inputs ──────────────────────────────────────────────── */
+        .form-panel { display: none; }
+        .form-panel.active { display: block; }
+
+        .field { margin-bottom: .9rem; }
+        .field label {
+            display: block;
+            font-size: .82rem;
+            font-weight: 600;
+            color: var(--slate);
+            margin-bottom: .32rem;
+        }
+        .field label .req { color: #e0483a; margin-left: 2px; }
+        .field label .opt { color: var(--muted); font-weight: 400; font-size: .75rem; margin-left: 4px; }
+
+        .field input,
+        .field select {
+            width: 100%;
+            padding: .62rem .85rem;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius);
+            font-family: var(--font-body);
+            font-size: .9rem;
+            color: var(--slate);
+            background: var(--surface);
+            transition: border-color .2s, box-shadow .2s;
+            outline: none;
+            appearance: none;
+        }
+        .field input:focus,
+        .field select:focus {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 3.5px rgba(26,86,219,.12);
+        }
+        .field input::placeholder { color: #adb8c8; }
+
+        /* phone prefix */
+        .phone-wrap { display: flex; }
+        .phone-prefix {
+            padding: .62rem .85rem;
+            border: 1.5px solid var(--border);
+            border-right: none;
+            border-radius: var(--radius) 0 0 var(--radius);
+            background: var(--bg);
+            font-size: .88rem;
+            color: var(--muted);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .phone-wrap input {
+            border-radius: 0 var(--radius) var(--radius) 0 !important;
+        }
+        .phone-wrap:focus-within .phone-prefix { border-color: var(--blue); }
+        .phone-wrap:focus-within input { border-color: var(--blue); box-shadow: 0 0 0 3.5px rgba(26,86,219,.12); }
+
+        /* password eye */
+        .pass-wrap { position: relative; }
+        .pass-wrap input { padding-right: 2.8rem; }
+        .pass-eye {
+            position: absolute;
+            right: .8rem; top: 50%;
+            transform: translateY(-50%);
+            background: none; border: none;
+            cursor: pointer; color: var(--muted);
+            font-size: .9rem; padding: 0;
+            line-height: 1;
+            transition: color .2s;
+        }
+        .pass-eye:hover { color: var(--blue); }
+
+        /* two-col grid */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+        .grid-mid { display: grid; grid-template-columns: 2fr 1fr; gap: .75rem; }
+        @media (max-width: 480px) {
+            .grid-2, .grid-mid { grid-template-columns: 1fr; }
+        }
+
+        /* error */
+        .field-err { font-size: .77rem; color: var(--danger); margin-top: .25rem; display: none; }
+        .alert-bar {
+            padding: .65rem .9rem;
+            border-radius: 9px;
+            font-size: .855rem;
+            margin-bottom: 1rem;
+            display: none;
+            border-left: 4px solid;
+        }
+        .alert-bar.danger  { background: #fdf2f2; border-color: var(--danger); color: #9b2020; }
+        .alert-bar.success { background: #f0fdf4; border-color: var(--success); color: #145e3e; }
+
+        /* ── Primary button ───────────────────────────────────────────── */
+        .btn-primary {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .5rem;
+            width: 100%;
+            padding: .78rem 1rem;
+            background: var(--blue);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius);
+            font-family: var(--font-body);
+            font-size: .95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background .2s, transform .1s, box-shadow .2s;
+            margin-top: .35rem;
+        }
+        .btn-primary:hover  { background: var(--blue-dark); box-shadow: 0 4px 14px rgba(26,86,219,.3); }
+        .btn-primary:active { transform: scale(.985); }
+        .btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-primary .spinner {
+            width: 16px; height: 16px;
+            border: 2.5px solid rgba(255,255,255,.35);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin .6s linear infinite;
+            display: none;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .foot-note {
+            text-align: center;
+            margin-top: .9rem;
+            font-size: .84rem;
+            color: var(--muted);
+        }
+        .foot-link {
+            color: var(--blue);
+            font-weight: 600;
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-family: var(--font-body);
+            font-size: inherit;
+            padding: 0;
+            text-decoration: none;
+        }
+        .foot-link:hover { text-decoration: underline; }
+
+        /* ── OTP ──────────────────────────────────────────────────────── */
+        .otp-panel { display: none; }
+        .otp-hint { text-align: center; color: var(--muted); font-size: .875rem; margin-bottom: 1.2rem; }
+        .otp-hint strong { color: var(--slate); }
+        .otp-row { display: flex; gap: .5rem; justify-content: center; margin-bottom: 1.2rem; }
+        .otp-box {
+            width: 50px; height: 56px;
+            text-align: center;
+            font-size: 1.5rem; font-weight: 700;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius);
+            font-family: var(--font-body);
+            color: var(--slate);
+            outline: none;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .otp-box:focus { border-color: var(--blue); box-shadow: 0 0 0 3.5px rgba(26,86,219,.12); }
+        .otp-err { text-align: center; font-size: .82rem; color: var(--danger); margin-bottom: .75rem; display: none; }

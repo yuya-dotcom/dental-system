@@ -1,0 +1,221 @@
+:root {
+  --default-font: "Roboto",  system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --heading-font: "Raleway",  sans-serif;
+  --nav-font: "Poppins",  sans-serif;
+}
+:root { 
+  --background-color: #ffffff; /* Background color for the entire website, including individual sections */
+  --default-color: #444444; /* Default color used for the majority of the text content across the entire website */
+  --heading-color: #124265; /* Color for headings, subheadings and title throughout the website */
+  --accent-color: #2487ce; /* Accent color that represents your brand on the website. It's used for buttons, links, and other elements that need to stand out */
+  --surface-color: #ffffff; /* The surface color is used as a background of boxed elements within sections, such as cards, icon boxes, or other elements that require a visual separation from the global background. */
+  --contrast-color: #ffffff; /* Contrast color for text, ensuring readability against backgrounds of accent, heading, or default colors. */
+}
+:root {
+  scroll-behavior: smooth;
+}
+html, body {
+  margin: 0;
+  padding: 0;
+  color: var(--default-color);
+  background-color: var(--background-color);
+  font-family: var(--default-font);
+
+}.hero {
+  width: 100%;
+  min-height: 100vh;
+  padding-top: 80px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.hero:before {
+  content: "";
+  background: color-mix(in srgb, var(--background-color), transparent 30%);
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.hero img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+.greetings {
+  position: relative;
+  z-index: 3;
+  padding-left: 80px;
+}
+
+/* Calendar */
+.calendar-container {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  z-index: 4;
+}
+.calendar-wrapper {
+  display: grid;
+  grid-template-columns: 360px minmax(700px, 1fr) 360px;
+  gap: 40px;
+  width: 100%;
+  max-width: 1600px;
+  padding: 20px 34px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+h3, h5{
+  color: #2487CE;
+}
+.highlight {
+  color: #78C841;
+}
+
+/* Left - Instructions */
+.appBranchFilter {
+    border-radius: 10px !important;
+    padding: 4px 6px !important;
+    background: #fff;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    width: 100%;
+}
+.appBranchFilter:hover,
+.appBranchFilter:focus-within {
+    box-shadow: 0 0 0 4px rgba(13,110,253,0.15);
+    border-color: #0a58ca !important;
+}
+.branch-select {
+    width: 100% !important;
+    padding: 10px 14px !important;
+    color: #1c2b2b !important;
+    cursor: pointer;
+    background: transparent;
+}
+.branch-select:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.branch-label {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #0d6efd;
+    margin-bottom: 6px;
+    margin-top: 16px;
+}
+.step-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 20px;
+}
+.step-list li {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    font-size: 1rem;
+    color: #6b8080;
+}
+.step-list li strong {
+    color: #1c2b2b;
+    display: block;
+    margin-bottom: 2px;
+}
+.step-num {
+    min-width: 26px;
+    height: 26px;
+    background: #78C841;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+.branch-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--brand);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+}
+.branch-select {
+    width: 100%;
+    border: 1.5px solid #d4e6e1;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    font-family: 'DM Sans', sans-serif;
+    background: #fff;
+    color: #1c2b2b;
+    cursor: pointer;
+    transition: border-color .2s;
+}
+
+/* Center */
+#calendar {
+  width: 100%;     /* makes it wider */
+  margin: auto;
+}
+
+/* Right side (time list) */
+.time-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Time buttons */
+.time-btn {
+  border: 1px solid var(--accent-color);
+  background: #fff;
+  color: var(--accent-color);
+  padding: 10px;
+  border-radius: 10px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.time-btn:hover {
+  background: var(--accent-color);
+  color: #fff;
+}
+
+.time-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.booking-summary-chip {
+  background: #f0f9ff;  
+  border: 1px solid #bae0fd;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.fc-day-fully-booked {         
+  background-color: #fff5f5 !important;      
+  cursor: not-allowed !important;     
+  position: relative;
+}     
+.fc-day-fully-booked .fc-daygrid-day-number { 
+  color: #ccc !important; 
+}
+.fc-day-fully-booked::after {
+  content: "Full";
+  position: absolute;
+  bottom: 2px; right: 4px;
+  font-size: 9px; color: #e53e3e;
+  font-weight: 700; text-transform: uppercase;
+}
+.fc-day-selected { 
+  background-color: #e8f5e9 !important; 
+}
+.fc-day-selected .fc-daygrid-day-number { 
+  font-weight: 700; 
+  color: #1a7a5e !important; }

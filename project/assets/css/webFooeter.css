@@ -1,0 +1,114 @@
+/* ---- Top Footer ---- */
+.footer-top {
+  padding: 40px 0 40px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Quick Links */
+.footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.footer-links li {
+  margin-bottom: 10px;
+}
+
+/* Services List */
+.footer-services {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  counter-reset: service-counter;
+}
+
+.footer-services li {
+  counter-increment: service-counter;
+  margin-bottom: 9px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* Clinic Hours */
+.footer-hours p {
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+/* Contacts */
+.hoveer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+  margin-bottom: 14px;
+  text-decoration: none;
+  transition: color 0.25s ease;
+}
+
+.hoveer:hover {
+  color: #5bcffa;
+  cursor: pointer;
+}
+
+.hoveer svg {
+  flex-shrink: 0;
+}
+
+/* ---- Bottom Footer ---- */
+.footer-bottom {
+  padding: 18px 0;
+}
+.footer-bottom-logo a {
+  display: block;
+  width: 140px;
+  height: 44px;
+  background-image: url('../images/essencia-full@3x.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: left center;
+}
+
+.footer-bottom-logo img {
+  display: none;
+}
+
+.footer-copyright {
+  margin: 0;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Social Icons */
+.social-icons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.social-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+.social-icon:hover {
+  transform: translateY(-3px) scale(1.1);
+  filter: brightness(1.15);
+}
+
+.social-icon--facebook {
+  background: #1877F2;
+}
+.social-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: #ffffff;
+}

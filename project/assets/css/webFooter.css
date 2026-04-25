@@ -1,0 +1,250 @@
+:root {
+  --font: "Poppins",  sans-serif;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+/* ---- Footer Main ---- */
+.site-footer {
+  background-image: url('../images/webAppointmentFooter-background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  font-family: var(--font);
+  color: #ffffff;
+}
+
+/* ---- Top Footer ---- */
+.footer-top {
+  padding: 60px 0 40px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Logo - CSS background image (not draggable) */
+.footer-logo {
+  display: block;
+  width: 200px;
+  height: 60px;
+  background-image: url('../images/essencia-full@3x.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: left center;
+}
+
+.footer-logo img {
+  display: none;
+}
+
+/* Section headings */
+.footer-heading {
+  font-family: var(--font);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 20px;
+  letter-spacing: 0.02em;
+}
+
+/* Quick Links */
+.footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.footer-links li {
+  margin-bottom: 10px;
+}
+
+.footer-links a {
+  color: rgba(255, 255, 255, 0.78);
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 400;
+  transition: color 0.25s ease, padding-left 0.25s ease;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-links a::before {
+  content: '•';
+  color: #5bcffa;
+  font-size: 0.7rem;
+  transition: transform 0.25s ease;
+}
+
+.footer-links a:hover {
+  color: #5bcffa;
+  padding-left: 4px;
+}
+
+.footer-links a:hover::before {
+  transform: scale(1.4);
+}
+
+/* Services List */
+.footer-services {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  counter-reset: service-counter;
+}
+
+.footer-services li {
+  counter-increment: service-counter;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.92rem;
+  margin-bottom: 9px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.footer-services li::before {
+  content: counter(service-counter) ".";
+  color: #5bcffa;
+  font-size: 0.82rem;
+  font-weight: 600;
+  min-width: 18px;
+}
+
+/* Clinic Hours */
+.footer-hours p {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.92rem;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+/* Contacts */
+.footer-contact-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.92rem;
+  margin-bottom: 14px;
+  text-decoration: none;
+  transition: color 0.25s ease;
+}
+
+.footer-contact-item:hover {
+  color: #5bcffa;
+}
+
+.footer-contact-item svg {
+  flex-shrink: 0;
+  color: #5bcffa;
+}
+
+/* ---- Bottom Footer ---- */
+.footer-bottom {
+  padding: 18px 0;
+  background: rgba(0, 0, 20, 0.35);
+}
+
+.footer-bottom-logo a {
+  display: block;
+  width: 140px;
+  height: 44px;
+  background-image: url('../images/essencia-full@3x.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: left center;
+}
+
+.footer-bottom-logo img {
+  display: none;
+}
+
+.footer-copyright {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.72);
+  margin: 0;
+  font-weight: 500;
+  text-align: center;
+}
+
+.footer-copyright a {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.footer-copyright a:hover {
+  color: #5bcffa;
+}
+
+/* Social Icons */
+.social-icons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.social-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+.social-icon:hover {
+  transform: translateY(-3px) scale(1.1);
+  filter: brightness(1.15);
+}
+
+.social-icon--facebook {
+  background: #1877F2;
+}
+
+.social-icon--instagram {
+  background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%);
+}
+
+.social-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: #ffffff;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 991.98px) {
+  .footer-top {
+    padding: 40px 0 28px;
+  }
+
+  .footer-heading {
+    margin-top: 24px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .footer-copyright {
+    font-size: 0.73rem;
+    margin: 8px 0;
+  }
+
+  .social-icons {
+    justify-content: center;
+    margin-top: 10px;
+  }
+
+  .footer-bottom .d-flex {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+  }
+
+  .footer-bottom-logo {
+    display: none;
+  }
+}
