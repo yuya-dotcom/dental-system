@@ -1,0 +1,40 @@
+.topbar {
+    height: 60px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 30;
+}
+.topbar-brand img {
+    height: 34px;
+    display: block;
+    -webkit-user-drag: none;
+}
+.topbar-brand a{
+    display: block;
+    background-image: url('../images/portal-login-background.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: left center;
+}
+.topbar-back {
+    font-size: .84rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .4rem .75rem;
+    border-radius: 8px;
+    transition: color .2s, background .2s;
+}
+.topbar-back:hover { 
+    color: var(--blue); 
+    background: var(--blue-light); 
+}

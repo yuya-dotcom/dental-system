@@ -1,0 +1,69 @@
+/* ─────────────────────────────────────
+   Patient Record — Custom Styles
+   ───────────────────────────────────── */
+
+/* Header avatar */
+.patient-avatar-circle {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: var(--bs-primary);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; font-weight: 700;
+}
+
+/* Tab bar */
+.patient-tabs .nav-link {
+    font-size: .8rem;
+    font-weight: 600;
+    padding: .5rem .9rem;
+    color: var(--bs-secondary);
+    border-bottom: 2px solid transparent;
+    border-top: none; border-left: none; border-right: none;
+}
+.patient-tabs .nav-link.active {
+    color: var(--bs-primary);
+    border-bottom-color: var(--bs-primary);
+    background: transparent;
+}
+.patient-tabs .nav-link:hover:not(.active) {
+    color: var(--bs-primary);
+    background: transparent;
+}
+
+/* Dental chart */
+.dental-chart-wrap {
+    overflow-x: auto;
+    padding: .5rem 0;
+}
+.tooth-btn {
+    width: 30px; height: 30px;
+    border-radius: 4px;
+    border: 1.5px solid #ced4da;
+    background: #fff;
+    font-size: 9px; font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+    color: #555;
+    padding: 0;
+}
+.tooth-btn:hover      { border-color: var(--bs-primary); color: var(--bs-primary); background: #e8f0fe; }
+.tooth-active         { border-color: #dc3545 !important; background: #fff3f3 !important; color: #dc3545 !important; }
+.tooth-done           { border-color: #198754 !important; background: #f0fff4 !important; color: #198754 !important; }
+.tooth-divider        { width: 1px; background: #dee2e6; align-self: stretch; }
+.dental-midline       { height: 1px; background: #dee2e6; margin: 0 auto; width: 80%; }
+
+/* Tooth legend dots */
+.tooth-legend         { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+.tooth-active-legend  { background: #fff3f3; border: 1.5px solid #dc3545; }
+.tooth-done-legend    { background: #f0fff4; border: 1.5px solid #198754; }
+.tooth-normal-legend  { background: #fff;    border: 1.5px solid #ced4da; }
+
+/* Clinical notes list */
+.note-list-item       { transition: background .1s; cursor: pointer; }
+.note-list-item:hover { background: rgba(var(--bs-primary-rgb), .05); }
+.note-active          { background: rgba(var(--bs-primary-rgb), .08) !important; border-left: 3px solid var(--bs-primary); }
+
+/* Cursor */
+.cursor-pointer { cursor: pointer; }

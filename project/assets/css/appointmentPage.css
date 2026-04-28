@@ -1,0 +1,195 @@
+:root {
+  --default-font: "Roboto",  system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --heading-font: "Poppins",  sans-serif;
+  --nav-font: "Poppins",  sans-serif;
+}
+:root { 
+  --default-color: #444444; /* Default color used for the majority of the text content across the entire website */
+  --heading-color: #124265; /* Color for headings, subheadings and title throughout the website */
+  --accent-color: #2487ce; /* Accent color that represents your brand on the website. It's used for buttons, links, and other elements that need to stand out */
+  --surface-color: #ffffff; /* The surface color is used as a background of boxed elements within sections, such as cards, icon boxes, or other elements that require a visual separation from the global background. */
+  --contrast-color: #ffffff; /* Contrast color for text, ensuring readability against backgrounds of accent, heading, or default colors. */
+}
+:root {
+  scroll-behavior: smooth;
+}
+html, body {
+  color: var(--default-color);
+  background-color: var(--background-color);
+  font-family: var(--default-font);
+}
+h1, h2, h3, h4, h5, h6 {
+  color: var(--accent-color);
+  font-family: var(--heading-font);
+}
+
+a{
+    text-decoration: none;
+}
+.hero {
+    height: 55vh;
+    background: url("../images/hero-background.png") no-repeat center center/cover;
+    display: flex;
+    align-items: center;
+    padding: 0 80px;
+    position: relative;
+}
+
+/* Optional: overlay for readability */
+.hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.04); /* dark overlay */
+}
+
+.hero-content {
+    position: relative;
+    color: white;
+    max-width: 600px;
+}
+.hero h1 {
+    font-size: 40zpx;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+.btn-primary {
+    display: inline-block;
+    background: #2c7be5;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.btn-primary:hover {
+    background: #1a5edb;
+}
+
+.contact {
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+/* Why choose us? */
+.icon-box {
+    background: #fff;
+    padding: 3.5rem 2.2rem 1rem 2rem;
+    box-shadow: 0px 0 18px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.icon-box:hover {
+    transform: scale(1.05);
+}
+
+/* About Us */
+.about-us {
+    padding: 2rem 2rem 5rem 5rem;
+}
+
+.about-us-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    background-color: #fff;
+    overflow: hidden;
+    box-shadow: 0px 0 18px rgba(0, 0, 0, 0.15);
+}
+.about-img {
+    width: 100%;
+    height: 100%;
+
+    position: relative;
+    background-image: url('../images/dental-chair.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+
+    min-height: 400px;
+}
+
+/* Services */
+.services {
+    background-color: #daf2f7;
+}
+.service-box {
+    background: #fff;
+    padding: 2.5rem 2.2rem 1rem 2rem;
+    box-shadow: 0px 0 18px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.service-box:hover {
+    transform: scale(1.05);
+}
+
+/* How it Works */
+.how-it-works h2 {
+    color: #0d6efd; /* Use Bootstrap's primary blue for the title */
+}
+
+/* --- Individual Step Item Styling --- */
+.step-item {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: default;
+    position: relative; /* Essential for placing arrows */
+}
+
+.step-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1) !important; /* Bootstrap uses an important rule on its shadow, so we use it too on hover */
+}
+
+/* --- Icon Wrapper Specifics --- */
+.step-icon-wrapper {
+    width: 80px;
+    height: 80px;
+    font-size: 30px; /* Base size for icons inside, Font Awesome handles actual size with fa-2x */
+}
+
+/* --- Testimonials Section Styling --- */
+
+/* Basic background color for section contrast */
+.testimonials {
+    background-color: #f8f9fa; /* Bootstrap's 'bg-light' color for consistency */
+}
+
+/* --- Individual Testimonial Card Styling --- */
+.testimonial-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: default;
+    background: #fff;
+    display: flex; /* Ensures card content can use Flexbox */
+    flex-direction: column; /* Content stacks vertically within the card */
+}
+
+.testimonial-card:hover {
+    transform: translateY(-5px); /* Lift card on hover */
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.1) !important; /* Larger shadow on hover, 'important' to override Bootstrap's shadow-sm */
+}
+
+/* Ensure the card body content takes full height to align patient info to the bottom */
+.testimonial-card .card-body {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Ensure the testimonial text area expands to fill space */
+.testimonial-card .card-text {
+    flex-grow: 1; /* Pushes the patient info to the bottom */
+}
+
+/* --- Rating Stars --- */
+.rating i {
+    font-size: 1.1rem; /* Adjust star size */
+}
+
+/* --- Patient Avatar --- */
+.testimonial-card img {
+    border: 3px solid #e3f2fd; /* Soft blue border around the avatar */
+    object-fit: cover; /* Ensures the image doesn't stretch and fills the circle */
+}
+
+.fs-7 {
+    font-size: 0.85rem;
+}
