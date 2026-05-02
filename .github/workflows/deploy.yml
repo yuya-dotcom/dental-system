@@ -18,4 +18,4 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./project/
-          server-dir: /htdocs/essenciasmile.online/htdocs/
+          server-dir: /essenciasmile.online/htdocs/
