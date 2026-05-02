@@ -37,20 +37,7 @@
     <!-- ============================================================ -->
     <!-- Navbar                                                       -->
     <!-- ============================================================ -->
-    <nav class="navbar d-flex align-items-center sticky-top shadow bg-white p-4">
-        <div class="flex-shrink-0 ms-5">
-            <a href="appointmentWeb-Landing.php">
-                <img src="assets/images/Essencia-full@3x.png" alt="EssenciaSmile Logo">
-            </a>
-        </div>
-        <div class="d-flex flex-grow-1 ms-3 justify-content-end align-items-center">
-            <a href="#hero"         class="fs-6 fw-normal px-2">Home</a>
-            <a href="#about"        class="fs-6 fw-normal px-2">About</a>
-            <a href="#services"     class="fs-6 fw-normal px-2">Services</a>
-            <a href="#contact"      class="fs-6 fw-normal px-2 me-4">Contacts</a>
-            <a href="portal-login.php" class="btn btn-primary me-5" role="button">Create Account Now</a>
-        </div>
-    </nav>
+    <?php include("partials/appointmentWeb-Navbar.php")?>
 
     <!-- ============================================================ -->
     <!-- Hero                                                          -->
@@ -236,7 +223,7 @@
                 <!-- ── STEP 1 (NEW) — Create an Account ── -->
                 <div class="col-sm-6 col-md-4 col-lg step-item-wrapper">
                     <div class="step-item step-new card h-100 text-center border-0 p-4 shadow-sm position-relative">
-                        <div class="step-icon-wrapper rounded-circle mx-auto mb-4 d-flex align-items-center justify-content-center">
+                        <div class="step-icon-wrapper rounded-circle mx-auto mb-4 text-primary d-flex align-items-center justify-content-center">
                             <i class="fas fa-user-plus fa-2x"></i>
                         </div>
                         <div class="card-body">
@@ -329,7 +316,7 @@
                                 My procedures were painless, and the results are incredible. I can finally smile with confidence again!"
                             </p>
                             <div class="d-flex align-items-center mt-auto">
-                                <img src="../project/assets/images/carl.png" alt="Patient Avatar" class="rounded-circle me-3" width="60" height="60">
+                                <img src="assets/images/carl.png" alt="Patient Avatar" class="rounded-circle me-3" width="60" height="60">
                                 <div>
                                     <h6 class="card-title fw-semibold text-dark mb-0">John Carl Mendoza</h6>
                                     <p class="card-text text-muted mb-0 fs-7">Preventive Care Patient</p>
@@ -351,7 +338,7 @@
                                 They worked with me on a personalized plan that fit my busy schedule perfectly. Highly recommended!"
                             </p>
                             <div class="d-flex align-items-center mt-auto">
-                                <img src="../project/assets/images/chelo.png" alt="Patient Avatar" class="rounded-circle me-3" width="60" height="60">
+                                <img src="assets/images/chelo.png" alt="Patient Avatar" class="rounded-circle me-3" width="60" height="60">
                                 <div>
                                     <h6 class="card-title fw-semibold text-dark mb-0">Chelo Jane Delos Reyes</h6>
                                     <p class="card-text text-muted mb-0 fs-7">Cosmetic Dentistry Patient</p>
@@ -374,7 +361,7 @@
                                 and the reception team is wonderful. It was the most stress-free dental visit I've ever had."
                             </p>
                             <div class="d-flex align-items-center mt-auto">
-                                <img src="../project/assets/images/ledona.png" alt="Patient Avatar" class="rounded-circle me-3" width="60" height="60">
+                                <img src="assets/images/ledona.png" alt="Patient Avatar" class="rounded-circle me-3" width="60" height="60">
                                 <div>
                                     <h6 class="card-title fw-semibold text-dark mb-0">Marie Erica Ledona</h6>
                                     <p class="card-text text-muted mb-0 fs-7">Routine Cleaning Patient</p>
