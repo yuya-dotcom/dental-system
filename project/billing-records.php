@@ -98,7 +98,7 @@ $baseUrl = 'billing-records.php?branch=' . $filterBranch . '&payment=' . urlenco
                             </div>
 
                             <div class="card-body custom-card-action p-0">
-                                <div class="table-responsive">
+                                <div class="table-responsive" style="overflow:visible;">
                                     <table class="table table-hover mb-0">
                                         <thead>
                                             <tr>
@@ -143,7 +143,7 @@ $baseUrl = 'billing-records.php?branch=' . $filterBranch . '&payment=' . urlenco
                                                         </td>
                                                         <td class="text-end">
                                                             <div class="dropdown">
-                                                                <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown">
+                                                                <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed">
                                                                     <i class="feather-more-vertical"></i>
                                                                 </a>
                                                                 <div class="dropdown-menu dropdown-menu-end action-dropdown">

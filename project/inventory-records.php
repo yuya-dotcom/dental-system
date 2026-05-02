@@ -104,7 +104,7 @@ $baseUrl = 'inventory-records.php?branch=' . $filterBranch . '&category=' . urle
                             </div></div>
                         </div>
                         <div class="card-body custom-card-action p-0">
-                            <div class="table-responsive">
+                            <div class="table-responsive" style="overflow:visible;">
                                 <table class="table table-hover mb-0">
                                     <thead><tr>
                                         <th>Item Code</th><th>Item Name</th><th>Category</th>
@@ -137,7 +137,7 @@ $baseUrl = 'inventory-records.php?branch=' . $filterBranch . '&category=' . urle
                                             </td>
                                             <td class="text-end">
                                                 <div class="dropdown">
-                                                    <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown"><i class="feather-more-vertical"></i></a>
+                                                    <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed"><i class="feather-more-vertical"></i></a>
                                                     <div class="dropdown-menu dropdown-menu-end action-dropdown">
                                                         <a href="javascript:void(0);" class="dropdown-item"
                                                            onclick='viewItem(<?= json_encode([

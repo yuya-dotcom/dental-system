@@ -106,7 +106,7 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                             </div>
 
                             <div class="card-body custom-card-action p-0">
-                                <div class="table-responsive">
+                                <div class="table-responsive" style="overflow:visible;">
                                     <table class="table table-hover mb-0">
                                         <thead>
                                             <tr>
@@ -158,7 +158,7 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                                                 <td class="text-end">
                                                     <div class="dropdown">
                                                         <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto"
-                                                           data-bs-toggle="dropdown">
+                                                           data-bs-toggle="dropdown" data-bs-strategy="fixed">
                                                             <i class="feather-more-vertical"></i>
                                                         </a>
                                                         <div class="dropdown-menu dropdown-menu-end action-dropdown">

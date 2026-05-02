@@ -16,7 +16,7 @@
 // SUPABASE_KEY  = the password that proves your PHP is allowed in
 // ------------------------------------------------------------------
 define('SUPABASE_URL', 'https://fgltarvzzreozvtjiefy.supabase.co');
-define('SUPABASE_KEY', 'sb_publishable_pbeam841xV0bj3Bumg4Fcg_PFYyNMWm');
+define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnbHRhcnZ6enJlb3p2dGppZWZ5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTQzMjY1MiwiZXhwIjoyMDg3MDA4NjUyfQ.Yii_9qfL_-EVz-vAm50vRF-DB72vcHhK-UXCLRYe9pk');
 
 
 // ------------------------------------------------------------------

@@ -1,5 +1,5 @@
 <?php
-// portal/portal-login.php
+//portal-login.php
 session_start();
 if (isset($_SESSION['portal_account_id'])) {
     header("Location: portal-dashboard.php");
@@ -23,14 +23,7 @@ $API_PATH = 'api/portal_auth.php';
 <body>
 
 <!-- ── Top bar ───────────────────────────────────────────────────────── -->
-<header class="topbar">
-    <a class="topbar-brand" href="appointmentWeb-Landing.php">
-        <img src="assets/images/Essencia-full@3x.png" alt="EssenciaSmile">
-    </a>
-    <a class="topbar-back" href="appointmentWeb-Landing.php">
-        <i class="fa-solid fa-arrow-left"></i> Back to Home
-    </a>
-</header>
+<?php include("partials/portalLogin-navbar.php")?>
 
 <!-- ── Page body ─────────────────────────────────────────────────────── -->
 <div class="page-body">
@@ -49,10 +42,6 @@ $API_PATH = 'api/portal_auth.php';
 
         <!-- Headline block -->
         <div class="left-content">
-            <div class="left-eyebrow">
-                <div class="left-eyebrow-dot"></div>
-                Patient Portal
-            </div>
             <h2>Your dental&nbsp;health,<br>always within reach.</h2>
             <p>
                 Book appointments, track your treatment history, and manage your dental
@@ -73,10 +62,6 @@ $API_PATH = 'api/portal_auth.php';
             <div class="feat-row">
                 <div class="feat-icon"><i class="fa-solid fa-receipt"></i></div>
                 <span>View billing and payment history</span>
-            </div>
-            <div class="feat-row">
-                <div class="feat-icon"><i class="fa-solid fa-shield-halved"></i></div>
-                <span>Secure, HIPAA-compliant patient portal</span>
             </div>
         </div>
 
@@ -104,10 +89,6 @@ $API_PATH = 'api/portal_auth.php';
 
             <!-- Header -->
             <div class="auth-header">
-                <div class="portal-pill">
-                    <i class="fa-solid fa-circle-user"></i>
-                    Patient Portal
-                </div>
                 <h1 id="authHeading">Welcome back</h1>
                 <p id="authSub">Sign in to access your dental records and appointments.</p>
             </div>
@@ -156,7 +137,7 @@ $API_PATH = 'api/portal_auth.php';
 
                 <p class="foot-note">
                     Don't have an account?
-                    <button class="foot-link" onclick="switchTab('register')">Create one free</button>
+                    <button class="foot-link" onclick="switchTab('register')">Create an account</button>
                 </p>
 
             </div><!-- /loginPanel -->
@@ -166,7 +147,6 @@ $API_PATH = 'api/portal_auth.php';
 
                 <div id="registerAlert" class="alert-bar"></div>
 
-                <!-- Step 1 — registration fields -->
                 <div id="regStep1">
 
                     <div class="grid-2">
@@ -205,23 +185,49 @@ $API_PATH = 'api/portal_auth.php';
                         <div class="field-err" id="errRegBirth"></div>
                     </div>
 
-                    <div class="field">
-                        <label for="reg_contact">Contact Number <span class="req">*</span></label>
-                        <div class="phone-wrap">
-                            <span class="phone-prefix">+63</span>
-                            <input type="tel" id="reg_contact"
-                                   placeholder="9XX XXX XXXX" maxlength="10"
-                                   oninput="this.value=this.value.replace(/\D/g,'').substring(0,10)"
-                                   autocomplete="tel-national">
-                        </div>
-                        <div class="field-err" id="errRegContact"></div>
-                    </div>
-
+                    <!-- Email with inline Send OTP -->
                     <div class="field">
                         <label for="reg_email">Email Address <span class="req">*</span></label>
-                        <input type="email" id="reg_email"
-                               placeholder="you@email.com" autocomplete="email">
+                        <div class="email-otp-wrap">
+                            <input type="email" id="reg_email"
+                                   placeholder="you@email.com" autocomplete="email">
+                            <button class="btn-send-otp" type="button"
+                                    id="sendEmailOtpBtn" onclick="sendEmailOTP()">
+                                Send OTP
+                            </button>
+                        </div>
                         <div class="field-err" id="errRegEmail"></div>
+                    </div>
+
+                    <!-- Email OTP entry — hidden until OTP is sent -->
+                    <div id="emailOtpSection" class="field" style="display:none;">
+                        <label>Enter the 6-digit code sent to your email</label>
+                        <div class="otp-row" style="justify-content:flex-start; margin:.5rem 0 .4rem;">
+                            <input class="otp-box" maxlength="1" id="eotp1" inputmode="numeric"
+                                   oninput="otpNext(this,'eotp2')" onkeydown="otpBack(event,this,'')">
+                            <input class="otp-box" maxlength="1" id="eotp2" inputmode="numeric"
+                                   oninput="otpNext(this,'eotp3')" onkeydown="otpBack(event,this,'eotp1')">
+                            <input class="otp-box" maxlength="1" id="eotp3" inputmode="numeric"
+                                   oninput="otpNext(this,'eotp4')" onkeydown="otpBack(event,this,'eotp2')">
+                            <input class="otp-box" maxlength="1" id="eotp4" inputmode="numeric"
+                                   oninput="otpNext(this,'eotp5')" onkeydown="otpBack(event,this,'eotp3')">
+                            <input class="otp-box" maxlength="1" id="eotp5" inputmode="numeric"
+                                   oninput="otpNext(this,'eotp6')" onkeydown="otpBack(event,this,'eotp4')">
+                            <input class="otp-box" maxlength="1" id="eotp6" inputmode="numeric"
+                                   oninput="otpNext(this,'')"    onkeydown="otpBack(event,this,'eotp5')">
+                        </div>
+                        <div class="otp-err" id="emailOtpErr" style="text-align:left; margin-bottom:.4rem;"></div>
+                        <div style="display:flex; gap:.6rem; align-items:center;">
+                            <button class="btn-primary" type="button" id="verifyEmailBtn"
+                                    onclick="verifyEmailOTP()"
+                                    style="margin-top:0; flex:1; padding:.6rem 1rem;">
+                                <span class="btn-text">Verify Email</span>
+                            </button>
+                        </div>
+                        <div id="emailVerifiedBadge" style="display:none; color:var(--success);
+                             font-size:.82rem; font-weight:600; margin-top:.5rem;">
+                            <i class="fa-solid fa-circle-check"></i> Email verified
+                        </div>
                     </div>
 
                     <div class="field">
@@ -256,7 +262,7 @@ $API_PATH = 'api/portal_auth.php';
 
                     <button class="btn-primary" id="regBtn" onclick="submitRegistration()">
                         <span class="spinner" id="regSpinner"></span>
-                        <span class="btn-text" id="regBtnText">Create Account &amp; Send OTP</span>
+                        <span class="btn-text" id="regBtnText">Create Account</span>
                     </button>
 
                     <p class="foot-note">
@@ -266,44 +272,6 @@ $API_PATH = 'api/portal_auth.php';
 
                 </div><!-- /regStep1 -->
 
-                <!-- OTP verification step -->
-                <div id="otpPanel" class="otp-panel">
-
-                    <div class="otp-icon">
-                        <i class="fa-solid fa-mobile-screen-button"></i>
-                    </div>
-
-                    <p class="otp-hint">We sent a 6-digit OTP to your phone</p>
-                    <p class="otp-hint"><strong id="otpContactDisplay">+63 9XX XXX XXXX</strong></p>
-
-                    <div class="otp-row">
-                        <input class="otp-box" maxlength="1" id="otp1" inputmode="numeric"
-                               oninput="otpNext(this,'otp2')" onkeydown="otpBack(event,this,'')">
-                        <input class="otp-box" maxlength="1" id="otp2" inputmode="numeric"
-                               oninput="otpNext(this,'otp3')" onkeydown="otpBack(event,this,'otp1')">
-                        <input class="otp-box" maxlength="1" id="otp3" inputmode="numeric"
-                               oninput="otpNext(this,'otp4')" onkeydown="otpBack(event,this,'otp2')">
-                        <input class="otp-box" maxlength="1" id="otp4" inputmode="numeric"
-                               oninput="otpNext(this,'otp5')" onkeydown="otpBack(event,this,'otp3')">
-                        <input class="otp-box" maxlength="1" id="otp5" inputmode="numeric"
-                               oninput="otpNext(this,'otp6')" onkeydown="otpBack(event,this,'otp4')">
-                        <input class="otp-box" maxlength="1" id="otp6" inputmode="numeric"
-                               oninput="otpNext(this,'')"    onkeydown="otpBack(event,this,'otp5')">
-                    </div>
-
-                    <div class="otp-err" id="otpErr"></div>
-
-                    <button class="btn-primary" onclick="verifyOTP()">
-                        <span class="btn-text">Verify &amp; Activate Account</span>
-                    </button>
-
-                    <p class="foot-note" style="margin-top:.75rem;">
-                        Didn't receive it?
-                        <button class="foot-link" onclick="resendOTP()">Resend OTP</button>
-                    </p>
-
-                </div><!-- /otpPanel -->
-
             </div><!-- /registerPanel -->
 
         </div><!-- /auth-card -->
@@ -311,10 +279,30 @@ $API_PATH = 'api/portal_auth.php';
 
 </div><!-- /page-body -->
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 // ── API path ─────────────────────────────────────────────────────────
 const API = '<?= $API_PATH ?>';
+
+// ── Supabase client ──────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://fgltarvzzreozvtjiefy.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnbHRhcnZ6enJlb3p2dGppZWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0MzI2NTIsImV4cCI6MjA4NzAwODY1Mn0.zfXhzMfINiFhqH4O_JAtaWh0j5GPrHd-zLyviROZAao';
+
+// Supabase is initialized lazily — only when OTP is first needed
+let _supabase = null;
+function getSupabase() {
+    if (!_supabase) {
+        if (!window.supabase) {
+            throw new Error('Supabase SDK failed to load. Check your internet connection.');
+        }
+        _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    }
+    return _supabase;
+}
+
+// Email verification state
+let emailVerified = false;
 
 // ── Tab switch ───────────────────────────────────────────────────────
 function switchTab(tab) {
@@ -342,7 +330,7 @@ function togglePass(id, btn) {
 function clearErrors() {
     document.querySelectorAll('.field-err').forEach(e => { e.style.display = 'none'; e.textContent = ''; });
     document.querySelectorAll('.alert-bar').forEach(e => { e.style.display = 'none'; e.className = 'alert-bar'; });
-    const oe = document.getElementById('otpErr');
+    const oe = document.getElementById('emailOtpErr');
     if (oe) { oe.style.display = 'none'; oe.textContent = ''; }
 }
 function showErr(id, msg) {
@@ -367,6 +355,140 @@ function setLoading(btnId, spinnerId, textId, label, loading) {
     if (sp) sp.style.display = loading ? 'block' : 'none';
     if (tx) tx.textContent   = loading ? label : tx.dataset.orig || tx.textContent;
     if (loading && tx) tx.dataset.orig = tx.textContent;
+}
+
+// ── OTP box helpers (reused for email OTP boxes) ─────────────────────
+function otpNext(el, nextId) {
+    el.value = el.value.replace(/\D/g, '');
+    if (el.value && nextId) document.getElementById(nextId)?.focus();
+}
+function otpBack(e, el, prevId) {
+    if (e.key === 'Backspace' && !el.value && prevId) document.getElementById(prevId)?.focus();
+}
+
+// ── SEND EMAIL OTP ───────────────────────────────────────────────────
+async function sendEmailOTP() {
+    const email = document.getElementById('reg_email').value.trim();
+    const errEl = document.getElementById('errRegEmail');
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errEl.textContent = 'Enter a valid email address first.';
+        errEl.style.display = 'block';
+        return;
+    }
+    errEl.style.display = 'none';
+
+    const btn = document.getElementById('sendEmailOtpBtn');
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
+
+    // ── Check if email already exists BEFORE sending OTP ──
+    try {
+        const res  = await fetch(API, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ action: 'check_email', email }),
+        });
+        const data = await res.json();
+
+        if (data.exists) {
+            errEl.textContent  = 'You already have an account with this email. Try signing in.';
+            errEl.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Send OTP';
+            return;
+        }
+    } catch (e) {
+        // If check fails, still block — don't silently proceed
+        errEl.textContent  = 'Could not verify email. Please try again.';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Send OTP';
+        return;
+    }
+
+    // ── Email is free, now send OTP ──
+    btn.textContent = 'Sending…';
+
+    const { error } = await getSupabase().auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: true }
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Resend OTP';
+
+    if (error) {
+        errEl.textContent = 'Could not send OTP: ' + error.message;
+        errEl.style.display = 'block';
+        return;
+    }
+
+    document.getElementById('emailOtpSection').style.display = 'block';
+    document.getElementById('emailVerifiedBadge').style.display = 'none';
+    document.getElementById('verifyEmailBtn').style.display = '';
+    emailVerified = false;
+    document.getElementById('eotp1').focus();
+}
+
+// ── VERIFY EMAIL OTP ─────────────────────────────────────────────────
+async function verifyEmailOTP() {
+    const email = document.getElementById('reg_email').value.trim();
+    const token = ['eotp1','eotp2','eotp3','eotp4','eotp5','eotp6']
+                    .map(id => document.getElementById(id).value).join('');
+    const errEl = document.getElementById('emailOtpErr');
+
+    if (token.length < 6) {
+        errEl.textContent  = 'Please enter all 6 digits.';
+        errEl.style.display = 'block';
+        return;
+    }
+    errEl.style.display = 'none';
+
+    const verifyBtn = document.getElementById('verifyEmailBtn');
+    verifyBtn.disabled = true;
+
+    const { error } = await getSupabase().auth.verifyOtp({
+        email,
+        token,
+        type: 'signup'
+    });
+
+    verifyBtn.disabled = false;
+
+    if (error) {
+        errEl.textContent  = 'Invalid or expired code. Try again.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    // Mark as verified
+    emailVerified = true;
+    verifyBtn.style.display = 'none';
+    document.getElementById('sendEmailOtpBtn').disabled = true;
+    document.getElementById('reg_email').readOnly = true;
+
+
+    // Turn OTP boxes green and disable them
+    ['eotp1','eotp2','eotp3','eotp4','eotp5','eotp6'].forEach(id => {
+        const box = document.getElementById(id);
+        box.classList.add('verified');
+        box.disabled = true;
+        box.blur();
+    });
+
+    // Hide the old badge — SweetAlert replaces it
+    document.getElementById('emailVerifiedBadge').style.display = 'none';
+
+    Swal.fire({
+        icon: 'success',
+        title: 'Email Verified!',
+        text: 'Your email has been successfully verified. You can now complete your registration.',
+        confirmButtonColor: '#1a56db',
+        confirmButtonText: 'Continue',
+        timer: 3000,
+        timerProgressBar: true,
+    });
 }
 
 // ── LOGIN ────────────────────────────────────────────────────────────
@@ -408,6 +530,8 @@ async function doLogin() {
 
         if (data.success) {
             window.location.href = 'portal-dashboard.php';
+        } else if (data.code === 'EMAIL_NOT_VERIFIED') {
+            showAlert('loginAlert', 'Please verify your email before logging in.');
         } else {
             showAlert('loginAlert', data.message || 'Invalid credentials.');
         }
@@ -427,19 +551,18 @@ async function submitRegistration() {
     const firstName = document.getElementById('reg_firstName').value.trim();
     const lastName  = document.getElementById('reg_lastName').value.trim();
     const birthdate = document.getElementById('reg_birthdate').value;
-    const contact   = document.getElementById('reg_contact').value.trim();
     const email     = document.getElementById('reg_email').value.trim();
     const password  = document.getElementById('reg_password').value;
     const confirm   = document.getElementById('reg_confirm').value;
 
     let ok = true;
-    if (!firstName)                                                      { showErr('errRegFirst',   'First name is required.');          ok = false; }
-    if (!lastName)                                                       { showErr('errRegLast',    'Last name is required.');           ok = false; }
-    if (!birthdate)                                                      { showErr('errRegBirth',   'Birthdate is required.');           ok = false; }
-    if (contact.length < 10)                                             { showErr('errRegContact', 'Enter a valid 10-digit number.');  ok = false; }
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))            { showErr('errRegEmail',   'Enter a valid email address.');    ok = false; }
-    if (password.length < 8)                                             { showErr('errRegPass',    'Password must be 8+ characters.'); ok = false; }
-    if (password !== confirm)                                            { showErr('errRegConfirm', 'Passwords do not match.');         ok = false; }
+    if (!firstName)                                           { showErr('errRegFirst',   'First name is required.');          ok = false; }
+    if (!lastName)                                            { showErr('errRegLast',    'Last name is required.');           ok = false; }
+    if (!birthdate)                                           { showErr('errRegBirth',   'Birthdate is required.');           ok = false; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('errRegEmail',   'Enter a valid email address.');    ok = false; }
+    if (!emailVerified)                                       { showErr('errRegEmail',   'Please verify your email first.'); ok = false; }
+    if (password.length < 8)                                  { showErr('errRegPass',    'Password must be 8+ characters.'); ok = false; }
+    if (password !== confirm)                                 { showErr('errRegConfirm', 'Passwords do not match.');         ok = false; }
     if (!ok) return;
 
     setLoading('regBtn', 'regSpinner', 'regBtnText', 'Creating account…', true);
@@ -449,13 +572,12 @@ async function submitRegistration() {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({
-                action:         'register',
-                first_name:     firstName,
-                last_name:      lastName,
-                middle_name:    document.getElementById('reg_middleName').value.trim(),
-                suffix:         document.getElementById('reg_suffix').value,
+                action:      'register',
+                first_name:  firstName,
+                last_name:   lastName,
+                middle_name: document.getElementById('reg_middleName').value.trim(),
+                suffix:      document.getElementById('reg_suffix').value,
                 birthdate,
-                contact_number: '+63' + contact,
                 email,
                 password,
             }),
@@ -478,87 +600,25 @@ async function submitRegistration() {
         }
 
         if (data.success) {
-            document.getElementById('otpContactDisplay').textContent = '+63 ' + contact;
-            document.getElementById('regStep1').style.display = 'none';
-            document.getElementById('otpPanel').style.display = 'block';
+            Swal.fire({
+                icon: 'success',
+                title: 'Account Created!',
+                text: 'Your account is now active. You can sign in.',
+                confirmButtonColor: '#1a56db',
+            }).then(() => switchTab('login'));
         } else {
-            showAlert('registerAlert', data.message || 'Registration failed. Please try again.');
-        }
+            if (data.message === 'An account with this email already exists.') {
+        showErr('errRegEmail', 'You already have an account with this email. Try signing in.');
+    } else {
+        showAlert('registerAlert', data.message || 'Registration failed. Please try again.');
+    }
+}
     } catch (err) {
         console.error('Register fetch error:', err);
         showAlert('registerAlert', 'Could not reach the server. Make sure XAMPP is running and the API path is correct: ' + API);
     } finally {
         setLoading('regBtn', 'regSpinner', 'regBtnText', '', false);
-        document.getElementById('regBtnText').textContent = 'Create Account & Send OTP';
-    }
-}
-
-// ── OTP helpers ──────────────────────────────────────────────────────
-function otpNext(el, nextId) {
-    el.value = el.value.replace(/\D/g, '');
-    if (el.value && nextId) document.getElementById(nextId)?.focus();
-}
-function otpBack(e, el, prevId) {
-    if (e.key === 'Backspace' && !el.value && prevId) document.getElementById(prevId)?.focus();
-}
-function getOTP() {
-    return ['otp1','otp2','otp3','otp4','otp5','otp6']
-        .map(id => document.getElementById(id).value).join('');
-}
-
-async function verifyOTP() {
-    const otp = getOTP();
-    const otpErr = document.getElementById('otpErr');
-    if (otp.length < 6) {
-        otpErr.textContent = 'Please enter all 6 digits.';
-        otpErr.style.display = 'block';
-        return;
-    }
-    otpErr.style.display = 'none';
-
-    try {
-        const res  = await fetch(API, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({
-                action: 'verify_otp',
-                otp,
-                email: document.getElementById('reg_email').value.trim(),
-            }),
-        });
-        const data = await res.json();
-        if (data.success) {
-            Swal.fire({
-                icon: 'success',
-                title: 'Account Verified!',
-                text: 'Your account is now active. You can now sign in.',
-                confirmButtonColor: '#1a56db',
-            }).then(() => switchTab('login'));
-        } else {
-            otpErr.textContent   = data.message || 'Incorrect OTP. Please try again.';
-            otpErr.style.display = 'block';
-        }
-    } catch (err) {
-        otpErr.textContent   = 'Connection error. Please check your internet.';
-        otpErr.style.display = 'block';
-    }
-}
-
-async function resendOTP() {
-    const email = document.getElementById('reg_email').value.trim();
-    try {
-        await fetch(API, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ action: 'resend_otp', email }),
-        });
-        Swal.fire({
-            icon: 'info', title: 'OTP Sent',
-            text: 'A new 6-digit code has been sent to your phone.',
-            confirmButtonColor: '#1a56db', timer: 2800, showConfirmButton: false,
-        });
-    } catch (err) {
-        console.error('Resend OTP error:', err);
+        document.getElementById('regBtnText').textContent = 'Create Account';
     }
 }
 

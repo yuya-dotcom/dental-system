@@ -79,7 +79,7 @@ $baseUrl      = 'dentist-records.php?branch=' . $filterBranch . '&status=' . url
                             </div></div>
                         </div>
                         <div class="card-body custom-card-action p-0">
-                            <div class="table-responsive">
+                            <div class="table-responsive" style="overflow:visible;">
                                 <table class="table table-hover mb-0">
                                     <thead><tr>
                                         <th>#</th><th>Full Name</th><th>Specialization</th>
@@ -105,7 +105,7 @@ $baseUrl      = 'dentist-records.php?branch=' . $filterBranch . '&status=' . url
                                             <td><span class="badge <?= dentStatusBadge($d['status']) ?>"><?= dentStatusLabel($d['status']) ?></span></td>
                                             <td class="text-end">
                                                 <div class="dropdown">
-                                                    <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown"><i class="feather-more-vertical"></i></a>
+                                                    <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed"><i class="feather-more-vertical"></i></a>
                                                     <div class="dropdown-menu dropdown-menu-end action-dropdown">
                                                         <a href="javascript:void(0);" class="dropdown-item"
                                                            onclick='viewDentist(<?= json_encode(["dentist_id"=>$d["dentist_id"],"full_name"=>$d["full_name"]??"","specialization"=>$d["specialization"]??"","contact_number"=>$d["contact_number"]??"","branch_name"=>$d["branches"]["branch_name"]??"","status"=>$d["status"]??""],JSON_HEX_QUOT|JSON_HEX_TAG) ?>)'>

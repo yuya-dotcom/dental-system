@@ -99,7 +99,7 @@ function roleBadge(string $role): string {
                             </div></div>
                         </div>
                         <div class="card-body custom-card-action p-0">
-                            <div class="table-responsive">
+                            <div class="table-responsive" style="overflow:visible;">
                                 <table class="table table-hover mb-0">
                                     <thead><tr>
                                         <th>User Code</th><th>Full Name</th><th>Username</th>
@@ -128,7 +128,7 @@ function roleBadge(string $role): string {
                                             <td><span class="badge <?= ($u['status']??'active')==='active' ? 'bg-soft-success text-success' : 'bg-soft-danger text-danger' ?>"><?= ucfirst($u['status'] ?? 'active') ?></span></td>
                                             <td class="text-end">
                                                 <div class="dropdown">
-                                                    <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown"><i class="feather-more-vertical"></i></a>
+                                                    <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed"><i class="feather-more-vertical"></i></a>
                                                     <div class="dropdown-menu dropdown-menu-end action-dropdown">
                                                         <a href="javascript:void(0);" class="dropdown-item"
                                                            onclick='openEditUserModal(<?= json_encode(["user_id"=>$u["user_id"],"full_name"=>$u["full_name"]??"","email"=>$u["email"]??"","username"=>$u["username"]??"","role"=>$u["role"]??"","branch_id"=>$u["branch_id"]??"","status"=>$u["status"]??"active"],JSON_HEX_QUOT|JSON_HEX_TAG) ?>)'>

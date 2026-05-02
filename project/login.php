@@ -31,7 +31,7 @@ if (!headers_sent()) {
 
 // ── Already logged in ─────────────────────────────────────────
 if (!empty($_SESSION['logged_in'])) {
-    header('Location: dashboard.php');
+    header('Location: appointments-schedule.php');
     exit;
 }
 
@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Determine where to send the user
         $dest = match ($_SESSION['role']) {
-            'owner'   => 'dashboard.php',
+            'owner'   => 'appointments-schedule.php',
             'admin'   => 'appointments-schedule.php',
             'dentist' => 'appointments-schedule.php',
             default   => 'dashboard.php',

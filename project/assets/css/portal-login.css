@@ -15,7 +15,7 @@
     --bg:           #f3f6fb;
     --surface:      #ffffff;
     --danger:       #d93025;
-    --success:      #1e8a5f;
+    --success:      #178a5c;
     --radius:       10px;
     --radius-lg:    14px;
     --font-body:   'DM Sans', system-ui, sans-serif;
@@ -83,7 +83,7 @@ body {
     flex-shrink: 0;
     position: relative;
     overflow: hidden;
-    background-image: url('assets/images/background.png');
+    background-image: url('../images/portal-login-background.png');
     background-size: cover;
     background-position: center center;
     background-repeat: no-repeat;
@@ -459,18 +459,6 @@ body {
 /* ══════════════════════════════════════════════════════════════════════
    OTP PANEL
    ══════════════════════════════════════════════════════════════════════ */
-.otp-panel { display: none; }
-.otp-icon {
-    width: 58px; height: 58px;
-    border-radius: 14px;
-    background: var(--blue-light);
-    display: flex; align-items: center; justify-content: center;
-    margin: 0 auto 1.1rem;
-    font-size: 1.45rem;
-    color: var(--blue);
-}
-.otp-hint { text-align: center; color: var(--muted); font-size: .875rem; line-height: 1.55; margin-bottom: .25rem; }
-.otp-hint strong { color: var(--slate); font-weight: 600; }
 .otp-row { display: flex; gap: .5rem; justify-content: center; margin: 1.4rem 0 1.1rem; }
 .otp-box {
     width: 50px; height: 56px;
@@ -489,8 +477,50 @@ body {
 .otp-box::-webkit-inner-spin-button { display: none; }
 .otp-box:focus { border-color: var(--blue); box-shadow: 0 0 0 3.5px rgba(26,86,219,.1); background: #fdfdff; }
 .otp-box:not(:placeholder-shown):not(:focus) { background: #f5f8ff; border-color: var(--border-focus); }
-.otp-err { text-align: center; font-size: .82rem; color: var(--danger); margin-bottom: .75rem; display: none; }
+.otp-err { text-align: center; font-size: .82rem; color: var(--danger); margin-bottom: .75rem; display: none; 
+}
 
+/* ══════════════════════════════════════════════════════════════════════
+   EMAIL OTP INLINE  — append to the bottom of portal-login.css
+   ══════════════════════════════════════════════════════════════════════ */
+.email-otp-wrap {
+    display: flex;
+    gap: .5rem;
+    align-items: stretch;
+}
+.email-otp-wrap input {
+    flex: 1;
+}
+.btn-send-otp {
+    padding: .66rem 1rem;
+    background: var(--blue-light);
+    color: var(--blue);
+    border: 1.5px solid var(--border-focus);
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: .82rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .18s, color .18s;
+    flex-shrink: 0;
+}
+.btn-send-otp:hover   { background: var(--blue); color: #fff; }
+.btn-send-otp:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ── Verified OTP boxes ─────────────────────────────────────────────── */
+.otp-box.verified,
+.otp-box.verified:focus,
+.otp-box.verified:not(:placeholder-shown):not(:focus) {
+    border: 2px solid #96ffd5 !important;
+    background: #f0fdf4 !important;
+    color: var(--success) !important;
+    box-shadow: 0 0 0 3.5px rgba(54, 255, 104, 0.26) !important;
+    cursor: not-allowed;
+    outline: none !important;
+    -webkit-appearance: none;
+    opacity: 1; 
+}
 /* ══════════════════════════════════════════════════════════════════════
    RESPONSIVE
    ══════════════════════════════════════════════════════════════════════ */
@@ -511,3 +541,24 @@ body {
     .otp-row { gap: .35rem; }
     .auth-header h1 { font-size: 1.6rem; }
 }
+/* ── Smooth scroll & custom scrollbar ── */
+html {
+    scroll-behavior: smooth;
+}
+
+::-webkit-scrollbar      {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.right-panel::-webkit-scrollbar { width: 4px; }
+.right-panel::-webkit-scrollbar-thumb { background: #dde3ed; border-radius: 99px; }
