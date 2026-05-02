@@ -1,4 +1,4 @@
 <?php
-header('Location: portal-login.php');
+header('Location: appointmentWeb-Landing.php');
 exit();
 ?>
