@@ -1,4 +1,4 @@
 <?php
-header('Location: login.php');
+header('Location: portal-login.php');
 exit();
 ?>
