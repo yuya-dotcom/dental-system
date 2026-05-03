@@ -1,6 +1,6 @@
 // =============================================================
 //  EssenciaSmile – fullCalendar.js
-//  File: project/assets/js/fullCalendar.js
+//  File: assets/js/fullCalendar.js
 // =============================================================
 
 document.addEventListener('DOMContentLoaded', function () {
