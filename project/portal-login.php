@@ -67,22 +67,6 @@ $API_PATH = 'api/portal_auth.php';
             </div>
         </div>
 
-        <!-- Stats footer -->
-        <div class="left-footer">
-            <div class="stat-col">
-                <span class="stat-num">12k+</span>
-                <span class="stat-label">Patients</span>
-            </div>
-            <div class="stat-col">
-                <span class="stat-num">98%</span>
-                <span class="stat-label">Satisfaction</span>
-            </div>
-            <div class="stat-col">
-                <span class="stat-num">24/7</span>
-                <span class="stat-label">Access</span>
-            </div>
-        </div>
-
     </div><!-- /left-panel -->
 
     <!-- ── Right panel — auth form ───────────────────────────────────── -->

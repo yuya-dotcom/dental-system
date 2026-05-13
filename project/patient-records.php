@@ -1,5 +1,7 @@
 <?php
 
+// patient-records.php *This shows the patients specific record*
+
 define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';

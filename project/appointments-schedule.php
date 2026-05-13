@@ -43,7 +43,7 @@ function schStatusBadgeClass(string $s): string {
     return match ($s) {
         'pending'    => 'bg-soft-warning text-warning',
         'confirmed'  => 'bg-soft-success text-success',
-        'checked_in' => 'bg-soft-primary text-primary-emphasis',
+        'checked_in' => 'bg-soft-primary text-primary',
         'completed'  => 'bg-soft-info text-info',
         'cancelled'  => 'bg-soft-danger text-danger',
         default      => 'bg-soft-secondary text-secondary',

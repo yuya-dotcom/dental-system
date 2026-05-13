@@ -593,7 +593,7 @@ if ($action === 'cancel_appointment') {
         [],
         'appointment_id=eq.' . $apptId .
             '&patient_id=eq.'    . $patientId .
-            '&status=in.(pending,confirmed)' .
+            '&status=eq.pending' .
             '&select=appointment_id&limit=1'
     );
 

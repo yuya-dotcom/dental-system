@@ -1,5 +1,11 @@
-<!-- appointmentWeb-Scheduling.php -->
-
+<?php
+// Portal-only page — redirect guests to login
+session_start();
+if (!isset($_SESSION['portal_account_id'])) {
+    header("Location: portal-login.php");
+    exit;
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,6 +28,38 @@
   <link rel="stylesheet" href="assets/css/webSched.css">
   <link rel="stylesheet" href="assets/css/webNavbar.css">
   <link rel="stylesheet" href="assets/css/webFooter.css">
+
+  <style>
+    /* ── White modal header override ── */
+    #personalInfoModal .modal-header {
+      background: #fff !important;
+      border-bottom: 1px solid #eef0f4;
+    }
+    #personalInfoModal .modal-title {
+      color: #1e2a3b !important;
+    }
+    /* Chips: re-coloured for white background */
+    #personalInfoModal .modal-summary-chips {
+      margin-top: .6rem;
+    }
+    #personalInfoModal .modal-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      background: #eef3ff;
+      color: #1a56db;
+      border: 1px solid #c5d6fa;
+      border-radius: 99px;
+      font-size: .75rem;
+      font-weight: 700;
+      padding: .28rem .8rem;
+    }
+    #personalInfoModal .modal-chip svg path,
+    #personalInfoModal .modal-chip svg rect,
+    #personalInfoModal .modal-chip svg circle {
+      stroke: #1a56db !important;
+    }
+  </style>
 </head>
 <body>
 
@@ -88,8 +126,8 @@
           <li>
             <span class="step-num">4</span>
             <div>
-              <h5>Fill Out the Form</h5>
-              <p>Quick patient info for your records.</p>
+              <h5>Confirm Booking</h5>
+              <p>Review and submit your appointment.</p>
             </div>
           </li>
         </ul>
@@ -152,30 +190,32 @@
 
 
 <!-- ═══════════════════════════════════════════════
-     BOOKING MODAL  (Bootstrap)
+     BOOKING MODAL
+     — white header, no personal info fields
+     — portal session provides name/birthdate
 ═══════════════════════════════════════════════ -->
 <div class="modal fade" id="personalInfoModal" tabindex="-1" aria-labelledby="personalInfoModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
 
-      <!-- Header -->
+      <!-- Header (white) -->
       <div class="modal-header">
         <div>
           <h5 class="modal-title" id="personalInfoModalLabel">Complete Your Booking</h5>
-          <p class="text-muted small mb-0 mt-1">Fill in your details to confirm the appointment.</p>
+          <p class="text-muted small mb-0 mt-1">Review your selection and confirm.</p>
 
-          <!-- Summary chips in header -->
+          <!-- Summary chips -->
           <div class="modal-summary-chips">
             <span class="modal-chip">
-              <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><rect x="1" y="2" width="10" height="9" rx="2" stroke="rgba(255,255,255,0.7)" stroke-width="1.2"/><path d="M4 1v2M8 1v2M1 5h10" stroke="rgba(255,255,255,0.7)" stroke-width="1.2" stroke-linecap="round"/></svg>
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><rect x="1" y="2" width="10" height="9" rx="2" stroke="currentColor" stroke-width="1.2"/><path d="M4 1v2M8 1v2M1 5h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
               <span id="modalSummaryDate">—</span>
             </span>
             <span class="modal-chip">
-              <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.5" stroke="rgba(255,255,255,0.7)" stroke-width="1.2"/><path d="M6 3.5V6l2 1.5" stroke="rgba(255,255,255,0.7)" stroke-width="1.2" stroke-linecap="round"/></svg>
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3.5V6l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
               <span id="modalSummaryTime">—</span>
             </span>
             <span class="modal-chip">
-              <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M6 1C4.3 1 3 2.4 3 4c0 2.5 3 7 3 7s3-4.5 3-7c0-1.6-1.3-3-3-3z" stroke="rgba(255,255,255,0.7)" stroke-width="1.2" fill="none"/></svg>
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M6 1C4.3 1 3 2.4 3 4c0 2.5 3 7 3 7s3-4.5 3-7c0-1.6-1.3-3-3-3z" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
               <span id="modalSummaryBranch">—</span>
             </span>
           </div>
@@ -189,66 +229,29 @@
         <div id="modalError" class="alert alert-danger small py-2 px-3 mb-3" style="display:none;border-radius:9px;"></div>
 
         <div class="row g-3">
-          <!-- Last Name + Suffix -->
-          <div class="col-8">
-            <label for="modal_lastName" class="form-label">Last Name <span class="text-danger">*</span></label>
-            <input type="text" id="modal_lastName" class="form-control" placeholder="e.g. Dela Cruz" autocomplete="family-name">
-            <div class="text-danger small mt-1" id="err_lastName"></div>
-          </div>
-          <div class="col-4">
-            <label for="modal_suffix" class="form-label">Suffix <span class="text-muted fw-normal" style="text-transform:none;letter-spacing:0">(opt.)</span></label>
-            <select id="modal_suffix" class="form-select">
-              <option value="">None</option>
-              <option value="Jr.">Jr.</option>
-              <option value="Sr.">Sr.</option>
-              <option value="II">II</option>
-              <option value="III">III</option>
-              <option value="IV">IV</option>
-            </select>
-          </div>
-
-          <!-- First + Middle Name -->
-          <div class="col-6">
-            <label for="modal_firstName" class="form-label">First Name <span class="text-danger">*</span></label>
-            <input type="text" id="modal_firstName" class="form-control" placeholder="e.g. Juan" autocomplete="given-name">
-            <div class="text-danger small mt-1" id="err_firstName"></div>
-          </div>
-          <div class="col-6">
-            <label for="modal_middleName" class="form-label">Middle Name <span class="text-muted fw-normal" style="text-transform:none;letter-spacing:0">(opt.)</span></label>
-            <input type="text" id="modal_middleName" class="form-control" placeholder="e.g. Santos" autocomplete="additional-name">
-          </div>
-
-          <!-- Birthdate -->
+          <!-- Service (optional) -->
           <div class="col-12">
-            <label for="modal_birthdate" class="form-label">Birthdate <span class="text-danger">*</span></label>
-            <input type="date" id="modal_birthdate" class="form-control">
-            <div class="text-danger small mt-1" id="err_birthdate"></div>
-          </div>
-
-          <!-- Service -->
-          <div class="col-12">
-            <label for="modal_service" class="form-label">Service <span class="text-muted fw-normal" style="text-transform:none;letter-spacing:0">(optional)</span></label>
+            <label for="modal_service" class="form-label">
+              Service
+              <span class="text-muted fw-normal" style="text-transform:none;letter-spacing:0;">(optional)</span>
+            </label>
             <select id="modal_service" class="form-select">
               <option value="">— Select a service —</option>
             </select>
           </div>
 
-          <!-- Contact Number -->
+          <!-- Notes (optional) -->
           <div class="col-12">
-            <label for="modal_contactNumber" class="form-label">Contact Number <span class="text-danger">*</span></label>
-            <div class="input-group">
-              <span class="input-group-text">+63</span>
-              <input type="tel" id="modal_contactNumber" class="form-control"
-                placeholder="9XX XXX XXXX" maxlength="10" autocomplete="tel"
-                oninput="this.value = this.value.replace(/\D/g,'').substring(0,10)">
-            </div>
-            <div class="text-danger small mt-1" id="err_contactNumber"></div>
+            <label for="modal_notes" class="form-label">
+              Notes
+              <span class="text-muted fw-normal" style="text-transform:none;letter-spacing:0;">(optional)</span>
+            </label>
+            <textarea id="modal_notes" class="form-control" rows="3"
+                      placeholder="Any concerns or requests for your dentist…"
+                      style="resize:none;border-radius:9px;"></textarea>
           </div>
         </div>
 
-        <p class="text-muted small mt-3 mb-0" style="font-size:0.75rem!important">
-          Your contact number identifies your record on future visits. No account needed.
-        </p>
       </div>
 
       <div class="modal-footer">
@@ -280,7 +283,6 @@ navToggler.addEventListener('click', () => {
   navMobileMenu.classList.toggle('is-open', open);
 });
 
-/* Close drawer when a link is tapped */
 navMobileMenu.querySelectorAll('a').forEach(a => {
   a.addEventListener('click', () => {
     navToggler.classList.remove('is-open');
@@ -536,18 +538,9 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('modalSummaryTime').textContent   = formatTime(time);
     document.getElementById('modalSummaryBranch').textContent = branchName;
 
-    ['lastName','suffix','firstName','middleName','birthdate','contactNumber'].forEach(id => {
-      const el = document.getElementById('modal_' + id);
-      if (el) { el.value = ''; el.classList.remove('is-invalid'); }
-      const err = document.getElementById('err_' + id);
-      if (err) err.textContent = '';
-    });
-
-    const serviceEl = document.getElementById('modal_service');
-    if (serviceEl) serviceEl.selectedIndex = 0;
-
-    const birthdateEl = document.getElementById('modal_birthdate');
-    if (birthdateEl) birthdateEl.max = new Date().toISOString().split('T')[0];
+    // Reset fields
+    document.getElementById('modal_service').selectedIndex = 0;
+    document.getElementById('modal_notes').value = '';
 
     const errBox = document.getElementById('modalError');
     if (errBox) { errBox.textContent = ''; errBox.style.display = 'none'; }
@@ -557,77 +550,41 @@ document.addEventListener('DOMContentLoaded', function () {
 
   /* ── Submit Modal ───────────────────────── */
   window.submitBookingModal = function () {
-    const lastName   = document.getElementById('modal_lastName').value.trim();
-    const suffix     = document.getElementById('modal_suffix').value.trim();
-    const firstName  = document.getElementById('modal_firstName').value.trim();
-    const middleName = document.getElementById('modal_middleName').value.trim();
-    const birthdate  = document.getElementById('modal_birthdate').value;
-    const phone      = document.getElementById('modal_contactNumber').value.trim();
+    const errBox  = document.getElementById('modalError');
+    const btn     = document.getElementById('modalConfirmBtn');
+    errBox.style.display = 'none';
 
-    ['lastName','firstName','birthdate','contactNumber'].forEach(id => {
-      const el = document.getElementById('modal_' + id);
-      if (el) el.classList.remove('is-invalid');
-      const err = document.getElementById('err_' + id);
-      if (err) err.textContent = '';
-    });
+    const serviceId = document.getElementById('modal_service').value
+                        ? parseInt(document.getElementById('modal_service').value)
+                        : null;
+    const notes     = document.getElementById('modal_notes').value.trim();
 
-    let valid = true;
-    if (lastName.length < 2) {
-      document.getElementById('modal_lastName').classList.add('is-invalid');
-      document.getElementById('err_lastName').textContent = 'Enter your last name.';
-      valid = false;
+    if (!selectedDate || !selectedTime || !selectedBranch) {
+      errBox.textContent   = 'Missing branch, date or time. Please go back and re-select.';
+      errBox.style.display = 'block';
+      return;
     }
-    if (firstName.length < 2) {
-      document.getElementById('modal_firstName').classList.add('is-invalid');
-      document.getElementById('err_firstName').textContent = 'Enter your first name.';
-      valid = false;
-    }
-    if (!birthdate) {
-      document.getElementById('modal_birthdate').classList.add('is-invalid');
-      document.getElementById('err_birthdate').textContent = 'Please enter your birthdate.';
-      valid = false;
-    } else {
-      const today = new Date(), bd = new Date(birthdate);
-      const age = today.getFullYear() - bd.getFullYear();
-      if (bd >= today || age > 120) {
-        document.getElementById('modal_birthdate').classList.add('is-invalid');
-        document.getElementById('err_birthdate').textContent = 'Please enter a valid birthdate.';
-        valid = false;
-      }
-    }
-    if (!/^9\d{9}$/.test(phone)) {
-      document.getElementById('modal_contactNumber').classList.add('is-invalid');
-      document.getElementById('err_contactNumber').textContent = 'Enter a valid PH number starting with 9 (10 digits).';
-      valid = false;
-    }
-    if (!valid) return;
 
-    const btn = document.getElementById('modalConfirmBtn');
     btn.disabled  = true;
     btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Confirming…`;
 
-    fetch('api/book_appointment.php', {
+    // ── Portal booking API — uses logged-in session, no personal fields needed
+    fetch('api/portal_book_appointment.php', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        first_name:     firstName,
-        middle_name:    middleName,
-        last_name:      lastName,
-        suffix:         suffix,
-        birthdate:      birthdate,
-        contact_number: '+63' + phone,
-        date:           selectedDate,
-        time:           selectedTime,
-        branch_id:      parseInt(document.getElementById('appBranchFilter').value),
-        service_id:     document.getElementById('modal_service').value
-                          ? parseInt(document.getElementById('modal_service').value)
-                          : null,
+        branch_id:  parseInt(selectedBranch),
+        date:       selectedDate,
+        time:       selectedTime,
+        service_id: serviceId,
+        notes:      notes,
       })
     })
     .then(r => r.json())
     .then(data => {
       if (data.success) {
         bootstrap.Modal.getInstance(document.getElementById('personalInfoModal')).hide();
+        // Refresh slots so the booked slot greys out
         loadTimeSlots(selectedDate, selectedBranch);
         const view = calendar.view;
         checkFullyBookedDays(
@@ -636,14 +593,12 @@ document.addEventListener('DOMContentLoaded', function () {
         );
         showSuccessToast(data.appointment_code);
       } else {
-        const errBox = document.getElementById('modalError');
-        errBox.textContent = data.message;
+        errBox.textContent   = data.message || 'Booking failed. Please try again.';
         errBox.style.display = 'block';
       }
     })
     .catch(() => {
-      const errBox = document.getElementById('modalError');
-      errBox.textContent = 'Something went wrong. Please try again.';
+      errBox.textContent   = 'Something went wrong. Please try again.';
       errBox.style.display = 'block';
     })
     .finally(() => {
@@ -666,12 +621,18 @@ document.addEventListener('DOMContentLoaded', function () {
   function showSuccessToast(code) {
     Swal.fire({
       icon:  'success',
-      title: 'Appointment Confirmed!',
+      title: 'Appointment Booked!',
       html:  `Booking reference: <strong>${code}</strong><br>
               <span class="text-muted small">We'll see you soon!</span>`,
-      confirmButtonText:  'Done',
+      confirmButtonText:  'View My Appointments',
       confirmButtonColor: '#0d6efd',
+      showCancelButton:   true,
+      cancelButtonText:   'Book Another',
       allowOutsideClick:  false,
+    }).then(result => {
+      if (result.isConfirmed) {
+        window.location.href = 'portal-dashboard.php';
+      }
     });
   }
 
