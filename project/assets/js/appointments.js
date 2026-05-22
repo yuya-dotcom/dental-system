@@ -108,7 +108,7 @@ function _loadInventoryDropdown(branchId) {
         .then(r => r.json())
         .then(items => {
             const sel = document.getElementById('cmpl_add_item');
-            sel.innerHTML = '<option value="">— Select Item —</option>';
+            sel.innerHTML = '<option value=""> Select Item </option>';
             (items || []).forEach(item => {
                 const opt = document.createElement('option');
                 opt.value              = item.item_id;
@@ -292,4 +292,356 @@ function confirmCompletion() {
         errBox.textContent   = err.message || 'An error occurred. Please try again.';
         errBox.style.display = 'block';
     });
+}
+
+
+// ── Add Appointment Modal — Mini Calendar ────────────────────
+// Design mirrors appointmentWeb-Scheduling.php (webSched.css).
+// Shares the same APIs: get_booked_days.php, get_timeslots.php
+// ─────────────────────────────────────────────────────────────
+(function () {
+    'use strict';
+
+    let _adminCal = null;   // active FullCalendar instance
+
+    // ── Destroy calendar when modal closes ───────────────────
+    const _modal = document.getElementById('appointmentModal');
+    if (_modal) {
+        _modal.addEventListener('hidden.bs.modal', _destroyAdminCal);
+    }
+
+    // ── Branch change → render calendar ─────────────────────
+// IN appointments.js — inside the IIFE, branch change listener
+const _branchSel = document.getElementById('apt_branch');
+if (_branchSel) {
+    _branchSel.addEventListener('change', function () {
+        const branchId = this.value;
+        _resetDateTime();
+
+        if (!branchId) {
+            _destroyAdminCal();
+            _showPlaceholder();
+            // Reset dentist on branch clear
+            const sel = document.getElementById('apt_dentist');
+            sel.innerHTML = '<option value=""> Select a branch first </option>';
+            sel.disabled  = true;
+            return;
+        }
+
+        _loadDentistsByBranch(branchId);   // ← ADD THIS LINE
+        _initAdminCal(branchId);
+    });
+}
+
+    // ── Build and render FullCalendar inside #adminCalendarWrap
+    function _initAdminCal(branchId) {
+        const wrap = document.getElementById('adminCalendarWrap');
+        if (!wrap) return;
+
+        _destroyAdminCal();
+
+        // Clean container — padding handled by inner FC styles
+        wrap.className    = 'rounded-3 border';
+        wrap.style.cssText = 'padding: 0.5rem 0.25rem;';
+        wrap.innerHTML    = '';
+
+        const calEl = document.createElement('div');
+        wrap.appendChild(calEl);
+
+        _adminCal = new FullCalendar.Calendar(calEl, {
+            initialView:         'dayGridMonth',
+            headerToolbar:       { left: 'prev', center: 'title', right: 'next' },
+            fixedWeekCount:      false,
+            showNonCurrentDates: false,
+            hiddenDays:          [0, 1],   // Sunday + Monday (clinic closed)
+            height:              'auto',
+            validRange: {
+                start: (() => {
+                    const t = new Date();
+                    t.setDate(t.getDate() + 1);
+                    return t.toISOString().split('T')[0];
+                })()
+            },
+
+            datesSet(info) {
+                _markFullyBooked(info.startStr, info.endStr, branchId, calEl);
+            },
+
+            dateClick(info) {
+                if (info.dayEl.classList.contains('fc-day-fully-booked')) return;
+
+                calEl.querySelectorAll('.fc-day-selected')
+                     .forEach(el => el.classList.remove('fc-day-selected'));
+                info.dayEl.classList.add('fc-day-selected');
+
+                document.getElementById('apt_date').value               = info.dateStr;
+                document.getElementById('apt_time').value               = '';
+                document.getElementById('aptDateTimeSummary').style.display = 'none';
+
+                _loadTimeSlots(info.dateStr, branchId);
+            }
+        });
+
+        _adminCal.render();
+    }
+
+    // ── Fetch & mark fully booked days ───────────────────────
+    function _markFullyBooked(startStr, endStr, branchId, calEl) {
+        fetch(`api/get_booked_days.php?start=${startStr}&end=${endStr}&branch=${branchId}`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.fully_booked) return;
+                data.fully_booked.forEach(dateStr => {
+                    const dayEl = calEl.querySelector(`[data-date="${dateStr}"]`);
+                    if (dayEl) {
+                        dayEl.classList.add('fc-day-fully-booked');
+                        dayEl.setAttribute('title', 'Fully booked');
+                    }
+                });
+            })
+            .catch(() => {});
+    }
+
+    // ── Fetch available slots for clicked date ───────────────
+    function _loadTimeSlots(dateStr, branchId) {
+        const wrap = document.getElementById('adminTimeSlots');
+        const grid = document.getElementById('adminTimeSlotsGrid');
+        wrap.style.display = '';
+        grid.innerHTML = `
+            <div class="slot-loading">
+                <div class="spinner-border spinner-border-sm text-primary"></div>
+                Loading available times…
+            </div>`;
+
+        fetch(`api/get_timeslots.php?date=${dateStr}&branch=${branchId}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                _renderSlots(dateStr, data.booked || []);
+            })
+            .catch(() => {
+                grid.innerHTML = `
+                    <div class="slot-empty text-danger">
+                        <i class="feather-alert-circle me-1"></i>Failed to load time slots. Please try again.
+                    </div>`;
+            });
+    }
+
+    // ── Render slot buttons (web scheduling design) ──────────
+    function _renderSlots(dateStr, bookedTimes) {
+        const grid  = document.getElementById('adminTimeSlotsGrid');
+        const slots = _genSlots();
+        const available = slots.filter(s => !bookedTimes.includes(s));
+        grid.innerHTML = '';
+
+        // Legend
+        const legend = document.createElement('div');
+        legend.className = 'slot-legend';
+        legend.innerHTML = `
+            <span>
+                <span class="legend-dot" style="background:#e8f0fe;border:1.5px solid rgba(13,110,253,0.3);"></span>
+                Available
+            </span>
+            <span>
+                <span class="legend-dot" style="background:#f1f4f8;border:1px solid #dee2e6;"></span>
+                Booked
+            </span>`;
+        grid.appendChild(legend);
+
+        // Button grid
+        const btnGrid = document.createElement('div');
+        btnGrid.className = 'slot-grid';
+
+        slots.forEach(time => {
+            const isBooked = bookedTimes.includes(time);
+            const btn      = document.createElement('button');
+            btn.type       = 'button';
+            btn.className  = `slot-btn ${isBooked ? 'slot-btn-booked' : 'slot-btn-available'}`;
+            btn.textContent = _fmtTime(time);
+            btn.disabled   = isBooked;
+            btn.title      = isBooked ? 'Already booked' : 'Click to select';
+
+            if (!isBooked) {
+                btn.addEventListener('click', () => {
+                    btnGrid.querySelectorAll('.slot-btn-available.selected').forEach(b => {
+                        b.classList.remove('selected');
+                    });
+                    btn.classList.add('selected');
+
+                    document.getElementById('apt_time').value = time;
+                    _showSummary(dateStr, time);
+                });
+            }
+
+            btnGrid.appendChild(btn);
+        });
+
+        grid.appendChild(btnGrid);
+
+        // Slot count
+        const info = document.createElement('p');
+        info.className   = 'slot-count';
+        info.textContent = `${available.length} of ${slots.length} slots available`;
+        grid.appendChild(info);
+    }
+
+    // ── Show green date + time summary bar ──────────────────
+    function _showSummary(dateStr, time) {
+        const display = new Date(dateStr + 'T00:00:00')
+            .toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        document.getElementById('aptDateTimeText').textContent = `${display} at ${_fmtTime(time)}`;
+        const el = document.getElementById('aptDateTimeSummary');
+        el.style.display = 'flex';
+    }
+
+    // ── Helpers ──────────────────────────────────────────────
+    function _genSlots() {
+        const s = [];
+        for (let h = 9; h <= 17; h++) {
+            s.push(`${String(h).padStart(2, '0')}:00`);
+            if (h < 17) s.push(`${String(h).padStart(2, '0')}:30`);
+        }
+        return s;
+    }
+
+    function _fmtTime(t) {
+        return new Date(`1970-01-01T${t}:00`)
+            .toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
+    }
+
+    function _resetDateTime() {
+        document.getElementById('apt_date').value                   = '';
+        document.getElementById('apt_time').value                   = '';
+        document.getElementById('adminTimeSlots').style.display     = 'none';
+        document.getElementById('aptDateTimeSummary').style.display = 'none';
+        document.getElementById('adminTimeSlotsGrid').innerHTML      = '';
+    }
+
+    function _showPlaceholder() {
+        const wrap = document.getElementById('adminCalendarWrap');
+        if (!wrap) return;
+        wrap.className    = 'rounded-3 border';
+        wrap.style.cssText = '';
+        wrap.innerHTML    = `
+            <div class="slot-empty">
+                <svg width="30" height="30" viewBox="0 0 32 32" fill="none" style="margin-bottom:6px;opacity:0.3;">
+                    <rect x="3" y="5" width="26" height="22" rx="3" stroke="#6b7a8d" stroke-width="1.5"/>
+                    <path d="M9 3v4M23 3v4M3 12h26" stroke="#6b7a8d" stroke-width="1.5" stroke-linecap="round"/>
+                </svg><br>
+                Select a branch to load available dates.
+            </div>`;
+    }
+
+    function _destroyAdminCal() {
+        if (_adminCal) {
+            try { _adminCal.destroy(); } catch (_) {}
+            _adminCal = null;
+        }
+    }
+
+})();
+// ── Filter dentists by selected branch ───────────────────
+function _loadDentistsByBranch(branchId) {
+    const sel = document.getElementById('apt_dentist');
+    sel.innerHTML = '<option value="">Loading…</option>';
+    sel.disabled  = true;
+
+    fetch(`api/dentists.php?branch_id=${branchId}`)
+        .then(r => r.json())
+        .then(res => {
+            const list = Array.isArray(res) ? res : (res.data || []);
+            sel.innerHTML = '<option value=""> Select Dentist </option>';
+
+            if (!list.length) {
+                sel.innerHTML = '<option value="">No dentists in this branch</option>';
+                return;
+            }
+
+            list.forEach(dt => {
+                const opt       = document.createElement('option');
+                opt.value       = dt.dentist_id;
+                opt.textContent = dt.full_name;
+                sel.appendChild(opt);
+            });
+        })
+        .catch(() => {
+            sel.innerHTML = '<option value="">Failed to load dentists</option>';
+        })
+        .finally(() => {
+            sel.disabled = false;
+        });
+}
+// ── Add / Edit Appointment ───────────────────────────────────
+async function saveAppointment() {
+    const errBox  = document.getElementById('modalError');
+    const btn     = document.getElementById('modalSaveBtn');
+    errBox.style.display = 'none';
+
+    const id      = document.getElementById('apt_id').value.trim();
+    const branch  = document.getElementById('apt_branch').value;
+    const patient = document.getElementById('apt_patient').value;
+    const dentist = document.getElementById('apt_dentist').value;
+    const service = document.getElementById('apt_service').value;
+    const date    = document.getElementById('apt_date').value;
+    const time    = document.getElementById('apt_time').value;
+    const status  = document.getElementById('apt_status').value;
+    const payment = document.getElementById('apt_payment').value;
+    const notes   = document.getElementById('apt_notes').value.trim();
+
+    // Validation
+    if (!branch)  return _showModalError('Please select a branch.');
+    if (!patient) return _showModalError('Please select a patient.');
+    if (!date)    return _showModalError('Please select a date.');
+    if (!time)    return _showModalError('Please select a time slot.');
+
+    btn.disabled  = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving…';
+
+    const payload = {
+        branch_id:        parseInt(branch),
+        patient_id:       parseInt(patient),
+        dentist_id:       dentist ? parseInt(dentist)  : null,
+        service_id:       service ? parseInt(service)  : null,
+        appointment_date: date,
+        appointment_time: time,
+        status,
+        payment_status:   payment,
+        notes:            notes || null,
+    };
+
+    try {
+        const url    = id ? `api/appointments.php?id=${id}` : 'api/appointments.php';
+        const method = id ? 'PUT' : 'POST';
+
+        const res  = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(payload),
+        });
+        const json = await res.json();
+
+        if (!res.ok || !json.success) throw new Error(json.message || 'Could not save appointment.');
+
+        bootstrap.Modal.getInstance(document.getElementById('appointmentModal'))?.hide();
+
+        Swal.fire({
+            icon:  'success',
+            title: id ? 'Appointment Updated!' : 'Appointment Added!',
+            text:  json.message || 'The appointment has been saved successfully.',
+            timer: 1800,
+            showConfirmButton: false,
+        }).then(() => location.reload());
+
+    } catch (err) {
+        _showModalError(err.message);
+    } finally {
+        btn.disabled  = false;
+        btn.innerHTML = '<i class="feather-save me-1"></i> Save Appointment';
+    }
+}
+
+function _showModalError(msg) {
+    const box = document.getElementById('modalError');
+    box.textContent   = msg;
+    box.style.display = 'block';
 }

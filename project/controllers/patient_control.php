@@ -120,7 +120,7 @@ function getPatientTreatments(int $patientId): array {
  */
 function getPatientInvoices(int $patientId): array {
     $res = supabase_request('invoices', 'GET', [],
-        'select=invoice_id,invoice_code,invoice_date,total_amount,amount_paid,balance,payment_status,services(service_name),payments(payment_id,amount,payment_method,payment_date,notes)&patient_id=eq.' . $patientId . '&order=invoice_date.desc'
+        'select=invoice_id,invoice_code,invoice_date,total_amount,amount_paid,balance,payment_status,payments(payment_id,amount,payment_method,payment_date,notes)&patient_id=eq.' . $patientId . '&order=invoice_date.desc'
     );
     return is_array($res['data']) ? $res['data'] : [];
 }
@@ -185,4 +185,15 @@ function patientStatusBadge(string $status): string {
         'inactive' => 'bg-soft-danger text-danger',
         default    => 'bg-soft-secondary text-secondary',
     };
+}
+/**
+ * All waivers for a patient
+ */
+function getPatientWaivers(int $patientId): array {
+    $res = supabase_request('patient_waivers', 'GET', [],
+        'patient_id=eq.' . $patientId .
+        '&order=created_at.desc' .
+        '&select=waiver_id,waiver_type,file_name,file_path,file_size,notes,created_at,users(full_name)'
+    );
+    return is_array($res['data']) ? $res['data'] : [];
 }

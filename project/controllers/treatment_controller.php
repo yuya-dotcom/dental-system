@@ -34,7 +34,7 @@ function getTreatmentRecords(int $page, int $branchId, string $status): array
             . 'tooth_number,cost,procedure_notes,appointment_id,patient_id,'
             . 'dentist_id,branch_id,service_id,'
             . 'patients(full_name),branches(branch_name),'
-            . 'dentists(full_name),services(service_name)',
+            . 'dentists(full_name),services(service_name,requires_tooth_selection)',
         'order=treatment_code.asc',
         'limit='  . TRT_PER_PAGE,
         'offset=' . $offset,
@@ -83,7 +83,7 @@ function getActiveTreatments(int $page, int $branchId): array
             . 'tooth_number,cost,procedure_notes,appointment_id,patient_id,'
             . 'dentist_id,branch_id,service_id,'
             . 'patients(full_name),branches(branch_name),'
-            . 'dentists(full_name),services(service_name)',
+            . 'dentists(full_name),services(service_name,requires_tooth_selection)',
         'appointment_id=in.(' . $idList . ')',
         'status=in.(pending,ongoing,in_progress)',
         'order=treatment_date.asc',

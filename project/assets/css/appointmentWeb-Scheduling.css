@@ -81,56 +81,94 @@
           Right-Side
 ------------------------------*/
 .time-slots {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 /* Time buttons */
 .time-btn {
-  border: 1px solid var(--accent-color);
-  background: #fff;
-  color: var(--accent-color);
-  padding: 10px;
-  border-radius: 10px;
-  font-weight: 500;
-  transition: all 0.2s ease;
+    border: 1px solid var(--accent-color);
+    background: #fff;
+    color: var(--accent-color);
+    padding: 10px;
+    border-radius: 10px;
+    font-weight: 500;
+    transition: all 0.2s ease;
 }
 
 .time-btn:hover {
-  background: var(--accent-color);
-  color: #fff;
+    background: var(--accent-color);
+    color: #fff;
 }
 
 .time-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 .booking-summary-chip {
-  background: #f0f9ff;  
-  border: 1px solid #bae0fd;
-  border-radius: 8px;
-  padding: 10px 14px;
+    background: #f0f9ff;
+    border: 1px solid #bae0fd;
+    border-radius: 8px;
+    padding: 10px 14px;
 }
-.fc-day-fully-booked {         
-  background-color: #fff5f5 !important;      
-  cursor: not-allowed !important;     
-  position: relative;
-}     
-.fc-day-fully-booked .fc-daygrid-day-number { 
-  color: #ccc !important; 
+
+/* -----------------------------
+      Calendar day states
+------------------------------*/
+.fc-day-fully-booked {
+    background-color: #fff5f5 !important;
+    cursor: not-allowed !important;
+    position: relative;
+}
+.fc-day-fully-booked .fc-daygrid-day-number {
+    color: #ccc !important;
 }
 .fc-day-fully-booked::after {
-  content: "Full";
-  position: absolute;
-  bottom: 2px; right: 4px;
-  font-size: 9px; color: #e53e3e;
-  font-weight: 700; text-transform: uppercase;
+    content: "Full";
+    position: absolute;
+    bottom: 2px; right: 4px;
+    font-size: 9px; color: #e53e3e;
+    font-weight: 700; text-transform: uppercase;
 }
-.fc-day-selected { 
-  background-color: #e8f5e9 !important; 
+.fc-day-selected {
+    background-color: #e8f5e9 !important;
 }
-.fc-day-selected .fc-daygrid-day-number { 
-  font-weight: 700; 
-  color: #1a7a5e !important; 
+.fc-day-selected .fc-daygrid-day-number {
+    font-weight: 700;
+    color: #ffffff !important;
+}
+
+/* -----------------------------
+   #personalInfoModal overrides
+   (moved from inline <style>)
+------------------------------*/
+#personalInfoModal .modal-header {
+    background: #fff !important;
+    border-bottom: 1px solid #eef0f4;
+}
+#personalInfoModal .modal-title {
+    color: #1e2a3b !important;
+}
+
+/* Chips */
+#personalInfoModal .modal-summary-chips {
+    margin-top: .6rem;
+}
+#personalInfoModal .modal-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    background: #eef3ff;
+    color: #1a56db;
+    border: 1px solid #c5d6fa;
+    border-radius: 99px;
+    font-size: .75rem;
+    font-weight: 700;
+    padding: .28rem .8rem;
+}
+#personalInfoModal .modal-chip svg path,
+#personalInfoModal .modal-chip svg rect,
+#personalInfoModal .modal-chip svg circle {
+    stroke: #1a56db !important;
 }

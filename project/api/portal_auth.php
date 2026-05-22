@@ -59,7 +59,7 @@ if ($action === 'login') {
         'GET',
         [],
         'email=eq.' . urlencode($email) .
-            '&select=account_id,password_hash,is_verified,first_name,last_name,is_profile_complete'
+            '&select=account_id,password_hash,first_name,last_name,is_profile_complete'
     );
 
     if (empty($result['data'])) {
@@ -71,11 +71,6 @@ if ($action === 'login') {
 
     if (!password_verify($password, $acc['password_hash'])) {
         echo json_encode(['success' => false, 'message' => 'Incorrect password.']);
-        exit;
-    }
-
-    if (!$acc['is_verified']) {
-        echo json_encode(['success' => false, 'code' => 'EMAIL_NOT_VERIFIED', 'message' => 'Please verify your email before logging in.']);
         exit;
     }
 
@@ -107,23 +102,6 @@ if ($action === 'logout') {
     exit;
 }
 
-// ── CHECK EMAIL ───────────────────────────────────────────────────────────────
-if ($action === 'check_email') {
-    $email = trim($input['email'] ?? '');
-    if (!$email) {
-        echo json_encode(['exists' => false]);
-        exit;
-    }
-    $check = supabase_request(
-        'patient_accounts',
-        'GET',
-        [],
-        'email=eq.' . urlencode($email) . '&select=account_id'
-    );
-    echo json_encode(['exists' => !empty($check['data'])]);
-    exit;
-}
-
 // ── AUTH GUARD — all actions below require a valid session ────────────────────
 $accountId = $_SESSION['portal_account_id'] ?? null;
 if (!$accountId) {
@@ -133,7 +111,6 @@ if (!$accountId) {
 }
 
 // ── HELPER: compute is_profile_complete from live data ───────────────────────
-// Used by both dashboard_summary and get_profile so the logic is never duplicated.
 function computeProfileComplete(array $account, array $profileRow): bool
 {
     $hasBasic   = !empty($account['first_name'])
@@ -144,7 +121,6 @@ function computeProfileComplete(array $account, array $profileRow): bool
     $hasContact = !empty(trim($profileRow['address'] ?? ''))
                && !empty(trim($profileRow['city']    ?? ''));
 
-    // All three medical questions must have a non-null answer (true or false)
     $hasMedical = array_key_exists('q_good_health',    $profileRow) && $profileRow['q_good_health']    !== null
                && array_key_exists('q_tobacco',         $profileRow) && $profileRow['q_tobacco']         !== null
                && array_key_exists('q_dangerous_drugs', $profileRow) && $profileRow['q_dangerous_drugs'] !== null;
@@ -155,7 +131,6 @@ function computeProfileComplete(array $account, array $profileRow): bool
 // ── DASHBOARD SUMMARY ─────────────────────────────────────────────────────────
 if ($action === 'dashboard_summary') {
 
-    // 1. Account row
     $accResult = supabase_request(
         'patient_accounts',
         'GET',
@@ -176,7 +151,6 @@ if ($action === 'dashboard_summary') {
     $patientId     = $account['patient_id'] ?? null;
     $linkedPatient = $account['patients']   ?? [];
 
-    // Merge from linked patient row when account fields are empty
     if (empty($account['contact_number']) && !empty($linkedPatient['contact_number'])) {
         $account['contact_number'] = $linkedPatient['contact_number'];
     }
@@ -190,59 +164,39 @@ if ($action === 'dashboard_summary') {
     }
     unset($account['patients']);
 
-    // 2. Stats
     $stats = ['upcoming' => 0, 'completed' => 0, 'balance' => 0.0, 'treatments' => 0];
 
     if ($patientId) {
-        $apptRes = supabase_request(
-            'appointments',
-            'GET',
-            [],
-            'patient_id=eq.' . $patientId . '&select=status'
-        );
+        $apptRes = supabase_request('appointments', 'GET', [],
+            'patient_id=eq.' . $patientId . '&select=status');
         foreach (($apptRes['data'] ?? []) as $row) {
             if (in_array($row['status'], ['pending', 'confirmed', 'checked_in'])) $stats['upcoming']++;
             if ($row['status'] === 'completed')                                    $stats['completed']++;
         }
 
-        $treatRes = supabase_request(
-            'treatments',
-            'GET',
-            [],
-            'patient_id=eq.' . $patientId . '&select=treatment_id'
-        );
+        $treatRes = supabase_request('treatments', 'GET', [],
+            'patient_id=eq.' . $patientId . '&select=treatment_id');
         $stats['treatments'] = count($treatRes['data'] ?? []);
 
-        $invRes = supabase_request(
-            'invoices',
-            'GET',
-            [],
+        $invRes = supabase_request('invoices', 'GET', [],
             'patient_id=eq.' . $patientId .
-                '&payment_status=neq.paid' .
-                '&select=total_amount,amount_paid'
-        );
+            '&payment_status=neq.paid&select=total_amount,amount_paid');
         foreach (($invRes['data'] ?? []) as $inv) {
             $stats['balance'] += (float)($inv['total_amount'] ?? 0) - (float)($inv['amount_paid'] ?? 0);
         }
     }
 
-    // 3. Upcoming appointments widget (max 5)
     $upcoming = [];
     if ($patientId) {
         $today = date('Y-m-d');
-        $uRes  = supabase_request(
-            'appointments',
-            'GET',
-            [],
+        $uRes  = supabase_request('appointments', 'GET', [],
             'patient_id=eq.'      . $patientId .
-                '&status=in.(pending,confirmed,checked_in)' .
-                '&appointment_date=gte.' . $today .
-                '&select=appointment_id,appointment_code,appointment_date,' .
-                'appointment_time,status,' .
-                'branches(branch_name),services(service_name)' .
-                '&order=appointment_date.asc,appointment_time.asc' .
-                '&limit=5'
-        );
+            '&status=in.(pending,confirmed,checked_in)' .
+            '&appointment_date=gte.' . $today .
+            '&select=appointment_id,appointment_code,appointment_date,' .
+            'appointment_time,status,' .
+            'branches(branch_name),services(service_name)' .
+            '&order=appointment_date.asc,appointment_time.asc&limit=5');
         foreach (($uRes['data'] ?? []) as $row) {
             $upcoming[] = [
                 'appointment_id'   => $row['appointment_id'],
@@ -256,44 +210,29 @@ if ($action === 'dashboard_summary') {
         }
     }
 
-    // 4. Recent bills widget (max 5)
     $recentBills = [];
     if ($patientId) {
-        $bRes = supabase_request(
-            'invoices',
-            'GET',
-            [],
+        $bRes = supabase_request('invoices', 'GET', [],
             'patient_id=eq.' . $patientId .
-                '&select=invoice_code,invoice_date,total_amount,amount_paid,payment_status' .
-                '&order=invoice_date.desc' .
-                '&limit=5'
-        );
+            '&select=invoice_code,invoice_date,total_amount,amount_paid,payment_status' .
+            '&order=invoice_date.desc&limit=5');
         $recentBills = $bRes['data'] ?? [];
     }
 
-    // 5. Recompute is_profile_complete from live patient_profiles data
     $profileRow = [];
     if ($patientId) {
-        $pcRes = supabase_request(
-            'patient_profiles',
-            'GET',
-            [],
+        $pcRes = supabase_request('patient_profiles', 'GET', [],
             'patient_id=eq.' . $patientId .
-                '&select=address,city,q_good_health,q_tobacco,q_dangerous_drugs&limit=1'
-        );
+            '&select=address,city,q_good_health,q_tobacco,q_dangerous_drugs&limit=1');
         $profileRow = $pcRes['data'][0] ?? [];
     }
 
     $isComplete = computeProfileComplete($account, $profileRow);
 
-    // Sync stored flag back to DB if it drifted from reality
     if ((bool)($account['is_profile_complete'] ?? false) !== $isComplete) {
-        supabase_request(
-            'patient_accounts',
-            'PATCH',
+        supabase_request('patient_accounts', 'PATCH',
             ['is_profile_complete' => $isComplete],
-            'account_id=eq.' . $accountId
-        );
+            'account_id=eq.' . $accountId);
     }
 
     echo json_encode([
@@ -310,15 +249,10 @@ if ($action === 'dashboard_summary') {
 // ── GET PROFILE ───────────────────────────────────────────────────────────────
 if ($action === 'get_profile') {
 
-    $accResult = supabase_request(
-        'patient_accounts',
-        'GET',
-        [],
+    $accResult = supabase_request('patient_accounts', 'GET', [],
         'account_id=eq.' . $accountId .
-            '&select=account_id,email,first_name,last_name,middle_name,suffix,' .
-            'birthdate,contact_number,is_profile_complete,patient_id' .
-            '&limit=1'
-    );
+        '&select=account_id,email,first_name,last_name,middle_name,suffix,' .
+        'birthdate,contact_number,is_profile_complete,patient_id&limit=1');
 
     if (empty($accResult['data'])) {
         echo json_encode(['success' => false, 'message' => 'Account not found.']);
@@ -328,50 +262,31 @@ if ($action === 'get_profile') {
     $account   = $accResult['data'][0];
     $patientId = $account['patient_id'] ?? null;
 
-    // Fetch patients row for gender
     $patientRow = [];
     if ($patientId) {
-        $pRes = supabase_request(
-            'patients',
-            'GET',
-            [],
+        $pRes = supabase_request('patients', 'GET', [],
             'patient_id=eq.' . $patientId .
-                '&select=gender,contact_number,birthdate' .
-                '&limit=1'
-        );
+            '&select=gender,contact_number,birthdate&limit=1');
         $patientRow = $pRes['data'][0] ?? [];
     }
 
-    // Merge: patients fields fill gaps in account
-    if (empty($account['contact_number']) && !empty($patientRow['contact_number'])) {
+    if (empty($account['contact_number']) && !empty($patientRow['contact_number']))
         $account['contact_number'] = $patientRow['contact_number'];
-    }
-    if (empty($account['birthdate']) && !empty($patientRow['birthdate'])) {
+    if (empty($account['birthdate']) && !empty($patientRow['birthdate']))
         $account['birthdate'] = $patientRow['birthdate'];
-    }
     $account['gender'] = $patientRow['gender'] ?? '';
 
-    // Fetch patient_profiles row
     $profileRow = [];
     if ($patientId) {
-        $prRes = supabase_request(
-            'patient_profiles',
-            'GET',
-            [],
-            'patient_id=eq.' . $patientId . '&limit=1'
-        );
+        $prRes = supabase_request('patient_profiles', 'GET', [],
+            'patient_id=eq.' . $patientId . '&limit=1');
         $profileRow = $prRes['data'][0] ?? [];
     }
 
-    // Recompute completeness from live data and overwrite stale stored value
     $isComplete = computeProfileComplete($account, $profileRow);
     $account['is_profile_complete'] = $isComplete;
 
-    echo json_encode([
-        'success' => true,
-        'account' => $account,
-        'profile' => $profileRow,
-    ]);
+    echo json_encode(['success' => true, 'account' => $account, 'profile' => $profileRow]);
     exit;
 }
 
@@ -389,42 +304,27 @@ if ($action === 'update_profile') {
         exit;
     }
 
-    // Use same logic as computeProfileComplete but from raw $input
-    $hasBasic   = !empty($firstName) && !empty($lastName)
-               && !empty($birthdate) && !empty($gender);
-    $hasContact = !empty(trim($input['address'] ?? ''))
-               && !empty(trim($input['city']    ?? ''));
+    $hasBasic   = !empty($firstName) && !empty($lastName) && !empty($birthdate) && !empty($gender);
+    $hasContact = !empty(trim($input['address'] ?? '')) && !empty(trim($input['city'] ?? ''));
     $hasMedical = isset($input['q_good_health'])    && in_array($input['q_good_health'],    ['yes', 'no'])
                && isset($input['q_tobacco'])         && in_array($input['q_tobacco'],         ['yes', 'no'])
                && isset($input['q_dangerous_drugs']) && in_array($input['q_dangerous_drugs'], ['yes', 'no']);
     $isProfileComplete = $hasBasic && $hasContact && $hasMedical;
 
-    // 1. Update patient_accounts
-    supabase_request(
-        'patient_accounts',
-        'PATCH',
-        [
-            'first_name'          => $firstName,
-            'last_name'           => $lastName,
-            'middle_name'         => $middleName ?: null,
-            'suffix'              => $suffix     ?: null,
-            'birthdate'           => $birthdate  ?: null,
-            'is_profile_complete' => $isProfileComplete,
-        ],
-        'account_id=eq.' . $accountId
-    );
+    supabase_request('patient_accounts', 'PATCH', [
+        'first_name'          => $firstName,
+        'last_name'           => $lastName,
+        'middle_name'         => $middleName ?: null,
+        'suffix'              => $suffix     ?: null,
+        'birthdate'           => $birthdate  ?: null,
+        'is_profile_complete' => $isProfileComplete,
+    ], 'account_id=eq.' . $accountId);
 
-    // 2. Get current patient_id and contact_number
-    $linkRes       = supabase_request(
-        'patient_accounts',
-        'GET',
-        [],
-        'account_id=eq.' . $accountId . '&select=patient_id,contact_number&limit=1'
-    );
+    $linkRes       = supabase_request('patient_accounts', 'GET', [],
+        'account_id=eq.' . $accountId . '&select=patient_id,contact_number&limit=1');
     $patientId     = $linkRes['data'][0]['patient_id']     ?? null;
     $contactNumber = $linkRes['data'][0]['contact_number'] ?? null;
 
-    // 3. No patients row linked yet → create one and link it
     if (!$patientId) {
         $nameParts   = array_filter([$firstName, $middleName, $lastName, $suffix]);
         $fullName    = implode(' ', $nameParts);
@@ -442,29 +342,18 @@ if ($action === 'update_profile') {
 
         if (!empty($newPatient['data'][0]['patient_id'])) {
             $patientId = (int)$newPatient['data'][0]['patient_id'];
-            supabase_request(
-                'patient_accounts',
-                'PATCH',
-                ['patient_id' => $patientId],
-                'account_id=eq.' . $accountId
-            );
+            supabase_request('patient_accounts', 'PATCH',
+                ['patient_id' => $patientId], 'account_id=eq.' . $accountId);
         }
     } else {
-        // 4. Sync name/gender/birthdate on existing patients row
         $nameParts = array_filter([$firstName, $middleName, $lastName, $suffix]);
-        supabase_request(
-            'patients',
-            'PATCH',
-            [
-                'full_name' => implode(' ', $nameParts),
-                'birthdate' => $birthdate ?: null,
-                'gender'    => $gender    ?: null,
-            ],
-            'patient_id=eq.' . $patientId
-        );
+        supabase_request('patients', 'PATCH', [
+            'full_name' => implode(' ', $nameParts),
+            'birthdate' => $birthdate ?: null,
+            'gender'    => $gender    ?: null,
+        ], 'patient_id=eq.' . $patientId);
     }
 
-    // 5. Upsert patient_profiles
     if ($patientId) {
         $boolField = function ($val) {
             if ($val === 'yes' || $val === true  || $val === 1) return true;
@@ -518,12 +407,8 @@ if ($action === 'update_profile') {
             'updated_at'                 => date('c'),
         ];
 
-        $existCheck = supabase_request(
-            'patient_profiles',
-            'GET',
-            [],
-            'patient_id=eq.' . $patientId . '&select=profile_id&limit=1'
-        );
+        $existCheck = supabase_request('patient_profiles', 'GET', [],
+            'patient_id=eq.' . $patientId . '&select=profile_id&limit=1');
 
         if (!empty($existCheck['data'])) {
             supabase_request('patient_profiles', 'PATCH', $profilePayload, 'patient_id=eq.' . $patientId);
@@ -543,22 +428,14 @@ if ($action === 'update_profile') {
 // ── GET APPOINTMENTS ──────────────────────────────────────────────────────────
 if ($action === 'get_appointments') {
     $patientId = getPatientId($accountId);
+    if (!$patientId) { echo json_encode(['success' => true, 'appointments' => []]); exit; }
 
-    if (!$patientId) {
-        echo json_encode(['success' => true, 'appointments' => []]);
-        exit;
-    }
-
-    $result = supabase_request(
-        'appointments',
-        'GET',
-        [],
+    $result = supabase_request('appointments', 'GET', [],
         'patient_id=eq.' . $patientId .
-            '&select=appointment_id,appointment_code,appointment_date,' .
-            'appointment_time,status,' .
-            'branches(branch_name),services(service_name)' .
-            '&order=appointment_date.desc,appointment_time.desc'
-    );
+        '&select=appointment_id,appointment_code,appointment_date,' .
+        'appointment_time,status,' .
+        'branches(branch_name),services(service_name)' .
+        '&order=appointment_date.desc,appointment_time.desc');
 
     $appointments = [];
     foreach (($result['data'] ?? []) as $row) {
@@ -572,7 +449,6 @@ if ($action === 'get_appointments') {
             'service_name'     => $row['services']['service_name'] ?? 'Consultation',
         ];
     }
-
     echo json_encode(['success' => true, 'appointments' => $appointments]);
     exit;
 }
@@ -583,31 +459,20 @@ if ($action === 'cancel_appointment') {
     $patientId = getPatientId($accountId);
 
     if (!$apptId || !$patientId) {
-        echo json_encode(['success' => false, 'message' => 'Invalid request.']);
-        exit;
+        echo json_encode(['success' => false, 'message' => 'Invalid request.']); exit;
     }
 
-    $chk = supabase_request(
-        'appointments',
-        'GET',
-        [],
+    $chk = supabase_request('appointments', 'GET', [],
         'appointment_id=eq.' . $apptId .
-            '&patient_id=eq.'    . $patientId .
-            '&status=eq.pending' .
-            '&select=appointment_id&limit=1'
-    );
+        '&patient_id=eq.'    . $patientId .
+        '&status=eq.pending&select=appointment_id&limit=1');
 
     if (empty($chk['data'])) {
-        echo json_encode(['success' => false, 'message' => 'Appointment not found or cannot be cancelled.']);
-        exit;
+        echo json_encode(['success' => false, 'message' => 'Appointment not found or cannot be cancelled.']); exit;
     }
 
-    supabase_request(
-        'appointments',
-        'PATCH',
-        ['status' => 'cancelled'],
-        'appointment_id=eq.' . $apptId
-    );
+    supabase_request('appointments', 'PATCH',
+        ['status' => 'cancelled'], 'appointment_id=eq.' . $apptId);
 
     echo json_encode(['success' => true]);
     exit;
@@ -616,21 +481,13 @@ if ($action === 'cancel_appointment') {
 // ── GET TREATMENTS ────────────────────────────────────────────────────────────
 if ($action === 'get_treatments') {
     $patientId = getPatientId($accountId);
+    if (!$patientId) { echo json_encode(['success' => true, 'treatments' => []]); exit; }
 
-    if (!$patientId) {
-        echo json_encode(['success' => true, 'treatments' => []]);
-        exit;
-    }
-
-    $result = supabase_request(
-        'treatments',
-        'GET',
-        [],
+    $result = supabase_request('treatments', 'GET', [],
         'patient_id=eq.' . $patientId .
-            '&select=treatment_code,treatment_date,tooth_number,status,' .
-            'services(service_name),dentists(full_name)' .
-            '&order=treatment_date.desc'
-    );
+        '&select=treatment_code,treatment_date,tooth_number,status,' .
+        'services(service_name),dentists(full_name)' .
+        '&order=treatment_date.desc');
 
     $treatments = [];
     foreach (($result['data'] ?? []) as $row) {
@@ -643,7 +500,6 @@ if ($action === 'get_treatments') {
             'dentist_name'   => $row['dentists']['full_name']    ?? '—',
         ];
     }
-
     echo json_encode(['success' => true, 'treatments' => $treatments]);
     exit;
 }
@@ -651,19 +507,10 @@ if ($action === 'get_treatments') {
 // ── GET DENTAL CHART ──────────────────────────────────────────────────────────
 if ($action === 'get_dental_chart') {
     $patientId = getPatientId($accountId);
+    if (!$patientId) { echo json_encode(['success' => true, 'chart' => []]); exit; }
 
-    if (!$patientId) {
-        echo json_encode(['success' => true, 'chart' => []]);
-        exit;
-    }
-
-    $result = supabase_request(
-        'dental_chart',
-        'GET',
-        [],
-        'patient_id=eq.' . $patientId .
-            '&select=tooth_number,condition,notes'
-    );
+    $result = supabase_request('dental_chart', 'GET', [],
+        'patient_id=eq.' . $patientId . '&select=tooth_number,condition,notes');
 
     echo json_encode(['success' => true, 'chart' => $result['data'] ?? []]);
     exit;
@@ -672,21 +519,13 @@ if ($action === 'get_dental_chart') {
 // ── GET BILLING ───────────────────────────────────────────────────────────────
 if ($action === 'get_billing') {
     $patientId = getPatientId($accountId);
+    if (!$patientId) { echo json_encode(['success' => true, 'invoices' => []]); exit; }
 
-    if (!$patientId) {
-        echo json_encode(['success' => true, 'invoices' => []]);
-        exit;
-    }
-
-    $result = supabase_request(
-        'invoices',
-        'GET',
-        [],
+    $result = supabase_request('invoices', 'GET', [],
         'patient_id=eq.' . $patientId .
-            '&select=invoice_code,invoice_date,total_amount,amount_paid,' .
-            'payment_status,treatments(treatment_code)' .
-            '&order=invoice_date.desc'
-    );
+        '&select=invoice_code,invoice_date,total_amount,amount_paid,' .
+        'payment_status,treatments(treatment_code)' .
+        '&order=invoice_date.desc');
 
     $invoices = [];
     foreach (($result['data'] ?? []) as $row) {
@@ -699,7 +538,6 @@ if ($action === 'get_billing') {
             'treatment_code' => $row['treatments']['treatment_code'] ?? '—',
         ];
     }
-
     echo json_encode(['success' => true, 'invoices' => $invoices]);
     exit;
 }
@@ -707,20 +545,12 @@ if ($action === 'get_billing') {
 // ── GET FILES ─────────────────────────────────────────────────────────────────
 if ($action === 'get_files') {
     $patientId = getPatientId($accountId);
+    if (!$patientId) { echo json_encode(['success' => true, 'files' => []]); exit; }
 
-    if (!$patientId) {
-        echo json_encode(['success' => true, 'files' => []]);
-        exit;
-    }
-
-    $result = supabase_request(
-        'patient_files',
-        'GET',
-        [],
+    $result = supabase_request('patient_files', 'GET', [],
         'patient_id=eq.' . $patientId .
-            '&select=file_type,file_name,file_path,uploaded_at' .
-            '&order=uploaded_at.desc'
-    );
+        '&select=file_type,file_name,file_path,uploaded_at' .
+        '&order=uploaded_at.desc');
 
     echo json_encode(['success' => true, 'files' => $result['data'] ?? []]);
     exit;
@@ -728,23 +558,35 @@ if ($action === 'get_files') {
 
 // ── GET WAIVERS ───────────────────────────────────────────────────────────────
 if ($action === 'get_waivers') {
-    $patientId = getPatientId($accountId);
+    $acc       = supabase_request('portal_accounts', 'GET', [],
+        'account_id=eq.' . (int)$accountId . '&select=patient_id&limit=1');
+    $patientId = $acc['data'][0]['patient_id'] ?? 0;
+    if (!$patientId) { echo json_encode(['success' => false, 'waivers' => []]); exit; }
 
-    if (!$patientId) {
-        echo json_encode(['success' => true, 'waivers' => []]);
-        exit;
+    $res = supabase_request('waivers', 'GET', [],
+        'patient_id=eq.' . $patientId .
+        '&order=waiver_id.desc' .
+        '&select=waiver_id,waiver_type,file_path,status,signed_at,signed_by');
+    echo json_encode(['success' => true, 'waivers' => $res['data'] ?? []]);
+    exit;
+}
+
+// ── SIGN WAIVER ───────────────────────────────────────────────────────────────
+if ($action === 'sign_waiver') {
+    $acc       = supabase_request('portal_accounts', 'GET', [],
+        'account_id=eq.' . (int)$accountId . '&select=patient_id&limit=1');
+    $patientId = $acc['data'][0]['patient_id'] ?? 0;
+    $waiverId  = (int)($input['waiver_id'] ?? 0);
+    $signedBy  = trim($input['signed_by'] ?? '');
+
+    if (!$patientId || !$waiverId || !$signedBy) {
+        echo json_encode(['success' => false, 'message' => 'Missing required fields.']); exit;
     }
 
-    $result = supabase_request(
-        'waivers',
-        'GET',
-        [],
-        'patient_id=eq.' . $patientId .
-            '&select=waiver_type,file_path,status,signed_at' .
-            '&order=signed_at.desc.nullslast'
-    );
-
-    echo json_encode(['success' => true, 'waivers' => $result['data'] ?? []]);
+    supabase_request('waivers', 'PATCH',
+        ['status' => 'Signed', 'signed_at' => date('c'), 'signed_by' => $signedBy],
+        'waiver_id=eq.' . $waiverId . '&patient_id=eq.' . $patientId);
+    echo json_encode(['success' => true, 'message' => 'Waiver signed.']);
     exit;
 }
 
@@ -755,12 +597,8 @@ echo json_encode(['success' => false, 'message' => 'Invalid action.']);
 // ── Helper: resolve patient_id from account_id ───────────────────────────────
 function getPatientId(int $accountId): ?int
 {
-    $res = supabase_request(
-        'patient_accounts',
-        'GET',
-        [],
-        'account_id=eq.' . $accountId . '&select=patient_id&limit=1'
-    );
+    $res = supabase_request('patient_accounts', 'GET', [],
+        'account_id=eq.' . $accountId . '&select=patient_id&limit=1');
     $id = $res['data'][0]['patient_id'] ?? null;
     return $id ? (int)$id : null;
 }

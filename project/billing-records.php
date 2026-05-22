@@ -127,8 +127,8 @@ $baseUrl = 'billing-records.php?branch=' . $filterBranch . '&payment=' . urlenco
                                                         <td><span class="fw-semibold"><?= htmlspecialchars($inv['invoice_code'] ?? '—') ?></span></td>
                                                         <td><?= formatTrtDate($inv['invoice_date'] ?? null) ?></td>
                                                         <td>
-                                                            <a href="patient-record.php?id=<?= $t['patient_id'] ?>" class="text-primary fw-semibold">
-                                                                <?= htmlspecialchars($t['patients']['full_name'] ?? '—') ?>
+                                                            <a href="patient-records.php?id=<?= $inv['patient_id'] ?>" class="text-primary fw-semibold">
+                                                                <?= htmlspecialchars($inv['patients']['full_name'] ?? '—') ?>
                                                             </a>
                                                         </td>
                                                         <td><?= htmlspecialchars($inv['branches']['branch_name'] ?? '—') ?></td>
@@ -260,7 +260,7 @@ $baseUrl = 'billing-records.php?branch=' . $filterBranch . '&payment=' . urlenco
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Branch <span class="text-danger">*</span></label>
                             <select id="billing_branch" class="form-select" onchange="loadBillingPatients()">
-                                <option value="">— Select Branch —</option>
+                                <option value=""> Select Branch </option>
                                 <?php foreach ($branches as $b): ?>
                                     <option value="<?= $b['branch_id'] ?>"><?= htmlspecialchars($b['branch_name']) ?></option>
                                 <?php endforeach; ?>
@@ -270,14 +270,14 @@ $baseUrl = 'billing-records.php?branch=' . $filterBranch . '&payment=' . urlenco
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Patient <span class="text-danger">*</span></label>
                             <select id="billing_patient" class="form-select" onchange="loadBillingTreatments()">
-                                <option value="">— Select Patient —</option>
+                                <option value=""> Select Patient </option>
                             </select>
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Treatment / Appointment <span class="text-danger">*</span></label>
                             <select id="billing_treatment" class="form-select" onchange="autoFillAmount()">
-                                <option value="">— Select Treatment —</option>
+                                <option value=""> Select Treatment </option>
                             </select>
                         </div>
 
@@ -308,7 +308,7 @@ $baseUrl = 'billing-records.php?branch=' . $filterBranch . '&payment=' . urlenco
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Payment Method</label>
                             <select id="billing_method" class="form-select">
-                                <option value="">— Select —</option>
+                                <option value=""> Select </option>
                                 <option value="cash">Cash</option>
                                 <option value="gcash">GCash</option>
                                 <option value="credit_card">Credit Card</option>

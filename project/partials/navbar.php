@@ -52,21 +52,6 @@ $notifCount    = count($lowStockItems);
             <div class="header-right ms-auto">
                 <div class="d-flex align-items-center">
 
-                    <!-- Search -->
-                    <div class="dropdown nxl-h-item nxl-header-search">
-                        <a href="javascript:void(0);" class="nxl-head-link me-0"
-                           data-bs-toggle="dropdown" data-bs-auto-close="outside">
-                            <i class="feather-search"></i>
-                        </a>
-                        <div class="dropdown-menu dropdown-menu-end nxl-h-dropdown nxl-search-dropdown">
-                            <div class="input-group search-form">
-                                <span class="input-group-text"><i class="feather-search fs-6 text-muted"></i></span>
-                                <input type="text" class="form-control search-input-field" placeholder="Search....">
-                                <span class="input-group-text"><button type="button" class="btn-close"></button></span>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Full screen -->
                     <div class="nxl-h-item d-none d-sm-flex">
                         <div class="full-screen-switcher">

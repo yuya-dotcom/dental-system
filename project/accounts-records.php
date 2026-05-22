@@ -1,4 +1,5 @@
 <?php
+// accounts-records.php
 
 define('REQUIRED_ROLES', ['owner']);
 require_once __DIR__ . '/controllers/auth_controller.php';
@@ -179,75 +180,109 @@ function roleBadge(string $role): string {
         </div>
     </main>
 
-    <!-- ADD/EDIT MODAL -->
-    <div class="modal fade" id="userModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header border-0 pb-0">
-                    <div>
-                        <h5 class="modal-title fw-bold mb-0" id="usrModalTitle">Add Account</h5>
-                        <p class="text-muted small mb-0" id="usrModalSubtitle">Create a new system user.</p>
-                    </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<!-- ADD/EDIT MODAL -->
+<div class="modal fade" id="userModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+
+            <div class="modal-header border-0 pb-0 px-4 pt-4">
+                <div>
+                    <h5 class="modal-title fw-bold mb-0" id="usrModalTitle">Add Account</h5>
+                    <p class="text-muted small mb-0" id="usrModalSubtitle">Create a new system user.</p>
                 </div>
-                <div class="modal-body">
-                    <div id="usrModalError" class="alert alert-danger small py-2 px-3 mb-3" style="display:none;"></div>
-                    <input type="hidden" id="usr_id">
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <label class="form-label fw-semibold small">Full Name <span class="text-danger">*</span></label>
-                            <input type="text" id="usr_name" class="form-control" placeholder="e.g. Maria Santos">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Username <span class="text-danger">*</span></label>
-                            <input type="text" id="usr_username" class="form-control" placeholder="e.g. msantos">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Email <span class="text-danger">*</span></label>
-                            <input type="email" id="usr_email" class="form-control" placeholder="e.g. m@clinic.com">
-                        </div>
-                        <div class="col-12" id="usrPasswordSection">
-                            <label class="form-label fw-semibold small">Password <span class="text-danger">*</span></label>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+<div class="modal-body px-4 py-3">
+                <div id="usrModalError" class="alert alert-danger small py-2 px-3 mb-3" style="display:none;"></div>
+                <input type="hidden" id="usr_id">
+
+                <!-- Account Information -->
+                <p class="text-uppercase fw-bold mb-2" style="font-size:10px;letter-spacing:.08em;color:#6c757d;">Account Information</p>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold small">Full Name </label>
+                        <input type="text" id="usr_name" class="form-control" placeholder="e.g. Maria Santos">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold small">Username </label>
+                        <input type="text" id="usr_username" class="form-control" placeholder="e.g. msantos">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold small">Email </label>
+                        <input type="email" id="usr_email" class="form-control" placeholder="e.g. m@clinic.com">
+                    </div>
+                    <div class="col-md-4" id="usrPasswordSection">
+                        <label class="form-label fw-semibold small">Password </label>
+                        <div class="input-group">
                             <input type="password" id="usr_password" class="form-control" placeholder="Min. 6 characters">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Role <span class="text-danger">*</span></label>
-                            <select id="usr_role" class="form-select" onchange="toggleBranchField()">
-                                <option value="admin">Admin</option>
-                                <option value="dentist">Dentist</option>
-                                <option value="owner">Owner</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Status</label>
-                            <select id="usr_status" class="form-select">
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
-                        </div>
-                        <div class="col-12" id="usrBranchRow">
-                            <label class="form-label fw-semibold small">Branch</label>
-                            <select id="usr_branch" class="form-select">
-                                <option value="">— Select Branch —</option>
-                                <?php foreach ($branches as $b): ?>
-                                <option value="<?= $b['branch_id'] ?>"><?= htmlspecialchars($b['branch_name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <button type="button" class="btn btn-light border" onclick="togglePassword('usr_password', this)">
+                                <i class="feather-eye" style="font-size:13px;"></i>
+                            </button>
                         </div>
                     </div>
-                </div>
-                <div class="modal-footer border-0 d-flex justify-content-between">
-                    <span class="text-muted small"><span class="text-danger">*</span> Required</span>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-primary px-4" id="usrSaveBtn" onclick="saveUser()">
-                            <i class="feather-save me-1"></i> Save
-                        </button>
+                    <div class="col-md-4" id="usrConfirmPasswordSection">
+                        <label class="form-label fw-semibold small">Confirm Password</label>
+                        <div class="input-group">
+                            <input type="password" id="usr_confirm_password" class="form-control" placeholder="Re-enter password">
+                            <button type="button" class="btn btn-light border" onclick="togglePassword('usr_confirm_password', this)">
+                                <i class="feather-eye" style="font-size:13px;"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                <hr class="my-3">
+
+                <!-- Role & Access -->
+                <p class="text-uppercase fw-bold mb-2" style="font-size:10px;letter-spacing:.08em;color:#6c757d;">Role & Access</p>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold small">Role </label>
+                        <select id="usr_role" class="form-select" onchange="toggleBranchField()">
+                            <option value="admin">Admin</option>
+                            <option value="dentist">Dentist</option>
+                            <option value="owner">Owner</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4" id="usrBranchRow">
+                        <label class="form-label fw-semibold small">Branch</label>
+                        <select id="usr_branch" class="form-select">
+                            <option value=""> Select Branch </option>
+                            <?php foreach ($branches as $b): ?>
+                            <option value="<?= $b['branch_id'] ?>"><?= htmlspecialchars($b['branch_name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-4" id="usrSpecializationRow" style="display:none;">
+                        <label class="form-label fw-semibold small">Specialization</label>
+                        <select id="usr_specialization" class="form-select">
+                            <option value=""> Select Specialization </option>
+                            <option value="General Dentistry">General Dentistry</option>
+                            <option value="Orthodontics">Orthodontics</option>
+                            <option value="Oral Surgery">Oral Surgery</option>
+                            <option value="Periodontics">Periodontics</option>
+                            <option value="Endodontics">Endodontics</option>
+                            <option value="Prosthodontics">Prosthodontics</option>
+                            <option value="Pediatric Dentistry">Pediatric Dentistry</option>
+                            <option value="Oral Medicine">Oral Medicine</option>
+                            <option value="Oral Pathology">Oral Pathology</option>
+                        </select>
                     </div>
                 </div>
             </div>
+
+            <div class="modal-footer border-0 px-4 pb-4 pt-2 d-flex justify-content-end align-items-center">
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary px-4" id="usrSaveBtn" onclick="saveUser()">
+                        <i class="feather-save me-1"></i> Save
+                    </button>
+                </div>
+            </div>
+
         </div>
     </div>
+</div>
 
     <!-- RESET PASSWORD MODAL -->
     <div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-hidden="true">

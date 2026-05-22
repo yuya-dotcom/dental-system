@@ -94,7 +94,19 @@ function savePatient() {
         btn.innerHTML        = '<i class="feather-save me-1"></i> Save';
     });
 }
-
+function editPatient(p) {
+    document.getElementById('patModalTitle').textContent    = 'Edit Patient';
+    document.getElementById('pat_id').value                = p.patient_id;
+    document.getElementById('pat_name').value              = p.full_name       || '';
+    document.getElementById('pat_contact').value           = p.contact_number  || '';
+    document.getElementById('pat_gender').value            = p.gender          || '';
+    document.getElementById('pat_birthdate').value         = p.birthdate       || '';
+    document.getElementById('pat_last_visit').value        = p.last_visit      || '';
+    document.getElementById('pat_branch').value            = p.branch_id       || '';
+    document.getElementById('pat_status').value            = p.status          || 'active';
+    document.getElementById('patModalError').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('patientModal')).show();
+}
 
 /* ── Delete Patient ────────────────────────────────────────────── */
 function deletePatient(id, name) {

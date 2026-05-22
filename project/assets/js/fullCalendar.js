@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   calendar.render();
-
+  
   // ── Check Fully Booked Days ───────────────────────────────────
   // Fetches booked counts for every visible date and greys out full days
   function checkFullyBookedDays(startStr, endStr) {
@@ -201,6 +201,7 @@ document.addEventListener('DOMContentLoaded', function () {
       timeSlotsEl.innerHTML = `<div class="text-muted small py-2">No slots configured for this day.</div>`;
       return;
     }
+    
 
     // Legend
     const legend = document.createElement('div');

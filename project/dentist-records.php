@@ -61,9 +61,6 @@ $baseUrl      = 'dentist-records.php?branch=' . $filterBranch . '&status=' . url
                                 <?php endforeach; ?>
                             </select>
                             <?php endif; ?>
-                            <button class="btn btn-primary btn-sm hdr-btn" onclick="openAddDentistModal()">
-                                <i class="feather-plus me-1"></i> Add Dentist
-                            </button>
                         </div>
                     </div>
                 </div>

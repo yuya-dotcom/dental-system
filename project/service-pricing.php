@@ -312,14 +312,14 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
                     <div class="row g-3">
                         <!-- Service Name -->
                         <div class="col-12">
-                            <label class="form-label fw-semibold small">Service Name <span class="text-danger">*</span></label>
+                            <label class="form-label fw-semibold small">Service Name </label>
                             <input type="text" id="svc_name" class="form-control form-control-sm"
                                 placeholder="e.g. Tooth Extraction" maxlength="120">
                         </div>
 
                         <!-- Type -->
                         <div class="col-6">
-                            <label class="form-label fw-semibold small">Type <span class="text-danger">*</span></label>
+                            <label class="form-label fw-semibold small">Type</label>
                             <select id="svc_type" class="form-select form-select-sm">
                                 <?php foreach ($serviceTypes as $t): ?>
                                     <option value="<?= $t ?>"><?= $t ?></option>
@@ -329,10 +329,10 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
 
                         <!-- Base Price -->
                         <div class="col-6">
-                            <label class="form-label fw-semibold small">Base Price (₱) <span class="text-danger">*</span></label>
-                            <div class="input-group input-group-sm">
+                            <label class="form-label fw-semibold small">Base Price (₱) </label>
+                            <div class="input-group">
                                 <span class="input-group-text">₱</span>
-                                <input type="number" id="svc_price" class="form-control form-control-sm"
+                                <input type="number" id="svc_price" class="form-control"
                                     placeholder="0.00" min="0" step="0.01">
                             </div>
                         </div>
@@ -356,7 +356,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
                 </div>
 
                 <div class="modal-footer border-0 px-4 pb-4 pt-3 d-flex justify-content-between align-items-center">
-                    <span class="text-muted small"><span class="text-danger">*</span> Required fields</span>
+                    <span class="text-muted small"><span class="text-danger"></span></span>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-primary px-4" id="svcSaveBtn" onclick="saveService()">

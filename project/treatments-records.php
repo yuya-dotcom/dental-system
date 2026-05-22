@@ -389,7 +389,7 @@ $baseUrl      = 'treatments-records.php?branch=' . $filterBranch . '&status=' . 
                             <option value="consultation">Initial Consultation</option>
                             <option value="correction">Correction</option>
                         </select>
-                        <span class="text-muted small">Source</span>
+                        <span class="text-muted small">Update Type</span>
                     </div>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>

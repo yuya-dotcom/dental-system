@@ -191,9 +191,9 @@ $inventoryItems = is_array($invRes['data']) ? $invRes['data'] : [];
                     <input type="hidden" id="addMat_serviceId">
                     <div class="row g-3">
                         <div class="col-12">
-                            <label class="form-label fw-semibold small">Inventory Item <span class="text-danger">*</span></label>
+                            <label class="form-label fw-semibold small">Inventory Item </label>
                             <select id="addMat_item" class="form-select">
-                                <option value="">— Select Item —</option>
+                                <option value=""> Select Item </option>
                                 <?php foreach ($inventoryItems as $item): ?>
                                 <option value="<?= $item['item_id'] ?>"
                                         data-stock="<?= (int)$item['stock_quantity'] ?>"
@@ -206,7 +206,7 @@ $inventoryItems = is_array($invRes['data']) ? $invRes['data'] : [];
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Quantity to Deduct <span class="text-danger">*</span></label>
+                            <label class="form-label fw-semibold small">Quantity to Deduct </label>
                             <input type="number" id="addMat_qty" class="form-control" value="1" min="1" placeholder="e.g. 2">
                         </div>
                         <div class="col-md-6">
@@ -216,7 +216,7 @@ $inventoryItems = is_array($invRes['data']) ? $invRes['data'] : [];
                     </div>
                 </div>
                 <div class="modal-footer border-0 d-flex justify-content-between">
-                    <span class="text-muted small"><span class="text-danger">*</span> Required</span>
+                    <span class="text-muted small"><span class="text-danger"></span></span>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-primary px-4" id="addMatSaveBtn" onclick="saveMaterial()">

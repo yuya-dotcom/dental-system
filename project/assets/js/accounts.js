@@ -5,9 +5,10 @@
    ============================================================= */
 
 function toggleBranchField() {
-    const role      = document.getElementById('usr_role').value;
-    const branchRow = document.getElementById('usrBranchRow');
-    if (branchRow) branchRow.style.display = (role === 'owner') ? 'none' : '';
+    const role = document.getElementById('usr_role').value;
+    document.getElementById('usrBranchRow').style.display         = (role === 'owner') ? 'none' : '';
+    document.getElementById('usrSpecializationRow').style.display  = (role === 'dentist') ? '' : 'none';
+    if (role !== 'dentist') document.getElementById('usr_specialization').value = '';
 }
 
 function openAddUserModal() {
@@ -19,10 +20,11 @@ function openAddUserModal() {
     document.getElementById('usr_username').value           = '';
     document.getElementById('usr_role').value               = 'admin';
     document.getElementById('usr_branch').value             = '';
-    document.getElementById('usr_status').value             = 'active';
     document.getElementById('usrModalError').style.display  = 'none';
-    document.getElementById('usrPasswordSection').style.display = '';
+    document.getElementById('usrPasswordSection').style.display        = '';
+    document.getElementById('usrConfirmPasswordSection').style.display = '';
     document.getElementById('usr_password').value           = '';
+    document.getElementById('usr_confirm_password').value   = '';
     document.getElementById('usr_password').required        = true;
     toggleBranchField();
     new bootstrap.Modal(document.getElementById('userModal')).show();
@@ -32,38 +34,56 @@ function openEditUserModal(usr) {
     document.getElementById('usrModalTitle').textContent    = 'Edit Account';
     document.getElementById('usrModalSubtitle').textContent = 'Update user details below.';
     document.getElementById('usr_id').value                 = usr.user_id;
-    document.getElementById('usr_name').value               = usr.full_name  || '';
-    document.getElementById('usr_email').value              = usr.email      || '';
-    document.getElementById('usr_username').value           = usr.username   || '';
-    document.getElementById('usr_role').value               = usr.role       || 'admin';
-    document.getElementById('usr_branch').value             = usr.branch_id  || '';
-    document.getElementById('usr_status').value             = usr.status     || 'active';
+    document.getElementById('usr_name').value               = usr.full_name || '';
+    document.getElementById('usr_email').value              = usr.email     || '';
+    document.getElementById('usr_username').value           = usr.username  || '';
+    document.getElementById('usr_role').value               = usr.role      || 'admin';
+    document.getElementById('usr_branch').value             = usr.branch_id || '';
     document.getElementById('usrModalError').style.display  = 'none';
-    document.getElementById('usrPasswordSection').style.display = 'none';
+    document.getElementById('usrPasswordSection').style.display        = 'none';
+    document.getElementById('usrConfirmPasswordSection').style.display = 'none';
     document.getElementById('usr_password').required        = false;
     toggleBranchField();
     new bootstrap.Modal(document.getElementById('userModal')).show();
 }
 
 function saveUser() {
-    const id     = document.getElementById('usr_id').value;
-    const errBox = document.getElementById('usrModalError');
-    const btn    = document.getElementById('usrSaveBtn');
+    const id      = document.getElementById('usr_id').value;
+    const errBox  = document.getElementById('usrModalError');
+    const btn     = document.getElementById('usrSaveBtn');
+    const isNew   = !id;
+
+    // Password confirmation check (Add only)
+    if (isNew) {
+        const password        = document.getElementById('usr_password').value;
+        const confirmPassword = document.getElementById('usr_confirm_password').value;
+        if (!password || password.length < 6) {
+            errBox.textContent   = 'Password must be at least 6 characters.';
+            errBox.style.display = 'block';
+            return;
+        }
+        if (password !== confirmPassword) {
+            errBox.textContent   = 'Passwords do not match.';
+            errBox.style.display = 'block';
+            return;
+        }
+    }
+
     const payload = {
-        action:    id ? 'edit' : 'add',
+        action:    isNew ? 'add' : 'edit',
         user_id:   id,
         full_name: document.getElementById('usr_name').value.trim(),
         email:     document.getElementById('usr_email').value.trim(),
         username:  document.getElementById('usr_username').value.trim(),
         role:      document.getElementById('usr_role').value,
         branch_id: document.getElementById('usr_branch').value,
-        status:    document.getElementById('usr_status').value,
+        status:    isNew ? 'active' : (document.getElementById('usr_status')?.value || 'active'),
     };
-    if (!id) payload.password = document.getElementById('usr_password').value;
+    if (isNew) payload.password = document.getElementById('usr_password').value;
 
     errBox.style.display = 'none';
-    btn.disabled  = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+    btn.disabled         = true;
+    btn.innerHTML        = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
 
     fetch('api/user_crud.php', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -96,7 +116,17 @@ function openResetPasswordModal(userId, userName) {
     document.getElementById('resetPwError').style.display   = 'none';
     new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
 }
-
+function togglePassword(fieldId, btn) {
+    const input = document.getElementById(fieldId);
+    const icon  = btn.querySelector('i');
+    if (input.type === 'password') {
+        input.type     = 'text';
+        icon.className = 'feather-eye-off';
+    } else {
+        input.type     = 'password';
+        icon.className = 'feather-eye';
+    }
+}
 function saveResetPassword() {
     const userId  = document.getElementById('reset_user_id').value;
     const newPass = document.getElementById('reset_new_password').value;

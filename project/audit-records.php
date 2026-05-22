@@ -119,33 +119,71 @@ $allModules = [
                 </div>
 
                 <!-- Filters -->
-                <div class="page-header-right ms-auto">
-                    <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
-                        <!-- Module filter -->
-                        <select name="module" class="form-select form-control hdr-control" style="min-width:180px;" onchange="this.form.submit()">
-                            <option value="">All Modules</option>
-                            <?php foreach ($allModules as $m): ?>
-                                <option value="<?= htmlspecialchars($m) ?>" <?= $filterModule === $m ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars(ucwords(str_replace('-', ' ', $m))) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+<!-- Filters -->
+<div class="page-header-right ms-auto">
+    <div class="page-header-right-items">
+        <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
 
-                        <!-- Action filter -->
-                        <select name="action" class="form-select form-control hdr-control" style="min-width:130px;" onchange="this.form.submit()">
-                            <option value="">All Actions</option>
-                            <option value="INSERT" <?= $filterAction === 'INSERT' ? 'selected' : '' ?>>INSERT (Added)</option>
-                            <option value="UPDATE" <?= $filterAction === 'UPDATE' ? 'selected' : '' ?>>UPDATE (Modified)</option>
-                            <option value="DELETE" <?= $filterAction === 'DELETE' ? 'selected' : '' ?>>DELETE (Removed)</option>
-                        </select>
+            <!-- Module Filter -->
+            <select id="filterModule"
+                    class="form-select hdr-control"
+                    style="min-width:180px;"
+                    onchange="applyFilters()">
 
-                        <?php if ($filterModule || $filterAction): ?>
-                            <a href="audit-records.php" class="btn btn-light-brand">
-                                <i class="bi bi-x-circle me-1"></i>Reset
-                            </a>
-                        <?php endif; ?>
-                    </form>
-                </div>
+                <option value="">All Modules</option>
+
+                <?php foreach ($allModules as $m): ?>
+                    <option value="<?= htmlspecialchars($m) ?>"
+                        <?= $filterModule === $m ? 'selected' : '' ?>>
+
+                        <?= htmlspecialchars(
+                            ucwords(str_replace('-', ' ', $m))
+                        ) ?>
+
+                    </option>
+                <?php endforeach; ?>
+
+            </select>
+
+            <!-- Action Filter -->
+            <select id="filterAction"
+                    class="form-select hdr-control"
+                    style="min-width:150px;"
+                    onchange="applyFilters()">
+
+                <option value="">All Actions</option>
+
+                <option value="INSERT"
+                    <?= $filterAction === 'INSERT' ? 'selected' : '' ?>>
+                    INSERT (Added)
+                </option>
+
+                <option value="UPDATE"
+                    <?= $filterAction === 'UPDATE' ? 'selected' : '' ?>>
+                    UPDATE (Modified)
+                </option>
+
+                <option value="DELETE"
+                    <?= $filterAction === 'DELETE' ? 'selected' : '' ?>>
+                    DELETE (Removed)
+                </option>
+
+            </select>
+
+            <!-- Reset Button -->
+            <?php if ($filterModule || $filterAction): ?>
+                <button type="button"
+                        class="btn btn-light hdr-btn"
+                        onclick="resetFilters()">
+
+                    <i class="feather-x-circle me-1"></i> Reset
+
+                </button>
+            <?php endif; ?>
+
+        </div>
+    </div>
+</div>
             </div><!-- /page-header -->
 
             <div class="main-content">

@@ -75,7 +75,13 @@ if ($method === 'POST') {
     $userName  = $_SESSION['full_name'] ?? 'Unknown';
     $source    = $body['source'] ?? 'consultation'; // consultation | treatment_record | correction
 
-    if (!$patientId || !$toothNum) {
+    if (!$patientId) {
+        echo json_encode(['success' => false, 'message' => 'patient_id is required.']);
+        exit;
+    }
+
+    // tooth_number only required for single-tooth actions, not for batch
+    if (!in_array($action, ['upsert_batch', 'get_history']) && !$toothNum) {
         echo json_encode(['success' => false, 'message' => 'patient_id and tooth_number are required.']);
         exit;
     }

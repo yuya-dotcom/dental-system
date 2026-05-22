@@ -71,15 +71,15 @@
 
                 <div class="es-hero__stats">
                     <div class="es-stat">
-                        <span class="es-stat__num">500+</span>
+                        <span class="es-stat__num"></span>
                         <span class="es-stat__label">Happy Patients</span>
                     </div>
                     <div class="es-stat">
-                        <span class="es-stat__num">10+</span>
+                        <span class="es-stat__num"></span>
                         <span class="es-stat__label">Expert Dentists</span>
                     </div>
                     <div class="es-stat">
-                        <span class="es-stat__num">5</span>
+                        <span class="es-stat__num"></span>
                         <span class="es-stat__label">Clinic Branches</span>
                     </div>
                 </div>
@@ -106,12 +106,6 @@
                                 </div>
                                 <div class="badge-label">4.9 / 5.0 Patient Rating</div>
                             </div>
-                        </div>
-
-                        <!-- Years accent -->
-                        <div class="es-hero__img-accent">
-                            <div class="es-hero__img-accent-num">12+</div>
-                            <div class="es-hero__img-accent-label">Years of<br>Excellence</div>
                         </div>
 
                     </div>
@@ -205,10 +199,6 @@
             <!-- Image side -->
             <div class="col-lg-5 es-about__img-col">
                 <div class="es-about__img" role="img" aria-label="Modern dental treatment chair"></div>
-                <div class="es-about__img-badge">
-                    <div class="es-about__img-badge-num">12+</div>
-                    <div class="es-about__img-badge-label">Years of<br>Excellence</div>
-                </div>
             </div>
 
             <!-- Content side -->

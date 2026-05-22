@@ -98,12 +98,14 @@ if (!$patientId) {
     $patientCode = 'PAT-P' . str_pad($accountId, 5, '0', STR_PAD_LEFT);
 
     $newPat = supabase_request('patients', 'POST', [
-        'patient_code'   => $patientCode,
-        'full_name'      => $fullName,
-        'contact_number' => $contactNum,
-        'birthdate'      => $account['birthdate'] ?: null,
-        'status'         => 'active',
-    ]);
+    'patient_code'   => $patientCode,
+    'full_name'      => $fullName,
+    'contact_number' => $contactNum,
+    'birthdate'      => $account['birthdate'] ?: null,
+    'branch_id'      => $branchId,
+    'last_visit'     => $date,
+    'status'         => 'active',
+]);
 
     if (empty($newPat['data'][0]['patient_id'])) {
         echo json_encode(['success' => false, 'message' => 'Could not create patient record. Please complete your profile first.']);
@@ -156,6 +158,19 @@ if ($result['error'] || empty($result['data'][0]['appointment_id'])) {
     echo json_encode(['success' => false, 'message' => $result['error'] ?? 'Booking failed. Please try again.']);
     exit;
 }
+// ── Update patient branch + last visit ───────────────────────
+supabase_request('patients', 'PATCH', [
+    'branch_id'  => $branchId,
+    'last_visit' => $date,
+    'updated_at' => date('c'),
+], 'patient_id=eq.' . $patientId);
+
+// ── Done ──────────────────────────────────────────────────────
+echo json_encode([
+    'success'          => true,
+    'appointment_code' => $aptCode,
+    'message'          => 'Your appointment has been booked successfully!',
+]);
 
 // ── Done ──────────────────────────────────────────────────────
 echo json_encode([

@@ -9,8 +9,8 @@ require_once __DIR__ . '/controllers/secure_controller.php';
 require_once __DIR__ . '/controllers/patient_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 
-$filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : getSessionBranch();
-if (!isOwner() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
+$filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : (isOwner() || isAdmin() ? 0 : getSessionBranch());
+if (!isOwner() && !isAdmin() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
 $branches     = getAllBranches();
 $filterStatus = isset($_GET['status']) ? trim($_GET['status']) : '';
 $page         = max(1, (int)($_GET['page'] ?? 1));
@@ -27,6 +27,7 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
 ?>
 <!DOCTYPE html>
 <html lang="zxx">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -38,6 +39,7 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
     <link rel="stylesheet" href="assets/css/custom.css">
     <link rel="stylesheet" href="assets/css/admin.css">
 </head>
+
 <body>
     <?php include("partials/sidebar.php") ?>
     <?php include("partials/navbar.php") ?>
@@ -47,7 +49,9 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
 
             <div class="page-header">
                 <div class="page-header-left d-flex align-items-center">
-                    <div class="page-header-title"><h5 class="m-b-10">Patients</h5></div>
+                    <div class="page-header-title">
+                        <h5 class="m-b-10">Patients</h5>
+                    </div>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="dashboard.php">Home</a></li>
                         <li class="breadcrumb-item">List</li>
@@ -58,24 +62,19 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                         <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
                             <select id="filterStatus" class="form-select hdr-control" onchange="applyFilters()">
                                 <option value="">All Statuses</option>
-                                <option value="active"   <?= $filterStatus === 'active'   ? 'selected' : '' ?>>Active</option>
+                                <option value="active" <?= $filterStatus === 'active'   ? 'selected' : '' ?>>Active</option>
                                 <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
                             </select>
                             <?php if (isOwner()): ?>
-                            <select id="filterBranch" class="form-select hdr-control" onchange="applyFilters()">
-                                <option value="0">All Branches</option>
-                                <?php foreach ($branches as $b): ?>
-                                <option value="<?= (int)$b['branch_id'] ?>"
-                                    <?= (int)$b['branch_id'] === $filterBranch ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($b['branch_name']) ?>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <?php endif; ?>
-                            <?php if (!isDentist()): ?>
-                            <button class="btn btn-primary hdr-btn" onclick="openAddPatientModal()">
-                                <i class="feather-plus me-1"></i> Add Patient
-                            </button>
+                                <select id="filterBranch" class="form-select hdr-control" onchange="applyFilters()">
+                                    <option value="0">All Branches</option>
+                                    <?php foreach ($branches as $b): ?>
+                                        <option value="<?= (int)$b['branch_id'] ?>"
+                                            <?= (int)$b['branch_id'] === $filterBranch ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($b['branch_name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -122,80 +121,73 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                                             </tr>
                                         </thead>
                                         <tbody>
-                                        <?php if (empty($patients)): ?>
-                                            <tr>
-                                                <td colspan="9" class="text-center py-4 text-muted">
-                                                    <i class="feather-users me-2"></i>No patients found.
-                                                </td>
-                                            </tr>
-                                        <?php else: ?>
-                                            <?php foreach ($patients as $p): ?>
-                                            <tr>
-                                                <td>
-                                                    <span class="fw-semibold"><?= htmlspecialchars($p['patient_code'] ?? '—') ?></span>
-                                                </td>
-                                                <td>
-                                                    <div class="d-flex align-items-center gap-2">
-                                                        <div class="avatar-text avatar-sm bg-soft-primary text-primary rounded-circle">
-                                                            <?= strtoupper(substr($p['full_name'] ?? 'P', 0, 1)) ?>
-                                                        </div>
-                                                        <a href="patient-records.php?id=<?= (int)($p['patient_id'] ?? 0) ?>"
-                                                           class="text-dark fw-semibold text-decoration-none">
-                                                            <?= htmlspecialchars($p['full_name'] ?? '—') ?>
-                                                        </a>
-                                                    </div>
-                                                </td>
-                                                <td><?= htmlspecialchars($p['contact_number'] ?? '—') ?></td>
-                                                <td><?= htmlspecialchars(ucfirst($p['gender'] ?? '—')) ?></td>
-                                                <td><?= formatPatBirthdate($p['birthdate'] ?? null) ?></td>
-                                                <td><?= htmlspecialchars($p['branches']['branch_name'] ?? '—') ?></td>
-                                                <td><?= formatPatLastVisit($p['last_visit'] ?? null) ?></td>
-                                                <td>
-                                                    <span class="badge <?= patStatusBadge($p['status'] ?? null) ?>">
-                                                        <?= ucfirst($p['status'] ?? 'active') ?>
-                                                    </span>
-                                                </td>
-                                                <td class="text-end">
-                                                    <div class="dropdown">
-                                                        <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto"
-                                                           data-bs-toggle="dropdown" data-bs-strategy="fixed">
-                                                            <i class="feather-more-vertical"></i>
-                                                        </a>
-                                                        <div class="dropdown-menu dropdown-menu-end action-dropdown">
-                                                            <a href="patient-records.php?id=<?= (int)($p['patient_id'] ?? 0) ?>"
-                                                               class="dropdown-item">
-                                                                <i class="feather-eye"></i> View Details
-                                                            </a>
-                                                            <a href="appointments-schedule.php?patient_id=<?= (int)($p['patient_id'] ?? 0) ?>"
-                                                               class="dropdown-item">
-                                                                <i class="feather-calendar"></i> View Appointments
-                                                            </a>
-                                                            <?php if (!isDentist()): ?>
-                                                            <div class="dropdown-divider"></div>
-                                                            <a href="javascript:void(0);" class="dropdown-item"
-                                                               onclick='openEditPatientModal(<?= json_encode([
-                                                                   "patient_id"     => $p["patient_id"],
-                                                                   "full_name"      => $p["full_name"]      ?? "",
-                                                                   "contact_number" => $p["contact_number"] ?? "",
-                                                                   "gender"         => $p["gender"]         ?? "",
-                                                                   "birthdate"      => $p["birthdate"]      ?? "",
-                                                                   "branch_id"      => $p["branch_id"]      ?? "",
-                                                                   "last_visit"     => $p["last_visit"]     ?? "",
-                                                                   "status"         => $p["status"]         ?? "active",
-                                                               ], JSON_HEX_QUOT | JSON_HEX_TAG) ?>)'>
-                                                                <i class="feather-edit-2"></i> Edit
-                                                            </a>
-                                                            <a href="javascript:void(0);" class="dropdown-item text-danger"
-                                                               onclick="deletePatient(<?= (int)($p['patient_id'] ?? 0) ?>, '<?= htmlspecialchars($p['full_name'] ?? '', ENT_QUOTES) ?>')">
-                                                                <i class="feather-trash-2"></i> Delete
-                                                            </a>
-                                                            <?php endif; ?>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            <?php endforeach; ?>
-                                        <?php endif; ?>
+                                            <?php if (empty($patients)): ?>
+                                                <tr>
+                                                    <td colspan="9" class="text-center py-4 text-muted">
+                                                        <i class="feather-users me-2"></i>No patients found.
+                                                    </td>
+                                                </tr>
+                                            <?php else: ?>
+                                                <?php foreach ($patients as $p): ?>
+                                                    <tr>
+                                                        <td>
+                                                            <span class="fw-semibold"><?= htmlspecialchars($p['patient_code'] ?? '—') ?></span>
+                                                        </td>
+                                                        <td>
+                                                            <div class="d-flex align-items-center gap-2">
+                                                                <div class="avatar-text avatar-sm bg-soft-primary text-primary rounded-circle">
+                                                                    <?= strtoupper(substr($p['full_name'] ?? 'P', 0, 1)) ?>
+                                                                </div>
+                                                                <a href="patient-records.php?id=<?= (int)($p['patient_id'] ?? 0) ?>"
+                                                                    class="text-dark fw-semibold text-decoration-none">
+                                                                    <?= htmlspecialchars($p['full_name'] ?? '—') ?>
+                                                                </a>
+                                                            </div>
+                                                        </td>
+                                                        <td><?= htmlspecialchars($p['contact_number'] ?? '—') ?></td>
+                                                        <td><?= htmlspecialchars(ucfirst($p['gender'] ?? '—')) ?></td>
+                                                        <td><?= formatPatBirthdate($p['birthdate'] ?? null) ?></td>
+                                                        <td><?= htmlspecialchars($p['branches']['branch_name'] ?? '—') ?></td>
+                                                        <td><?= formatPatLastVisit($p['last_visit'] ?? null) ?></td>
+                                                        <td>
+                                                            <span class="badge <?= patStatusBadge($p['status'] ?? null) ?>">
+                                                                <?= ucfirst($p['status'] ?? 'active') ?>
+                                                            </span>
+                                                        </td>
+                                                        <td class="text-end">
+                                                            <div class="dropdown">
+                                                                <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto"
+                                                                    data-bs-toggle="dropdown" data-bs-strategy="fixed">
+                                                                    <i class="feather-more-vertical"></i>
+                                                                </a>
+                                                                <div class="dropdown-menu dropdown-menu-end action-dropdown">
+                                                                    <a href="patient-records.php?id=<?= (int)($p['patient_id'] ?? 0) ?>"
+                                                                        class="dropdown-item">
+                                                                        <i class="feather-eye"></i> View Details
+                                                                    </a>
+                                                                    <a href="javascript:void(0);" class="dropdown-item text-primary"
+                                                                        onclick='editPatient(<?= json_encode([
+                                                                                                    "patient_id"     => $p["patient_id"],
+                                                                                                    "full_name"      => $p["full_name"] ?? "",
+                                                                                                    "contact_number" => $p["contact_number"] ?? "",
+                                                                                                    "gender"         => $p["gender"] ?? "",
+                                                                                                    "birthdate"      => $p["birthdate"] ?? "",
+                                                                                                    "last_visit"     => $p["last_visit"] ?? "",
+                                                                                                    "branch_id"      => $p["branch_id"] ?? "",
+                                                                                                    "status"         => $p["status"] ?? "active",
+                                                                                                ], JSON_HEX_QUOT | JSON_HEX_TAG) ?>)'>
+                                                                        <i class="feather-edit-2"></i> Edit
+                                                                    </a>
+                                                                    <a href="appointments-schedule.php?patient_id=<?= (int)($p['patient_id'] ?? 0) ?>"
+                                                                        class="dropdown-item">
+                                                                        <i class="feather-calendar"></i> View Appointments
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
                                         </tbody>
                                     </table>
                                 </div>
@@ -213,43 +205,43 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                                     <?php endif; ?>
                                 </p>
                                 <?php if ($totalPages > 1): ?>
-                                <ul class="list-unstyled d-flex align-items-center gap-1 mb-0 pagination-common-style">
-                                    <li>
-                                        <?php if ($page > 1): ?>
-                                            <a href="<?= $baseUrl ?>&page=<?= $page - 1 ?>"><i class="bi bi-arrow-left"></i></a>
-                                        <?php else: ?>
-                                            <a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-left"></i></a>
-                                        <?php endif; ?>
-                                    </li>
-                                    <?php
-                                    $wStart = max(1, $page - 2);
-                                    $wEnd   = min($totalPages, $wStart + 4);
-                                    $wStart = max(1, $wEnd - 4);
-                                    ?>
-                                    <?php if ($wStart > 1): ?>
-                                        <li><a href="<?= $baseUrl ?>&page=1">1</a></li>
-                                        <?php if ($wStart > 2): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?>
-                                    <?php endif; ?>
-                                    <?php for ($pg = $wStart; $pg <= $wEnd; $pg++): ?>
+                                    <ul class="list-unstyled d-flex align-items-center gap-1 mb-0 pagination-common-style">
                                         <li>
-                                            <a href="<?= $baseUrl ?>&page=<?= $pg ?>"
-                                               class="<?= $pg === $page ? 'active' : '' ?>">
-                                                <?= $pg ?>
-                                            </a>
+                                            <?php if ($page > 1): ?>
+                                                <a href="<?= $baseUrl ?>&page=<?= $page - 1 ?>"><i class="bi bi-arrow-left"></i></a>
+                                            <?php else: ?>
+                                                <a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-left"></i></a>
+                                            <?php endif; ?>
                                         </li>
-                                    <?php endfor; ?>
-                                    <?php if ($wEnd < $totalPages): ?>
-                                        <?php if ($wEnd < $totalPages - 1): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?>
-                                        <li><a href="<?= $baseUrl ?>&page=<?= $totalPages ?>"><?= $totalPages ?></a></li>
-                                    <?php endif; ?>
-                                    <li>
-                                        <?php if ($page < $totalPages): ?>
-                                            <a href="<?= $baseUrl ?>&page=<?= $page + 1 ?>"><i class="bi bi-arrow-right"></i></a>
-                                        <?php else: ?>
-                                            <a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-right"></i></a>
+                                        <?php
+                                        $wStart = max(1, $page - 2);
+                                        $wEnd   = min($totalPages, $wStart + 4);
+                                        $wStart = max(1, $wEnd - 4);
+                                        ?>
+                                        <?php if ($wStart > 1): ?>
+                                            <li><a href="<?= $baseUrl ?>&page=1">1</a></li>
+                                            <?php if ($wStart > 2): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?>
                                         <?php endif; ?>
-                                    </li>
-                                </ul>
+                                        <?php for ($pg = $wStart; $pg <= $wEnd; $pg++): ?>
+                                            <li>
+                                                <a href="<?= $baseUrl ?>&page=<?= $pg ?>"
+                                                    class="<?= $pg === $page ? 'active' : '' ?>">
+                                                    <?= $pg ?>
+                                                </a>
+                                            </li>
+                                        <?php endfor; ?>
+                                        <?php if ($wEnd < $totalPages): ?>
+                                            <?php if ($wEnd < $totalPages - 1): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?>
+                                            <li><a href="<?= $baseUrl ?>&page=<?= $totalPages ?>"><?= $totalPages ?></a></li>
+                                        <?php endif; ?>
+                                        <li>
+                                            <?php if ($page < $totalPages): ?>
+                                                <a href="<?= $baseUrl ?>&page=<?= $page + 1 ?>"><i class="bi bi-arrow-right"></i></a>
+                                            <?php else: ?>
+                                                <a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-right"></i></a>
+                                            <?php endif; ?>
+                                        </li>
+                                    </ul>
                                 <?php endif; ?>
                             </div>
 
@@ -303,9 +295,9 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Branch <span class="text-danger">*</span></label>
                             <select id="pat_branch" class="form-select">
-                                <option value="">— Select Branch —</option>
+                                <option value=""> Select Branch </option>
                                 <?php foreach ($branches as $b): ?>
-                                <option value="<?= (int)$b['branch_id'] ?>"><?= htmlspecialchars($b['branch_name']) ?></option>
+                                    <option value="<?= (int)$b['branch_id'] ?>"><?= htmlspecialchars($b['branch_name']) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -338,12 +330,13 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/patients.js"></script>
     <script>
-    function applyFilters() {
-        window._applyFilters('patients-list.php', {
-            branch: 'filterBranch',
-            status: 'filterStatus'
-        });
-    }
+        function applyFilters() {
+            window._applyFilters('patients-list.php', {
+                branch: 'filterBranch',
+                status: 'filterStatus'
+            });
+        }
     </script>
 </body>
+
 </html>

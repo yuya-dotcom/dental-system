@@ -1,9 +1,6 @@
 <?php
 // =============================================================
-//  treatments-active.php  — COMPLETE FIXED FILE
-//  Fix: patient name column is now a clickable link to
-//       patient-records.php?id={patient_id}
-//  All modals (View Details, Work Modal, Finish Confirm) included.
+//  treatments-active.php
 // =============================================================
 
 define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']);
@@ -38,17 +35,84 @@ $baseUrl = 'treatments-active.php?branch=' . $filterBranch;
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
     <link rel="stylesheet" href="assets/css/custom.css">
     <link rel="stylesheet" href="assets/css/admin.css">
+    <link rel="stylesheet" href="assets/css/treatments.css">
     <style>
-        .tooth-btn {
-            width: 28px; height: 28px; border-radius: 4px;
-            border: 1.5px solid #ced4da; background: #fff;
-            font-size: 10px; font-weight: 600; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            transition: all .15s; color: #555; line-height: 1; padding: 0;
+        /* ── Work Modal tooth grid overrides ──────────────────── */
+        .wm-tooth-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            cursor: pointer;
+            padding: 3px 1px;
+            border-radius: 7px;
+            transition: background .12s, outline .12s;
+            outline: 2px solid transparent;
+            outline-offset: 1px;
         }
-        .tooth-btn:hover  { border-color: #0d6efd; color: #0d6efd; background: #e8f0fe; }
-        .tooth-btn.active { border-color: #0d6efd; background: #0d6efd; color: #fff; }
-        #tooth_chart { background: #fafafa; }
+        .wm-tooth-box:hover {
+            background: #eff6ff;
+            outline-color: #bfdbfe;
+        }
+        .wm-tooth-box.wm-selected {
+            background: #eff6ff;
+            outline: 2.5px solid #3454d1;
+        }
+        .wm-tooth-num {
+            font-size: .62rem;
+            font-weight: 700;
+            color: #6b7885;
+            text-align: center;
+            line-height: 1;
+        }
+        .wm-tooth-box.wm-selected .wm-tooth-num {
+            color: #3454d1;
+        }
+        .wm-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 5px;
+        }
+        .wm-section-label {
+            font-size: .68rem;
+            font-weight: 700;
+            text-align: center;
+            color: #3454d1;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            padding: .35rem 0 .5rem;
+        }
+        #wm_chart_loading {
+            text-align: center;
+            padding: 1.5rem;
+            color: #91a1b6;
+            font-size: .83rem;
+        }
+        .wm-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .25rem .6rem;
+            padding: .5rem .75rem;
+            background: #f8f9fa;
+            border-top: 1px solid #e5e7eb;
+            border-radius: 0 0 8px 8px;
+        }
+        .wm-legend-item {
+            display: flex;
+            align-items: center;
+            gap: .3rem;
+            font-size: .67rem;
+            color: #283c50;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .wm-legend-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 1.5px solid rgba(0,0,0,.1);
+        }
     </style>
 </head>
 <body>
@@ -137,7 +201,6 @@ $baseUrl = 'treatments-active.php?branch=' . $filterBranch;
                                                 <td><span class="fw-semibold"><?= htmlspecialchars($t['treatment_code'] ?? '—') ?></span></td>
                                                 <td><?= formatTrtDate($t['treatment_date'] ?? null) ?></td>
                                                 <td>
-                                                    <!-- ★ FIX: patient name is now a clickable link -->
                                                     <div class="hstack gap-2">
                                                         <div class="avatar-text avatar-sm bg-soft-primary text-primary rounded-circle">
                                                             <?= strtoupper(substr($t['patients']['full_name'] ?? 'P', 0, 1)) ?>
@@ -160,28 +223,29 @@ $baseUrl = 'treatments-active.php?branch=' . $filterBranch;
                                                 </td>
                                                 <td class="text-end">
                                                     <div class="dropdown">
-                                                        <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" overflow:visible;">
+                                                        <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" style="overflow:visible;">
                                                             <i class="feather-more-vertical"></i>
                                                         </a>
                                                         <div class="dropdown-menu dropdown-menu-end action-dropdown">
                                                             <a href="javascript:void(0);" class="dropdown-item text-primary"
                                                                onclick='openWorkModal(<?= json_encode([
-                                                                   "treatment_id"    => $t["treatment_id"],
-                                                                   "treatment_code"  => $t["treatment_code"] ?? "",
-                                                                   "appointment_id"  => $t["appointment_id"] ?? null,
-                                                                   "patient_id"      => $t["patient_id"] ?? "",
-                                                                   "patient_name"    => $t["patients"]["full_name"] ?? "—",
-                                                                   "branch_id"       => $t["branch_id"] ?? "",
-                                                                   "branch_name"     => $t["branches"]["branch_name"] ?? "—",
-                                                                   "dentist_id"      => $t["dentist_id"] ?? "",
-                                                                   "dentist_name"    => $t["dentists"]["full_name"] ?? "—",
-                                                                   "service_id"      => $t["service_id"] ?? "",
-                                                                   "service_name"    => $t["services"]["service_name"] ?? "—",
-                                                                   "tooth_number"    => $t["tooth_number"] ?? "",
-                                                                   "procedure_notes" => $t["procedure_notes"] ?? "",
-                                                                   "cost"            => $t["cost"] ?? "",
-                                                                   "current_stage"   => $t["current_stage"] ?? "",
-                                                                   "status"          => $t["status"] ?? "pending",
+                                                                   "treatment_id"             => $t["treatment_id"],
+                                                                   "treatment_code"           => $t["treatment_code"] ?? "",
+                                                                   "appointment_id"           => $t["appointment_id"] ?? null,
+                                                                   "patient_id"               => $t["patient_id"] ?? "",
+                                                                   "patient_name"             => $t["patients"]["full_name"] ?? "—",
+                                                                   "branch_id"                => $t["branch_id"] ?? "",
+                                                                   "branch_name"              => $t["branches"]["branch_name"] ?? "—",
+                                                                   "dentist_id"               => $t["dentist_id"] ?? "",
+                                                                   "dentist_name"             => $t["dentists"]["full_name"] ?? "—",
+                                                                   "service_id"               => $t["service_id"] ?? "",
+                                                                   "service_name"             => $t["services"]["service_name"] ?? "—",
+                                                                   "requires_tooth_selection" => (bool)($t["services"]["requires_tooth_selection"] ?? false),
+                                                                   "tooth_number"             => $t["tooth_number"] ?? "",
+                                                                   "procedure_notes"          => $t["procedure_notes"] ?? "",
+                                                                   "cost"                     => $t["cost"] ?? "",
+                                                                   "current_stage"            => $t["current_stage"] ?? "",
+                                                                   "status"                   => $t["status"] ?? "pending",
                                                                ], JSON_HEX_QUOT|JSON_HEX_TAG) ?>)'>
                                                                <i class="feather-edit-2"></i>
                                                                <?= in_array($t['status'], ['pending','ongoing']) ? 'Start Treatment' : 'Update Treatment' ?>
@@ -271,7 +335,7 @@ $baseUrl = 'treatments-active.php?branch=' . $filterBranch;
          WORK ON TREATMENT MODAL
     ============================================================ -->
     <div class="modal fade" id="workModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header border-0 pb-0">
                     <div>
@@ -294,20 +358,21 @@ $baseUrl = 'treatments-active.php?branch=' . $filterBranch;
                     <input type="hidden" id="work_service_name">
                     <input type="hidden" id="work_dentist_name">
                     <input type="hidden" id="work_branch_name">
+                    <input type="hidden" id="work_tooth_number">
 
                     <div class="row g-3">
 
-                        <!-- Service (read-only display) -->
+                        <!-- Service -->
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Service / Procedure</label>
                             <input type="text" id="work_service_display" class="form-control bg-light" readonly>
                         </div>
 
-                        <!-- Dentist (required) -->
+                        <!-- Dentist -->
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Dentist <span class="text-danger">*</span></label>
                             <select id="work_dentist_select" class="form-select">
-                                <option value="">— Select Dentist —</option>
+                                <option value=""> Select Dentist </option>
                             </select>
                         </div>
 
@@ -318,22 +383,49 @@ $baseUrl = 'treatments-active.php?branch=' . $filterBranch;
                                 placeholder="Describe what was performed e.g. Extraction of lower left molar..."></textarea>
                         </div>
 
-                        <!-- Tooth Chart -->
-                        <div class="col-12">
-                            <label class="form-label fw-semibold small">
-                                Tooth Number(s)
-                                <span class="text-muted fw-normal small">— click to select affected teeth</span>
+                        <!-- ── SVG Dental Chart (conditional) ──────────────── -->
+                        <div class="col-12" id="tooth_chart_section">
+                            <label class="form-label fw-semibold small d-flex align-items-center gap-2">
+                                <i class="feather-grid text-primary" style="font-size:14px;"></i>
+                                Tooth Selection
+                                <span class="text-muted fw-normal small">— click teeth to select affected area</span>
                             </label>
-                            <input type="hidden" id="work_tooth_number">
-                            <div id="tooth_chart" class="border rounded p-2">
-                                <div class="text-center text-muted small mb-1 fw-semibold">MAXILLA (Upper)</div>
-                                <div class="d-flex justify-content-center gap-1 flex-wrap mb-1" id="upper_teeth"></div>
-                                <div class="d-flex justify-content-center gap-1 flex-wrap mt-1" id="lower_teeth"></div>
-                                <div class="text-center text-muted small mt-1 fw-semibold">MANDIBLE (Lower)</div>
+
+                            <div class="border rounded overflow-hidden">
+
+                                <!-- Loading state -->
+                                <div id="wm_chart_loading" style="display:none;">
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                    Loading patient chart…
+                                </div>
+
+                                <!-- Chart grids -->
+                                <div id="wm_chart_grids" style="padding:.75rem .75rem 0;">
+                                    <div class="wm-section-label">Upper Teeth (18→11 | 21→28)</div>
+                                    <div class="wm-grid mb-3" id="wm_upperTeeth"></div>
+                                    <div class="wm-section-label">Lower Teeth (48→41 | 31→38)</div>
+                                    <div class="wm-grid pb-2" id="wm_lowerTeeth"></div>
+                                </div>
+
+                                <!-- Legend -->
+                                <div class="wm-legend">
+                                    <span class="wm-legend-item"><span class="wm-legend-dot" style="background:#fff;border-color:#86efac;"></span>Healthy</span>
+                                    <span class="wm-legend-item"><span class="wm-legend-dot" style="background:#3b82f6;"></span>Filled</span>
+                                    <span class="wm-legend-item"><span class="wm-legend-dot" style="background:#ef4444;"></span>Decay</span>
+                                    <span class="wm-legend-item"><span class="wm-legend-dot" style="background:#a855f7;"></span>Impacted</span>
+                                    <span class="wm-legend-item"><span class="wm-legend-dot" style="background:#9ca3af;"></span>Missing</span>
+                                    <span class="wm-legend-item"><span class="wm-legend-dot" style="background:#eab308;"></span>Crown</span>
+                                    <span class="wm-legend-item"><span class="wm-legend-dot" style="background:#22c55e;"></span>Impacted (NE)</span>
+                                    <span class="wm-legend-item"><span class="wm-legend-dot" style="background:#eff6ff;border-color:#3454d1;"></span>Selected</span>
+                                </div>
+
                             </div>
-                            <div class="mt-1">
+
+                            <!-- Selection summary -->
+                            <div class="mt-1 d-flex align-items-center gap-2">
                                 <small class="text-muted" id="tooth_selected_label">No teeth selected</small>
-                                <a href="javascript:void(0);" class="text-danger small ms-2" onclick="clearToothSelection()" id="tooth_clear_btn" style="display:none;">
+                                <a href="javascript:void(0);" class="text-danger small" onclick="clearToothSelection()"
+                                   id="tooth_clear_btn" style="display:none;">
                                     <i class="feather-x-circle me-1"></i>Clear
                                 </a>
                             </div>
@@ -356,7 +448,7 @@ $baseUrl = 'treatments-active.php?branch=' . $filterBranch;
                             <input type="text" id="work_current_stage" class="form-control" placeholder="e.g. In Progress">
                         </div>
 
-                        <!-- Materials Section -->
+                        <!-- Materials -->
                         <div class="col-12">
                             <div class="d-flex align-items-center justify-content-between mb-2">
                                 <label class="form-label fw-semibold small mb-0">
@@ -482,6 +574,7 @@ $baseUrl = 'treatments-active.php?branch=' . $filterBranch;
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="assets/js/admin.js"></script>
+    <script src="assets/js/treatments-active-chart.js"></script>
     <script src="assets/js/treatments-active.js"></script>
     <script>
         window._sessionBranchId = '<?= getSessionBranch() ?>';

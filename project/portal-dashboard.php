@@ -984,7 +984,7 @@ $API_PATH = 'api/portal_auth.php';
                 </div>
                 <div class="modal-footer border-0 pt-0">
                     <button class="btn btn-light" data-bs-dismiss="modal">Keep It</button>
-                    <button class="btn btn-danger px-4" onclick="confirmCancel()">Yes, Cancel</button>
+                    <button class="btn btn-danger px-4 text-white" onclick="confirmCancel()">Yes, Cancel</button>
                 </div>
             </div>
         </div>
@@ -1090,7 +1090,11 @@ $API_PATH = 'api/portal_auth.php';
         };
 
     })();
+
+    
     </script>
+
+    
 
 </body>
 </html>

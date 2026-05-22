@@ -350,26 +350,74 @@ async function loadFiles() {
 // ── WAIVERS ───────────────────────────────────────────────────────────────────
 async function loadWaivers() {
     const listEl = document.getElementById('waiversList');
-    const data   = await php(API, { action: 'get_waivers' });
-    const list   = data.waivers || [];
+    listEl.innerHTML = '<div class="col-12 text-center py-4" style="color:var(--text-muted);">Loading…</div>';
+    const data = await php(API, { action: 'get_waivers' });
+    const list = data.waivers || [];
+
     if (!list.length) {
         listEl.innerHTML = '<div class="col-12"><div class="empty-state"><i class="fa-solid fa-pen-to-square"></i><p>No waivers on file.</p></div></div>';
         return;
     }
-    listEl.innerHTML = list.map(w => `
+
+    listEl.innerHTML = list.map(w => {
+        const fileName = w.file_path ? w.file_path.split('/').pop() : '—';
+        const signed   = w.status === 'Signed';
+        const signedAt = w.signed_at ? fmtDate(w.signed_at) : null;
+
+        const statusBadgeHtml = `<span class="waiver-badge ${signed ? 'waiver-signed' : 'waiver-pending'}">${signed ? 'Signed' : 'Pending'}</span>`;
+
+        const signBtn = !signed
+            ? `<button onclick="signWaiver(${w.waiver_id})"
+                style="margin-top:.6rem;width:100%;padding:.35rem;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;">
+                <i class="fa-solid fa-pen me-1"></i> Sign Waiver
+               </button>`
+            : `<div style="margin-top:.5rem;font-size:.76rem;color:var(--text-muted);text-align:center;">
+                Signed by <strong>${w.signed_by}</strong> on ${signedAt}
+               </div>`;
+
+        return `
         <div class="col-md-6">
-            <div class="waiver-card d-flex align-items-center justify-content-between">
-                <div>
-                    <div style="font-weight:700;font-size:.875rem;">${w.waiver_type || 'General Waiver'}</div>
-                    <div style="font-size:.78rem;color:var(--text-muted);">${w.signed_at ? 'Signed ' + fmtDate(w.signed_at) : 'Not yet signed'}</div>
+            <div class="waiver-card">
+                <div class="d-flex align-items-start justify-content-between gap-2">
+                    <div>
+                        <div style="font-weight:700;font-size:.875rem;">${w.waiver_type || 'General Waiver'}</div>
+                        <div style="font-size:.78rem;color:var(--text-muted);margin-top:.15rem;">${fileName}</div>
+                        <div style="font-size:.76rem;color:var(--text-muted);margin-top:.1rem;">${signed ? 'Signed ' + signedAt : 'Not yet signed'}</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        ${statusBadgeHtml}
+                        ${w.file_path ? `<a href="${w.file_path}" target="_blank" class="file-download" title="View"><i class="fa-solid fa-eye"></i></a>` : ''}
+                    </div>
                 </div>
-                <div>
-                    <span class="waiver-badge ${w.status === 'Signed' ? 'waiver-signed' : 'waiver-pending'}">${w.status || 'Pending'}</span>
-                    ${w.file_path ? `<a href="${w.file_path}" target="_blank" class="file-download ms-2" title="View"><i class="fa-solid fa-eye"></i></a>` : ''}
-                </div>
+                ${signBtn}
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
+}
+
+async function signWaiver(waiverId) {
+    const { isConfirmed, value } = await Swal.fire({
+        title: 'Sign Waiver',
+        html: `<input id="signerName" class="swal2-input" placeholder="Enter your full name to sign">`,
+        confirmButtonText: 'Sign',
+        confirmButtonColor: '#2563eb',
+        showCancelButton: true,
+        preConfirm: () => {
+            const name = document.getElementById('signerName').value.trim();
+            if (!name) { Swal.showValidationMessage('Please enter your full name.'); return false; }
+            return name;
+        }
+    });
+
+    if (!isConfirmed) return;
+
+    const data = await php(API, { action: 'sign_waiver', waiver_id: waiverId, signed_by: value });
+    if (data.success) {
+        Swal.fire({ icon: 'success', title: 'Waiver Signed!', timer: 1400, showConfirmButton: false });
+        loadWaivers();
+    } else {
+        Swal.fire({ icon: 'error', title: 'Error', text: data.message, confirmButtonColor: '#2563eb' });
+    }
 }
 
 // ── PROFILE ───────────────────────────────────────────────────────────────────

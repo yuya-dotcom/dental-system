@@ -1,24 +1,34 @@
 <?php
-
 define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
-require_once __DIR__ . '/controllers/patient_controller.php'; // list helpers
-require_once __DIR__ . '/controllers/patient_control.php';    // FIX: getPatientById(), getPatientFinancialSummary(), etc.
+require_once __DIR__ . '/controllers/patient_controller.php';
+require_once __DIR__ . '/controllers/patient_control.php';
 require_once __DIR__ . '/dbconfig.php';
+
+function decodeNestedJson(mixed $data): mixed {
+    if (is_string($data)) {
+        $decoded = json_decode($data, true);
+        return ($decoded !== null) ? decodeNestedJson($decoded) : $data;
+    }
+    if (is_array($data)) {
+        return array_map('decodeNestedJson', $data);
+    }
+    return $data;
+}
 
 $patientId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if (!$patientId) die('Invalid patient.');
 
-$patient    = getPatientById($patientId);
+$patient = decodeNestedJson(getPatientById($patientId)) ?? [];
 if (!$patient) die('Patient not found.');
 
-$summary    = getPatientFinancialSummary($patientId);
-$active     = getPatientActiveTreatments($patientId);
-$upcoming   = getPatientUpcomingAppointments($patientId);
-$invoices   = getPatientInvoices($patientId);
-$treatments = getPatientTreatments($patientId);
-$notes      = getPatientClinicalNotes($patientId);
+$summary    = decodeNestedJson(getPatientFinancialSummary($patientId)) ?? [];
+$active     = decodeNestedJson(getPatientActiveTreatments($patientId)) ?? [];
+$upcoming   = decodeNestedJson(getPatientUpcomingAppointments($patientId)) ?? [];
+$invoices = decodeNestedJson(getPatientInvoices($patientId)) ?? [];
+$treatments = decodeNestedJson(getPatientTreatments($patientId)) ?? [];
+$notes      = decodeNestedJson(getPatientClinicalNotes($patientId)) ?? [];
 $age        = calculateAge($patient['birthdate'] ?? null);
 ?>
 <!DOCTYPE html>

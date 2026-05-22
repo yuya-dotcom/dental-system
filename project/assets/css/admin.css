@@ -328,3 +328,13 @@ body.login-page {
     border-radius: 8px;
     padding: 10px 14px;
 }
+
+#userModal .form-select {
+    padding-top: 0.475rem;
+    padding-bottom: 0.475rem;
+    height: calc(1.5em + 0.95rem + 6.5px);
+}
+#userModal .form-select,
+#userModal .form-control {
+    font-size: 0.8125rem;
+}

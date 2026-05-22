@@ -268,7 +268,45 @@ body {
   text-decoration: none;
   padding: 8px 4px;
 }
+/* Past days — visible but not interactive */
+.fc .fc-day-past .fc-daygrid-day-number {
+  color: #c8d0da !important;
+  cursor: default;
+}
 
+.fc .fc-day-past:hover .fc-daygrid-day-number {
+  background: transparent !important;
+  color: #c8d0da !important;
+}
+
+.fc .fc-day-today .fc-daygrid-day-number {
+  background: var(--blue-mid);
+  color: var(--blue-dark);
+  font-weight: 700;
+  cursor: default; /* today also not bookable */
+}
+
+/* Sunday column header — optional red tint */
+.fc .fc-day-sun .fc-col-header-cell-cushion {
+  color: #e05a5a;
+}
+/* Sunday & Monday — closed days */
+.fc .fc-day-sun .fc-daygrid-day-number,
+.fc .fc-day-mon .fc-daygrid-day-number {
+  color: #c8d0da !important;
+  cursor: default;
+}
+
+.fc .fc-day-sun:hover .fc-daygrid-day-number,
+.fc .fc-day-mon:hover .fc-daygrid-day-number {
+  background: transparent !important;
+  color: #c8d0da !important;
+}
+
+.fc .fc-day-sun .fc-col-header-cell-cushion,
+.fc .fc-day-mon .fc-col-header-cell-cushion {
+  color: #c8d0da;
+}
 .fc .fc-daygrid-day-number {
   font-size: 0.82rem;
   font-weight: 500;
