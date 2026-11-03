@@ -11,8 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # Only ./project/ is uploaded, so ship the committed Composer packages
-      # (PHPMailer, Dompdf) inside it as htdocs/vendor/, closed to the web.
+      # Bundle Composer dependencies into project/vendor/
       - name: Bundle Composer vendor into project/
         run: |
           test -f vendor/autoload.php
@@ -27,10 +26,15 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./project/
           server-dir: /essenciasmile.online/htdocs/
-          # First three lines are the action's defaults; setting exclude replaces them.
-          # curl-check.php is a local PHP/cURL diagnostic and must not be public.
+
+          # Preview only; do not modify the live website.
+          dry-run: true
+
+          # Preserve default exclusions and production secrets.
           exclude: |
             **/.git*
             **/.git*/**
             **/node_modules/**
+            config/secrets.php
+            **/config/secrets.php
             curl-check.php
