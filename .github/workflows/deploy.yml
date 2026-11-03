@@ -30,11 +30,12 @@ jobs:
           # Preview only; do not modify the live website.
           dry-run: true
 
-          # Preserve default exclusions and production secrets.
+          # Preserve defaults and exclude private or unnecessary files.
           exclude: |
             **/.git*
             **/.git*/**
             **/node_modules/**
+            database/**
             config/secrets.php
             **/config/secrets.php
             curl-check.php
