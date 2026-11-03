@@ -37,6 +37,7 @@ $baseUrl = 'inventory-stock-movement.php?branch=' . $filterBranch . '&item=' . $
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
     <link rel="stylesheet" href="assets/css/custom.css">
     <link rel="stylesheet" href="assets/css/admin.css">
+    <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -56,7 +57,7 @@ $baseUrl = 'inventory-stock-movement.php?branch=' . $filterBranch . '&item=' . $
                     <div class="page-header-right-items">
                         <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
                             <?php if (isOwner()): ?>
-                            <select id="filterBranch" class="form-select form-select-sm hdr-control" onchange="applyFilters()" style="max-width:180px;">
+                            <select id="filterBranch" class="js-custom-select" data-cs-filter onchange="applyFilters()">
                                 <option value="0">All Branches</option>
                                 <?php foreach ($branches as $b): ?>
                                 <option value="<?= $b['branch_id'] ?>" <?= (int)$b['branch_id']===$filterBranch?'selected':'' ?>><?= htmlspecialchars($b['branch_name']) ?></option>
@@ -148,6 +149,7 @@ $baseUrl = 'inventory-stock-movement.php?branch=' . $filterBranch . '&item=' . $
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="assets/js/admin.js"></script>
+    <script src="assets/js/custom-select.js?v=2"></script>
     <script>
     function applyFilters() {
         const branch = document.getElementById('filterBranch')?.value ?? '0';

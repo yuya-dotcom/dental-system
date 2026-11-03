@@ -6,6 +6,7 @@
 session_start();
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../controllers/auth_controller.php';
+require_once __DIR__ . '/../controllers/branch_controller.php';
 
 header('Content-Type: application/json');
 requireLogin();
@@ -25,49 +26,80 @@ switch ($action) {
     default:       echo json_encode(['success' => false, 'message' => 'Invalid action.']);
 }
 
+/** Next code in the existing format: BR-00001, BR-00002, … */
 function generateBranchCode(): string {
-    $r   = supabase_request('branches', 'GET', [], 'select=branch_code&order=branch_id.desc&limit=1');
-    $last = $r['data'][0]['branch_code'] ?? 'BRN-000';
-    $num  = (int)substr($last, 4) + 1;
-    return 'BRN-' . str_pad($num, 3, '0', STR_PAD_LEFT);
+    $r    = supabase_request('branches', 'GET', [], 'select=branch_code&order=branch_id.desc&limit=1');
+    $last = $r['data'][0]['branch_code'] ?? 'BR-00000';
+    $num  = (int)preg_replace('/\D/', '', $last) + 1;
+    return 'BR-' . str_pad($num, 5, '0', STR_PAD_LEFT);
 }
 
-function addBranch(array $d): array {
-    if (empty($d['branch_name'])) return ['success' => false, 'message' => 'Branch name is required.'];
+/**
+ * Validate the form fields shared by add + edit.
+ * Returns [payload, error]; error is null when valid.
+ */
+function branchPayload(array $d, bool $isAdd): array {
+    $name    = trim($d['branch_name']    ?? '');
+    $address = trim($d['address']        ?? '');
+    $contact = trim($d['contact_number'] ?? '');
+    $open    = trim($d['open_time']      ?? '');
+    $close   = trim($d['close_time']     ?? '');
+    $status  = $d['status'] ?? 'active';
+
+    if ($name === '')                 return [null, 'Branch name is required.'];
+    if (mb_strlen($name) > 100)       return [null, 'Branch name is too long (100 characters max).'];
+    if ($address === '')              return [null, 'Address is required.'];
+    if ($contact === '')              return [null, 'Contact number is required.'];
+    if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $open) || !preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $close)) {
+        return [null, 'Please enter both an open and a close time.'];
+    }
+    if (substr($close, 0, 5) <= substr($open, 0, 5)) {
+        return [null, 'Close time must be later than open time.'];
+    }
+    if (!in_array($status, ['active', 'inactive'], true)) $status = 'active';
 
     $payload = [
-        'branch_code'    => generateBranchCode(),
-        'branch_name'    => trim($d['branch_name']),
-        'address'        => $d['address']        ?? null,
-        'contact_number' => $d['contact_number'] ?? null,
-        'open_time'      => $d['open_time']       ?: null,
-        'close_time'     => $d['close_time']      ?: null,
-        'status'         => $d['status']          ?? 'active',
-        'created_at'     => date('c'),
+        'branch_name'    => $name,
+        'address'        => $address,
+        'contact_number' => $contact,
+        'open_time'      => $open,
+        'close_time'     => $close,
+        'status'         => $status,
         'updated_at'     => date('c'),
     ];
 
+    // Operating days: required when sent; an add without them gets Mon–Sat.
+    if (array_key_exists('operating_days', $d)) {
+        $days = normalizeOperatingDays($d['operating_days']);
+        if (!$days) return [null, 'Please select at least one operating day.'];
+        $payload['operating_days'] = $days;
+    } elseif ($isAdd) {
+        $payload['operating_days'] = BR_DEFAULT_OPERATING_DAYS;
+    }
+
+    return [$payload, null];
+}
+
+function addBranch(array $d): array {
+    [$payload, $err] = branchPayload($d, true);
+    if ($err) return ['success' => false, 'message' => $err];
+
+    $payload['branch_code'] = generateBranchCode();
+    $payload['created_at']  = date('c');
+
     $r = supabase_request('branches', 'POST', $payload);
-    if ($r['error']) return ['success' => false, 'message' => $r['error']];
+    if ($r['error']) return ['success' => false, 'message' => branchDbError($r['error'])];
     return ['success' => true, 'message' => 'Branch added successfully.'];
 }
 
 function editBranch(array $d): array {
-    if (empty($d['branch_id']))   return ['success' => false, 'message' => 'Missing branch ID.'];
-    if (empty($d['branch_name'])) return ['success' => false, 'message' => 'Branch name is required.'];
+    if (empty($d['branch_id'])) return ['success' => false, 'message' => 'Missing branch ID.'];
 
-    $payload = [
-        'branch_name'    => trim($d['branch_name']),
-        'address'        => $d['address']        ?? null,
-        'contact_number' => $d['contact_number'] ?? null,
-        'open_time'      => $d['open_time']       ?: null,
-        'close_time'     => $d['close_time']      ?: null,
-        'status'         => $d['status']          ?? 'active',
-        'updated_at'     => date('c'),
-    ];
+    [$payload, $err] = branchPayload($d, false);
+    if ($err) return ['success' => false, 'message' => $err];
 
     $r = supabase_request('branches', 'PATCH', $payload, 'branch_id=eq.' . (int)$d['branch_id']);
-    if ($r['error']) return ['success' => false, 'message' => $r['error']];
+    if ($r['error']) return ['success' => false, 'message' => branchDbError($r['error'])];
     return ['success' => true, 'message' => 'Branch updated successfully.'];
 }
 
@@ -75,6 +107,21 @@ function deleteBranch(array $d): array {
     if (empty($d['branch_id'])) return ['success' => false, 'message' => 'Missing branch ID.'];
 
     $r = supabase_request('branches', 'DELETE', [], 'branch_id=eq.' . (int)$d['branch_id']);
-    if ($r['error']) return ['success' => false, 'message' => $r['error']];
+    if ($r['error']) {
+        $msg = is_string($r['error']) ? $r['error'] : json_encode($r['error']);
+        if (stripos($msg, 'foreign key') !== false || stripos($msg, 'violates') !== false) {
+            return ['success' => false, 'message' => 'This branch still has patients, appointments or staff linked to it. Set it to Inactive instead.'];
+        }
+        return ['success' => false, 'message' => $msg];
+    }
     return ['success' => true, 'message' => 'Branch deleted successfully.'];
+}
+
+/** Friendlier text for a database error on add/edit. */
+function branchDbError(mixed $error): string {
+    $msg = is_string($error) ? $error : json_encode($error);
+    if (stripos($msg, 'operating_days') !== false) {
+        return 'Operating days aren\'t set up yet. Please run the service-durations / operating-days SQL file in Supabase first.';
+    }
+    return $msg;
 }

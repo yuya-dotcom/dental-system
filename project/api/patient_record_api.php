@@ -1,9 +1,14 @@
 <?php
+// =============================================================
+//  api/patient_record_api.php
+//  Tab data for patient-records.php (Appointments, Treatments,
+//  Billing, Clinical Notes) + add / delete clinical notes.
+// =============================================================
 session_start();
 define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']); // required before patient_control.php is loaded
 require_once __DIR__ . '/../partials/auth_check.php';
 require_once __DIR__ . '/../controllers/patient_controller.php'; // list helpers (findOrCreatePatient, etc.)
-require_once __DIR__ . '/../controllers/patient_control.php';    // ← FIX: single-record functions live here
+require_once __DIR__ . '/../controllers/patient_control.php';    // single-record functions live here
 require_once __DIR__ . '/../dbconfig.php';
 
 header('Content-Type: application/json');
@@ -61,18 +66,6 @@ switch ($action) {
         echo json_encode(['success' => true, 'message' => 'Note saved.']);
         break;
 
-    case 'update_note':
-        $noteId    = (int)($_POST['note_id'] ?? 0);
-        $noteText  = trim($_POST['note_text'] ?? '');
-        $isPrivate = ($_POST['is_private'] ?? '0') === '1';
-        if (!$noteId || !$noteText) {
-            echo json_encode(['success' => false, 'message' => 'Missing fields.']);
-            exit;
-        }
-        updateClinicalNote($noteId, $noteText, $isPrivate);
-        echo json_encode(['success' => true, 'message' => 'Note updated.']);
-        break;
-
     case 'delete_note':
         $noteId = (int)($_POST['note_id'] ?? 0);
         if (!$noteId) {
@@ -81,12 +74,6 @@ switch ($action) {
         }
         deleteClinicalNote($noteId);
         echo json_encode(['success' => true, 'message' => 'Note deleted.']);
-        break;
-
-    // ── TAB: Dental Chart ─────────────────────────────
-    case 'get_dental_chart':
-        $chart = getPatientDentalChartData($patientId);
-        echo json_encode(['success' => true, 'chart' => $chart]);
         break;
 
     // ── TAB: Treatments ───────────────────────────────

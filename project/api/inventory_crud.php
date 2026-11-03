@@ -8,6 +8,7 @@
 session_start();
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../controllers/auth_controller.php';
+require_once __DIR__ . '/../controllers/stock_helper.php';
 
 header('Content-Type: application/json');
 requireLogin();
@@ -52,9 +53,11 @@ function addItem(array $d): array {
         'item_name'      => trim($d['item_name']),
         'category'       => $d['category']       ?? null,
         'branch_id'      => (int)$d['branch_id'],
-        'stock_quantity' => (int)($d['stock_quantity'] ?? 0),
+        'stock_quantity' => max(0, (int)($d['stock_quantity'] ?? 0)),
         'min_stock'      => (int)($d['min_stock']      ?? 0),
-        'status'         => $d['status']          ?? 'active',
+        // Status follows the quantity (same values as the rest of the table)
+        'status'         => ($d['status'] ?? '') === 'inactive' ? 'inactive'
+                            : stock_status(max(0, (int)($d['stock_quantity'] ?? 0)), (int)($d['min_stock'] ?? 0)),
         'created_at'     => date('c'),
         'updated_at'     => date('c'),
     ];
@@ -73,17 +76,32 @@ function editItem(array $d): array {
         return ['success' => false, 'message' => 'You can only manage items in your own branch.'];
     }
 
+    $cur = stock_rows([(int)$d['item_id']])[(int)$d['item_id']] ?? null;
+    if (!$cur) return ['success' => false, 'message' => 'Item not found.'];
+    $newQty = (int)($d['stock_quantity'] ?? 0);
+    $oldQty = (int)$cur['stock_quantity'];
+    if ($newQty < 0) return ['success' => false, 'message' => 'Stock cannot be negative.'];
+    // Floor rule: an edit may not lower stock below 1 (an item already at 0 may stay at 0)
+    if ($newQty < $oldQty && $newQty < STOCK_FLOOR) {
+        return ['success' => false, 'message' => 'Stock must keep at least ' . STOCK_FLOOR . ' unit. Use a stock movement with a reason to record usage or disposal.'];
+    }
+    $minStock = (int)($d['min_stock'] ?? 0);
+    // "inactive" is a manual choice; otherwise the status follows the quantity
+    $status = ($d['status'] ?? '') === 'inactive' ? 'inactive' : stock_status($newQty, $minStock);
+
     $payload = [
         'item_name'      => trim($d['item_name']),
         'category'       => $d['category']       ?? null,
         'branch_id'      => (int)$d['branch_id'],
-        'stock_quantity' => (int)($d['stock_quantity'] ?? 0),
-        'min_stock'      => (int)($d['min_stock']      ?? 0),
-        'status'         => $d['status']          ?? 'active',
+        'stock_quantity' => $newQty,
+        'min_stock'      => $minStock,
+        'status'         => $status,
         'updated_at'     => date('c'),
     ];
 
-    $r = supabase_request('inventory', 'PATCH', $payload, 'item_id=eq.' . (int)$d['item_id']);
+    // Only saved if the quantity was not changed by someone else meanwhile
+    $r = supabase_request('inventory', 'PATCH', $payload, 'item_id=eq.' . (int)$d['item_id'] . '&stock_quantity=eq.' . $oldQty);
+    if (!$r['error'] && empty($r['data'])) return ['success' => false, 'message' => 'Stock changed while you were editing. Please reload and try again.'];
     if ($r['error']) return ['success' => false, 'message' => $r['error']];
     return ['success' => true, 'message' => 'Item updated successfully.'];
 }
@@ -108,20 +126,19 @@ function logMovement(array $d): array {
     $itemId = (int)$d['item_id'];
     $change = (int)$d['quantity_change'];
 
-    // Fetch current stock
     $itemRes = supabase_request('inventory', 'GET', [], 'select=stock_quantity,branch_id&item_id=eq.' . $itemId);
     if (empty($itemRes['data'][0])) return ['success' => false, 'message' => 'Item not found.'];
-
-    $currentStock = (int)$itemRes['data'][0]['stock_quantity'];
-    $branchId     = (int)$itemRes['data'][0]['branch_id'];
-    $newStock     = $currentStock + $change;
-
-    if ($newStock < 0) {
-        return ['success' => false, 'message' => "Cannot reduce stock below zero. Current stock: {$currentStock}."];
+    $branchId = (int)$itemRes['data'][0]['branch_id'];
+    if (isAdmin() && $branchId !== getSessionBranch()) {
+        return ['success' => false, 'message' => 'You can only manage items in your own branch.'];
     }
 
-    // Insert movement record
-    $movPayload = [
+    // Stock first (floor rule + compare-and-swap), then the movement record
+    $applied = stock_apply($itemId, $change);
+    if (!$applied['ok']) return ['success' => false, 'message' => $applied['message']];
+    $newStock = $applied['after'];
+
+    $r1 = supabase_request('inventory_movements', 'POST', [
         'item_id'         => $itemId,
         'branch_id'       => $branchId,
         'quantity_change' => $change,
@@ -129,22 +146,11 @@ function logMovement(array $d): array {
         'performed_by'    => $_SESSION['full_name'] ?? $_SESSION['username'] ?? 'System',
         'movement_date'   => date('Y-m-d'),
         'created_at'      => date('c'),
-    ];
-
-    $r1 = supabase_request('inventory_movements', 'POST', $movPayload);
-    if ($r1['error']) return ['success' => false, 'message' => $r1['error']];
-
-    // Update stock quantity on inventory item
-    // Also auto-update status based on new stock vs min_stock
-    $itemFull = supabase_request('inventory', 'GET', [], 'select=min_stock,status&item_id=eq.' . $itemId);
-    $minStock  = (int)($itemFull['data'][0]['min_stock'] ?? 0);
-    $newStatus = $newStock === 0 ? 'out_of_stock' : ($newStock <= $minStock ? 'low_stock' : 'active');
-
-    $r2 = supabase_request('inventory', 'PATCH',
-        ['stock_quantity' => $newStock, 'status' => $newStatus, 'updated_at' => date('c')],
-        'item_id=eq.' . $itemId
-    );
-    if ($r2['error']) return ['success' => false, 'message' => 'Movement logged but stock update failed: ' . $r2['error']];
+    ]);
+    if ($r1['error']) {
+        stock_apply($itemId, -$change, 1); // keep stock and history in step
+        return ['success' => false, 'message' => 'Movement could not be logged: ' . $r1['error']];
+    }
 
     return ['success' => true, 'message' => 'Stock movement logged. New stock: ' . $newStock . '.'];
 }

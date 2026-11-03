@@ -40,8 +40,11 @@ if ($action === 'upload_waiver') {
         echo json_encode(['success' => false, 'message' => 'Waiver type too long (max 50 chars).']); exit;
     }
 
-    $allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-    if (!in_array($file['type'], $allowed)) {
+    // Type is detected from the file's content (the browser-sent type and the
+    // original extension are not trusted); the saved extension comes from it.
+    $allowed = ['application/pdf' => 'pdf', 'image/jpeg' => 'jpg', 'image/png' => 'png'];
+    $mime    = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']) ?: '';
+    if (!isset($allowed[$mime])) {
         echo json_encode(['success' => false, 'message' => 'Only PDF, JPG, and PNG files are allowed.']); exit;
     }
     if ($file['size'] > 5 * 1024 * 1024) {
@@ -51,8 +54,8 @@ if ($action === 'upload_waiver') {
     $uploadDir = __DIR__ . '/../uploads/waivers/' . $patientId . '/';
     if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
 
-    $ext      = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    $fileName = uniqid('waiver_') . '.' . $ext;
+    $ext      = $allowed[$mime];
+    $fileName = 'waiver_' . bin2hex(random_bytes(12)) . '.' . $ext; // unguessable name
     $filePath = 'uploads/waivers/' . $patientId . '/' . $fileName;
 
     if (!move_uploaded_file($file['tmp_name'], $uploadDir . $fileName)) {

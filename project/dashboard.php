@@ -291,7 +291,7 @@ $newPatPct = $stats['total_patients'] > 0
                                                         <?= htmlspecialchars($apt['patients']['full_name'] ?? '—') ?>
                                                     </a>
                                                 </td>
-                                                <td><?= htmlspecialchars($apt['services']['service_name'] ?? '—') ?></td>
+                                                <td><?= htmlspecialchars(appointmentServicesLabel($apt)) ?></td>
                                                 <td><?= htmlspecialchars($apt['branches']['branch_name'] ?? '—') ?></td>
                                                 <td>
                                                     <span class="badge <?= aptStatusBadge($apt['status'] ?? '') ?>">

@@ -1,5 +1,5 @@
 <?php
-define('REQUIRED_ROLES', ['owner']);
+define('REQUIRED_ROLES', ['owner', 'admin']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
 require_once __DIR__ . '/dbconfig.php';
@@ -15,6 +15,15 @@ $invRes = supabase_request('inventory', 'GET', [],
     'select=item_id,item_code,item_name,category,stock_quantity&status=neq.inactive&order=item_name.asc'
 );
 $inventoryItems = is_array($invRes['data']) ? $invRes['data'] : [];
+
+// ── Materials configured per service (for the list filters) ──
+$smRes     = supabase_request('service_materials', 'GET', [], 'select=service_id,item_id');
+$smRows    = is_array($smRes['data']) ? $smRes['data'] : [];
+$matCounts = array_count_values(array_map('intval', array_column($smRows, 'service_id')));
+$svcItems  = []; // service_id => [item_id, ...]  (Material / Item filter)
+foreach ($smRows as $r) $svcItems[(int)$r['service_id']][] = (int)$r['item_id'];
+$svcTypes  = array_values(array_unique(array_filter(array_map(fn($s) => trim((string)($s['service_type'] ?? '')), $services))));
+sort($svcTypes);
 ?>
 <!DOCTYPE html>
 <html lang="zxx">
@@ -28,6 +37,7 @@ $inventoryItems = is_array($invRes['data']) ? $invRes['data'] : [];
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
     <link rel="stylesheet" href="assets/css/custom.css">
     <link rel="stylesheet" href="assets/css/admin.css">
+    <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -73,6 +83,38 @@ $inventoryItems = is_array($invRes['data']) ? $invRes['data'] : [];
                                     </div>
                                 </div></div>
                             </div>
+                            <div class="list-toolbar is-compact">
+                                <div class="list-field list-field-search">
+                                    <label class="list-label" for="smSearch">Search</label>
+                                    <div class="list-search"><i class="feather-search" aria-hidden="true"></i>
+                                        <input type="search" id="smSearch" placeholder="Service name" autocomplete="off" oninput="filterServiceList()"></div>
+                                </div>
+                                <div class="list-field">
+                                    <label class="list-label" for="smType">Service Type</label>
+                                    <select id="smType" class="js-custom-select" data-cs-filter onchange="filterServiceList()">
+                                        <option value="">All Types</option>
+                                        <?php foreach ($svcTypes as $t): ?><option value="<?= htmlspecialchars($t) ?>"><?= htmlspecialchars($t) ?></option><?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="list-field">
+                                    <label class="list-label" for="smItem">Material / Item</label>
+                                    <select id="smItem" class="js-custom-select" data-cs-filter data-cs-search onchange="filterServiceList()">
+                                        <option value="">All Items</option>
+                                        <?php foreach ($inventoryItems as $it): ?><option value="<?= (int)$it['item_id'] ?>"><?= htmlspecialchars($it['item_name'] . ($it['item_code'] ? ' (' . $it['item_code'] . ')' : '')) ?></option><?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="list-field">
+                                    <label class="list-label" for="smMats">Materials Setup</label>
+                                    <select id="smMats" class="js-custom-select" data-cs-filter onchange="filterServiceList()">
+                                        <option value="">All Services</option>
+                                        <option value="with">Configured</option>
+                                        <option value="without">Not Configured</option>
+                                    </select>
+                                </div>
+                                <div class="list-field list-field-reset">
+                                    <a href="javascript:void(0);" id="smReset" class="list-reset disabled" onclick="resetServiceFilters()"><i class="feather-rotate-ccw" aria-hidden="true"></i> Reset</a>
+                                </div>
+                            </div>
                             <div class="card-body p-0">
                                 <?php if (empty($services)): ?>
                                 <div class="text-center py-5 text-muted">
@@ -85,6 +127,10 @@ $inventoryItems = is_array($invRes['data']) ? $invRes['data'] : [];
                                        class="list-group-item list-group-item-action px-3 py-3 service-item"
                                        data-service-id="<?= $svc['service_id'] ?>"
                                        data-service-name="<?= htmlspecialchars($svc['service_name']) ?>"
+                                       data-type="<?= htmlspecialchars(trim((string)($svc['service_type'] ?? ''))) ?>"
+                                       data-price="<?= (float)($svc['base_price'] ?? 0) ?>"
+                                       data-mats="<?= $matCounts[(int)$svc['service_id']] ?? 0 ?>"
+                                       data-items="<?= implode(',', $svcItems[(int)$svc['service_id']] ?? []) ?>"
                                        onclick="loadServiceMaterials(<?= $svc['service_id'] ?>, '<?= htmlspecialchars($svc['service_name'], ENT_QUOTES) ?>')">
                                         <div class="d-flex align-items-center gap-2">
                                             <div class="avatar-text avatar-sm bg-soft-primary text-primary rounded-circle flex-shrink-0">
@@ -103,6 +149,10 @@ $inventoryItems = is_array($invRes['data']) ? $invRes['data'] : [];
                                         </div>
                                     </a>
                                     <?php endforeach; ?>
+                                </div>
+                                <div id="serviceListEmpty" class="text-center py-4 text-muted small" style="display:none;">
+                                    <i class="feather-search me-1"></i>No services match the selected filters.
+                                    <a href="javascript:void(0);" onclick="resetServiceFilters()" class="fw-semibold">Reset filters</a>
                                 </div>
                                 <?php endif; ?>
                             </div>
@@ -143,10 +193,10 @@ $inventoryItems = is_array($invRes['data']) ? $invRes['data'] : [];
                                         <table class="table table-hover mb-0">
                                             <thead>
                                                 <tr>
-                                                    <th>Item</th>
-                                                    <th>Category</th>
-                                                    <th>Current Stock</th>
-                                                    <th>Qty to Deduct</th>
+                                                    <th><a href="javascript:void(0);" class="th-sort" data-mat-sort="name" onclick="sortMaterials('name')">Item<i class="bi bi-arrow-down-up th-sort-idle" aria-hidden="true"></i></a></th>
+                                                    <th><a href="javascript:void(0);" class="th-sort" data-mat-sort="category" onclick="sortMaterials('category')">Category<i class="bi bi-arrow-down-up th-sort-idle" aria-hidden="true"></i></a></th>
+                                                    <th><a href="javascript:void(0);" class="th-sort" data-mat-sort="stock" onclick="sortMaterials('stock')">Current Stock<i class="bi bi-arrow-down-up th-sort-idle" aria-hidden="true"></i></a></th>
+                                                    <th><a href="javascript:void(0);" class="th-sort" data-mat-sort="qty" onclick="sortMaterials('qty')">Qty to Deduct<i class="bi bi-arrow-down-up th-sort-idle" aria-hidden="true"></i></a></th>
                                                     <th class="text-end">Action</th>
                                                 </tr>
                                             </thead>
@@ -192,7 +242,7 @@ $inventoryItems = is_array($invRes['data']) ? $invRes['data'] : [];
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label fw-semibold small">Inventory Item </label>
-                            <select id="addMat_item" class="form-select">
+                            <select id="addMat_item" class="form-select js-custom-select" data-cs-float data-cs-search>
                                 <option value=""> Select Item </option>
                                 <?php foreach ($inventoryItems as $item): ?>
                                 <option value="<?= $item['item_id'] ?>"
@@ -233,6 +283,7 @@ $inventoryItems = is_array($invRes['data']) ? $invRes['data'] : [];
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="assets/js/admin.js"></script>
+    <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/service-materials.js"></script>
 </body>
 </html>

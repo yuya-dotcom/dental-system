@@ -67,6 +67,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
     <link rel="stylesheet" href="assets/css/custom.css">
     <link rel="stylesheet" href="assets/css/admin.css">
+    <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -95,7 +96,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
                                 style="max-width:180px;">
 
                             <!-- Type filter -->
-                            <select id="filterType" class="form-select form-select-sm hdr-control" onchange="applyFilters()" style="max-width:150px;">
+                            <select id="filterType" class="js-custom-select" data-cs-filter onchange="applyFilters()" aria-label="Filter by type">
                                 <option value="">All Types</option>
                                 <?php foreach ($serviceTypes as $t): ?>
                                     <option value="<?= $t ?>" <?= $filterType === $t ? 'selected' : '' ?>><?= $t ?></option>
@@ -103,7 +104,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
                             </select>
 
                             <!-- Status filter -->
-                            <select id="filterStatus" class="form-select form-select-sm hdr-control" onchange="applyFilters()" style="max-width:130px;">
+                            <select id="filterStatus" class="js-custom-select" data-cs-filter onchange="applyFilters()" aria-label="Filter by status">
                                 <option value="active"   <?= $filterStatus === 'active'   ? 'selected' : '' ?>>Active</option>
                                 <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
                                 <option value=""         <?= $filterStatus === ''         ? 'selected' : '' ?>>All</option>
@@ -320,7 +321,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
                         <!-- Type -->
                         <div class="col-6">
                             <label class="form-label fw-semibold small">Type</label>
-                            <select id="svc_type" class="form-select form-select-sm">
+                            <select id="svc_type" class="form-select form-select-sm js-custom-select" data-cs-float data-cs-search>
                                 <?php foreach ($serviceTypes as $t): ?>
                                     <option value="<?= $t ?>"><?= $t ?></option>
                                 <?php endforeach; ?>
@@ -347,7 +348,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
                         <!-- Status (edit mode only) -->
                         <div class="col-12" id="svcStatusRow" style="display:none;">
                             <label class="form-label fw-semibold small">Status</label>
-                            <select id="svc_status" class="form-select form-select-sm">
+                            <select id="svc_status" class="form-select form-select-sm js-custom-select" data-cs-float>
                                 <option value="active">Active</option>
                                 <option value="inactive">Inactive</option>
                             </select>
@@ -371,6 +372,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
     <?php endif; ?>
 
     <script src="assets/vendors/js/vendors.min.js"></script>
+    <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

@@ -1,0 +1,11 @@
+# Public base URL for emailed links is set per environment in
+# config/secrets.php ('app_base_url'); see config/app.php.
+
+# Short public route for email verification: /verify?token=...
+RewriteEngine On
+RewriteRule ^verify$ verify-email.php [L,QSA]
+
+# Staff forgot/reset password: emailed links and the pages' own forms use
+# these names; the pages themselves are users-*-password.php.
+RewriteRule ^forgot-password\.php$ users-forgot-password.php [L,QSA]
+RewriteRule ^reset-password\.php$ users-reset-password.php [L,QSA]

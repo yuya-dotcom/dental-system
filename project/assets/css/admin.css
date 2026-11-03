@@ -70,7 +70,7 @@ body.login-page {
 .login-logo {
     width: 160px;
     height: 40px;
-    background-image: url('../images/essencia-full@3x.png');
+    background-image: url('../images/EssenciaSmile-Original-Logo.svg');
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
@@ -162,7 +162,7 @@ body.login-page {
     width: 100%;
     padding: 13px;
     border: none;
-    border-radius: 50px;
+    border-radius: 16px;
     background: #3454d1;
     color: #fff;
     font-size: 0.88rem;
@@ -218,6 +218,322 @@ body.login-page {
     .login-form-col  { padding: 40px 24px; }
 }
 
+
+/* ── Admin Login (login.php only — scoped to body.admin-login) ── */
+body.admin-login {
+    --al-blue: #01A8EC;
+    --al-blue-dark: #0090cc;
+    --al-blue-soft: #e6f6fd;
+    --al-green: #8cc63f;
+    --al-navy: #0b2545;
+    --al-muted: #5b6b7f;
+    font-family: 'Sora', Inter, system-ui, sans-serif;
+    background: #fff;
+    color: var(--al-navy);
+    min-height: 100vh;
+}
+
+/* Non-draggable images: logo + dashboard mockup */
+.admin-login .al-no-drag {
+    -webkit-user-drag: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+/* ── Left promo panel: exactly one viewport tall on desktop ──
+   Copy keeps its natural height; the mockup fills whatever height
+   is left (object-fit: contain), so nothing overlaps or gets cut. */
+.admin-login .al-hero {
+    --al-inset: clamp(12px, 2.4vh, 28px);
+    --al-pad-x: clamp(28px, 4.5vw, 72px);
+    --al-radius: 16px;
+    flex: 0 0 calc(48% - 2 * var(--al-inset));
+    max-width: calc(48% - 2 * var(--al-inset));
+    height: calc(100vh - 2 * var(--al-inset));
+    margin: var(--al-inset);
+    border-radius: var(--al-radius);
+    position: sticky;
+    top: var(--al-inset);
+    display: flex;
+    flex-direction: column;
+    gap: clamp(24px, 7vh, 80px);
+    padding: clamp(32px, 9vh, 96px) var(--al-pad-x) 0;
+    overflow: hidden; /* trims the decorative circles to the card */
+    container-type: inline-size; /* lets the title scale to the panel width */
+    background: linear-gradient(160deg, #f2fbff 0%, var(--al-blue-soft) 55%, #d4effb 100%);
+}
+.admin-login .al-shape {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+}
+.admin-login .al-shape-1 {
+    width: 46vh; height: 46vh;
+    right: -14vh; bottom: -16vh;
+    background: rgba(1, 168, 236, .12);
+}
+.admin-login .al-shape-2 {
+    width: 26vh; height: 26vh;
+    left: -9vh; top: -8vh;
+    border: 4vh solid rgba(1, 168, 236, .08);
+}
+.admin-login .al-shape-3 {
+    width: 12px; height: 12px;
+    right: 8%; top: 3.5vh; /* above the one-line title */
+    background: var(--al-green);
+    box-shadow: -40px 14px 0 -3px rgba(1, 168, 236, .55);
+}
+.admin-login .al-hero-copy {
+    position: relative;
+    z-index: 1;
+    flex: 0 0 auto;
+    max-width: 640px;
+}
+.admin-login .al-hero-title {
+    color: var(--al-navy);
+    font-family: inherit;
+    /* One line: shrink with the panel (title is ≈14em wide in Sora 800) */
+    font-size: min(2.75rem, 100cqi / 14.4);
+    white-space: nowrap;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -.02em;
+    margin: 0 0 clamp(6px, 1.2vh, 12px);
+}
+.admin-login .al-hero-sub {
+    color: var(--al-blue);
+    font-size: clamp(1rem, .9vw + .6vh, 1.3rem);
+    font-weight: 600;
+    line-height: 1.35;
+    margin: 0 0 clamp(8px, 1.6vh, 16px);
+}
+.admin-login .al-hero-text {
+    color: var(--al-muted);
+    font-size: clamp(.85rem, .5vw + .5vh, .98rem);
+    line-height: 1.6;
+    margin: 0;
+    max-width: 460px;
+}
+/* Feature chips under the description */
+.admin-login .al-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    list-style: none;
+    margin: clamp(14px, 2.6vh, 26px) 0 0;
+    padding: 0;
+}
+.admin-login .al-features li {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(1, 168, 236, .06);
+    border: 1px solid rgba(1, 168, 236, .2);
+    color: var(--al-navy);
+    font-size: .84rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.admin-login .al-features i {
+    color: var(--al-blue);
+    font-size: 15px;
+}
+/* Narrow desktop panel: compact chips so they stay on one row */
+@media (min-width: 992px) and (max-width: 1199px) {
+    .admin-login .al-features { gap: 6px; }
+    .admin-login .al-features li { padding: 6px 10px; gap: 6px; font-size: .74rem; }
+    .admin-login .al-features i { font-size: 13px; }
+}
+@media (min-width: 992px) and (max-width: 1169px) {
+    .admin-login .al-features i { display: none; }
+}
+/* Short desktop windows: no room between copy and mockup */
+@media (min-width: 992px) and (max-height: 540px),
+       (min-width: 992px) and (max-width: 1199px) and (max-height: 620px) {
+    .admin-login .al-features { display: none; }
+}
+
+/* Mockup fills the space left under the copy, fully visible (contain). */
+.admin-login .al-hero-media {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-bottom: clamp(20px, 4vh, 48px);
+}
+.admin-login .al-hero-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+}
+/* Desktop: mockup is laid over the whole card (independent of the copy),
+   lid ≈59% down, spanning most of the width, base running off the bottom. */
+@media (min-width: 992px) {
+    .admin-login .al-hero-media {
+        position: absolute;
+        inset: 0;
+        margin: 0;
+        z-index: 0;
+        container-type: size; /* cq units = the whole card */
+    }
+    /* In the asset the lid spans x 26.3%–93% and its top edge sits ≈6.3%
+       of the image width from the top. Lid: 5%–95% of the card, ≈47% down. */
+    .admin-login .al-hero-img {
+        --w: 135cqw;
+        inset: auto;
+        width: var(--w);
+        max-width: none;
+        height: auto;
+        left: calc(5cqw - 0.263 * var(--w));
+        top: calc(47cqh - 0.063 * var(--w) + 15px);
+    }
+}
+
+/* ── Right form panel ── */
+.admin-login .login-form-col {
+    min-height: 100vh;
+    padding: clamp(24px, 5vh, 56px) clamp(24px, 5vw, 64px);
+}
+.admin-login .login-form-inner {
+    max-width: 400px;
+}
+.admin-login .login-brand {
+    margin-bottom: clamp(18px, 4vh, 40px);
+}
+.admin-login .al-logo {
+    display: block;
+    width: 210px;
+    max-width: 100%;
+    height: auto; /* keep original aspect ratio */
+}
+.admin-login .login-heading {
+    font-family: inherit;
+    font-size: clamp(1.5rem, 1.2vw + 1.2vh, 1.85rem);
+    font-weight: 700;
+    color: var(--al-navy);
+    letter-spacing: -.02em;
+    margin-bottom: 6px;
+}
+.admin-login .login-sub {
+    color: var(--al-muted);
+    font-size: .9rem;
+    margin-bottom: clamp(16px, 3.2vh, 28px);
+}
+.admin-login .alert {
+    font-size: .85rem;
+    margin-bottom: clamp(12px, 2vh, 16px) !important;
+}
+.admin-login .login-label {
+    color: var(--al-navy);
+    font-size: .82rem;
+}
+.admin-login .login-input-wrap {
+    margin-bottom: clamp(12px, 2.4vh, 20px);
+}
+.admin-login .login-input-wrap input {
+    height: clamp(44px, 6vh, 48px);
+    font-family: inherit;
+    border: 1.5px solid #dbe4ec;
+    border-radius: 12px;
+    background: #f8fbfd;
+    font-size: .9rem;
+    color: var(--al-navy);
+    transition: border-color .2s, background .2s, box-shadow .2s;
+}
+.admin-login .login-input-wrap input:focus {
+    border-color: var(--al-blue);
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(1, 168, 236, .15);
+}
+.admin-login .login-input-wrap:focus-within .input-icon { color: var(--al-blue); }
+.admin-login .login-input-wrap .input-icon-right {
+    padding: 4px;
+    border-radius: 6px;
+}
+.admin-login .login-input-wrap .input-icon-right:hover { color: var(--al-blue); }
+.admin-login .login-input-wrap .input-icon-right:focus-visible {
+    outline: 2px solid var(--al-blue);
+    outline-offset: 1px;
+}
+.admin-login .forgot-link {
+    color: var(--al-blue-dark);
+    font-weight: 600;
+    margin-bottom: clamp(16px, 3vh, 24px);
+}
+.admin-login .btn-signin {
+    height: clamp(46px, 6.2vh, 50px);
+    border-radius: 12px;
+    background: #01A8EC; /* solid brand blue — no gradient */
+    background-image: none;
+    font-family: inherit;
+    font-size: .95rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-transform: none;
+    box-shadow: 0 10px 22px -12px rgba(1, 168, 236, .8);
+    transition: background-color .2s, transform .15s, box-shadow .2s;
+}
+.admin-login .btn-signin:hover {
+    opacity: 1;
+    background-color: var(--al-blue-dark);
+}
+.admin-login .btn-signin:focus-visible {
+    outline: 3px solid rgba(1, 168, 236, .4);
+    outline-offset: 2px;
+}
+.admin-login .al-secure-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: clamp(16px, 3vh, 28px) 0 0;
+    text-align: center;
+    font-size: .78rem;
+    color: #8a99ab;
+}
+.admin-login .al-secure-note i { color: var(--al-blue); }
+
+/* Tablet landscape: narrower hero */
+@media (max-width: 1199px) {
+    .admin-login .al-hero { flex-basis: calc(46% - 2 * var(--al-inset)); max-width: calc(46% - 2 * var(--al-inset)); }
+}
+
+/* Tablet portrait / mobile: stack, form first in visual priority */
+@media (max-width: 991px) {
+    body.admin-login { flex-direction: column; }
+    .admin-login .al-hero {
+        flex: 0 0 auto;
+        max-width: 100%;
+        height: auto;
+        position: relative;
+        padding: 28px 24px 0;
+        gap: 12px;
+        text-align: center;
+    }
+    .admin-login .al-hero-copy { margin: 0 auto; }
+    .admin-login .al-hero-text { margin: 0 auto; }
+    .admin-login .al-features { justify-content: center; }
+    .admin-login .al-hero { margin: 0; border-radius: 0; --al-pad-x: 24px; --al-radius: 0px; }
+    .admin-login .al-hero-media { height: 240px; flex: 0 0 auto; }
+    .admin-login .al-shape-1 { width: 240px; height: 240px; right: -90px; bottom: -120px; }
+    .admin-login .login-form-col { flex: 1 0 auto; min-height: 0; align-items: flex-start; padding: 32px 24px 48px; }
+    .admin-login .login-brand { justify-content: center; margin-bottom: 24px; }
+}
+@media (max-width: 575px) {
+    .admin-login .al-hero { padding-bottom: 24px; }
+    .admin-login .al-hero-media,
+    .admin-login .al-hero-text,
+    .admin-login .al-features { display: none; }
+    .admin-login .al-hero-title { font-size: 1.35rem; }
+    .admin-login .al-hero-sub { font-size: .95rem; margin-bottom: 0; }
+    .admin-login .al-logo { width: 180px; }
+}
 
 /* ── Utility ─────────────────────────────────────────────────── */
 .letter-spacing-1 { letter-spacing: .06em; }
@@ -337,4 +653,218 @@ body.login-page {
 #userModal .form-select,
 #userModal .form-control {
     font-size: 0.8125rem;
+}
+.table-hover td a.text-dark.fw-semibold:hover {
+    color: #5473ef  !important;
+    text-decoration: underline;
+}
+
+/* ══ Check In Patient modal (appointments-schedule.php #checkInModal) ══════════ */
+#checkInModal {
+  --ci-blue: #2563eb;
+  --ci-blue-dark: #1d4ed8;
+  --ci-blue-soft: #eff5ff;
+  --ci-navy: #0f2a5c;
+  --ci-text: #334155;
+  --ci-muted: #64748b;
+  --ci-border: #e2e8f0;
+  --ci-surface: #f8fafc;
+  --ci-red: #b42318;
+  --ci-red-soft: #fef3f2;
+  --ci-red-border: #fecdca;
+  --ci-green: #067647;
+  --ci-green-soft: #f0fdf4;
+  --ci-green-border: #bbf7d0;
+  --ci-amber: #b54708;
+  --ci-amber-soft: #fffaeb;
+  --ci-amber-border: #fedf89;
+}
+#checkInModal .ci-dialog { max-width: 720px; }
+#checkInModal .ci-modal {
+  border: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(15, 42, 92, 0.18);
+}
+
+/* Header */
+#checkInModal .ci-header {
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 24px 16px;
+  background: #fff;
+  border-bottom: 1px solid var(--ci-border);
+}
+#checkInModal .ci-header-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
+#checkInModal .ci-header-icon {
+  flex-shrink: 0;
+  width: 42px; height: 42px;
+  border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ci-blue-soft);
+  color: var(--ci-blue);
+}
+#checkInModal .ci-header-icon i { font-size: 20px; }
+#checkInModal .ci-header-text { min-width: 0; }
+#checkInModal .ci-title { margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--ci-navy); line-height: 1.3; }
+#checkInModal .ci-subtitle {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  margin: 4px 0 0; font-size: 0.82rem; color: var(--ci-muted);
+}
+#checkInModal .ci-ref {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 1px 8px; border-radius: 999px;
+  background: var(--ci-surface); border: 1px solid var(--ci-border);
+  font-weight: 600; color: var(--ci-text);
+}
+#checkInModal .ci-ref i { font-size: 11px; color: var(--ci-muted); }
+#checkInModal .ci-patient { font-weight: 600; color: var(--ci-blue); overflow-wrap: anywhere; }
+#checkInModal .ci-close { margin: 2px 0 0 auto; padding: 8px; border-radius: 8px; }
+#checkInModal .ci-close:focus-visible { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3); }
+
+/* Body */
+#checkInModal .ci-body { padding: 20px 24px; color: var(--ci-text); }
+#checkInModal .ci-section + .ci-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--ci-border); }
+#checkInModal .ci-section-title {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 12px;
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ci-muted);
+}
+#checkInModal .ci-section-title i { font-size: 14px; color: var(--ci-blue); }
+
+/* Risk banner (classes set by _renderCheckInRisk in assets/js/appointments.js) */
+#checkInModal .ci-risk {
+  display: flex; align-items: flex-start; gap: 12px;
+  margin-bottom: 18px; padding: 12px 14px;
+  border-radius: 12px; border: 1px solid var(--ci-border);
+  border-left-width: 4px;
+  background: var(--ci-surface);
+}
+#checkInModal .ci-risk-icon { font-size: 18px; margin-top: 1px; flex-shrink: 0; }
+#checkInModal .ci-risk-title { font-size: 0.88rem; font-weight: 700; line-height: 1.35; }
+#checkInModal .ci-risk-detail { margin-top: 2px; font-size: 0.8rem; line-height: 1.45; color: var(--ci-text); }
+#checkInModal .ci-risk--ok { background: var(--ci-green-soft); border-color: var(--ci-green-border); border-left-color: var(--ci-green); }
+#checkInModal .ci-risk--ok .ci-risk-icon,
+#checkInModal .ci-risk--ok .ci-risk-title { color: var(--ci-green); }
+#checkInModal .ci-risk--danger { background: var(--ci-red-soft); border-color: var(--ci-red-border); border-left-color: var(--ci-red); }
+#checkInModal .ci-risk--danger .ci-risk-icon,
+#checkInModal .ci-risk--danger .ci-risk-title { color: var(--ci-red); }
+#checkInModal .ci-risk--neutral { border-left-color: #94a3b8; }
+#checkInModal .ci-risk--neutral .ci-risk-icon,
+#checkInModal .ci-risk--neutral .ci-risk-title { color: var(--ci-muted); }
+
+#checkInModal .ci-loading {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-bottom: 16px; padding: 10px;
+  font-size: 0.82rem; color: var(--ci-muted);
+}
+
+/* Medical summary */
+#checkInModal .ci-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#checkInModal .ci-card {
+  padding: 12px 14px;
+  border: 1px solid var(--ci-border); border-radius: 12px;
+  background: #fff;
+}
+#checkInModal .ci-card--meds { grid-column: 1 / -1; background: var(--ci-amber-soft); border-color: var(--ci-amber-border); }
+#checkInModal .ci-card-label {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 8px;
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--ci-muted);
+}
+#checkInModal .ci-card-label i { font-size: 13px; color: var(--ci-blue); }
+#checkInModal .ci-card--meds .ci-card-label,
+#checkInModal .ci-card--meds .ci-card-label i { color: var(--ci-amber); }
+#checkInModal .ci-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px; align-items: center; }
+#checkInModal .ci-chip {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 0.76rem; font-weight: 600; line-height: 1.4;
+  border: 1px solid transparent;
+}
+#checkInModal .ci-chip--cond { background: var(--ci-blue-soft); color: var(--ci-blue-dark); border-color: #d6e4ff; }
+#checkInModal .ci-chip--cond.is-flagged { background: var(--ci-red-soft); color: var(--ci-red); border-color: var(--ci-red-border); }
+#checkInModal .ci-chip--allergy { background: var(--ci-amber-soft); color: var(--ci-amber); border-color: var(--ci-amber-border); }
+#checkInModal .ci-none { font-size: 0.8rem; font-style: italic; color: #94a3b8; }
+#checkInModal .ci-meds { font-size: 0.85rem; font-weight: 600; color: #7a2e0e; overflow-wrap: anywhere; }
+
+/* Vital signs */
+#checkInModal .ci-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px 16px; }
+#checkInModal .ci-field { grid-column: span 2; min-width: 0; }
+#checkInModal .ci-span-half { grid-column: span 3; }
+#checkInModal .ci-span-full { grid-column: 1 / -1; }
+#checkInModal .ci-label { display: block; margin-bottom: 6px; font-size: 0.8rem; font-weight: 600; color: var(--ci-navy); }
+#checkInModal .ci-req { color: #d92d20; font-weight: 700; }
+#checkInModal .ci-optional { font-weight: 400; color: var(--ci-muted); }
+#checkInModal .ci-input {
+  height: 42px;
+  padding: 8px 12px;
+  border: 1px solid #cfd8e3; border-radius: 10px;
+  font-size: 0.88rem; color: var(--ci-navy);
+  background: #fff;
+  box-shadow: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+#checkInModal .ci-input::placeholder { color: #94a3b8; }
+#checkInModal .ci-input:focus { border-color: var(--ci-blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); outline: 0; }
+#checkInModal .ci-input.is-invalid { border-color: #d92d20; box-shadow: 0 0 0 3px rgba(217, 45, 32, 0.12); background-image: none; padding-right: 12px; }
+#checkInModal .ci-input.ci-readonly { background: var(--ci-surface); color: var(--ci-text); cursor: not-allowed; padding-right: 36px; }
+#checkInModal .ci-input.ci-readonly:focus { border-color: #cfd8e3; box-shadow: none; }
+#checkInModal .ci-lock { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); font-size: 14px; color: #94a3b8; pointer-events: none; }
+#checkInModal .ci-textarea { height: auto; min-height: 88px; resize: vertical; line-height: 1.5; }
+/* Date & Time uses the shared custom date picker (assets/js/custom-select.js) */
+#checkInModal .modal-cs.cs-date .modal-cs-trigger { height: 42px; font-size: 0.88rem; }
+#checkInModal .modal-cs.cs-date:not(.open) .modal-cs-trigger { border-radius: 10px; }
+#checkInModal .modal-cs.cs-date .modal-cs-value.cs-selected { color: var(--ci-navy); }
+#checkInModal .ci-input-unit { position: relative; }
+#checkInModal .ci-input-unit .ci-input { padding-right: 58px; }
+#checkInModal .ci-unit {
+  position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+  padding: 2px 6px; border-radius: 6px;
+  background: var(--ci-surface);
+  font-size: 0.72rem; font-weight: 600; color: var(--ci-muted);
+  pointer-events: none;
+}
+/* Number spinners would sit under the unit tag */
+#checkInModal .ci-input-unit input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+#checkInModal .ci-input-unit input[type=number]::-webkit-inner-spin-button,
+#checkInModal .ci-input-unit input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+#checkInModal .ci-error {
+  margin-top: 16px; padding: 10px 14px;
+  border-radius: 10px; border: 1px solid var(--ci-red-border);
+  background: var(--ci-red-soft); color: var(--ci-red);
+  font-size: 0.82rem; font-weight: 500;
+}
+
+/* Footer */
+#checkInModal .ci-footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 24px;
+  background: var(--ci-surface);
+  border-top: 1px solid var(--ci-border);
+}
+#checkInModal .ci-footer > * { margin: 0; }
+#checkInModal .ci-footnote { font-size: 0.78rem; color: var(--ci-muted); }
+/* Buttons use the shared btn-light / btn-primary px-4 (same as Edit Appointment) */
+#checkInModal .ci-actions { display: flex; gap: 0.5rem; margin-left: auto; }
+
+/* Narrow screens */
+@media (max-width: 767.98px) {
+  #checkInModal .ci-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #checkInModal .ci-field { grid-column: span 1; }
+  #checkInModal .ci-field:nth-child(3),
+  #checkInModal .ci-span-half,
+  #checkInModal .ci-span-full { grid-column: 1 / -1; }
+}
+@media (max-width: 575.98px) {
+  #checkInModal .ci-dialog { margin: 0.5rem; }
+  #checkInModal .ci-header,
+  #checkInModal .ci-body { padding-left: 16px; padding-right: 16px; }
+  #checkInModal .ci-summary-grid { grid-template-columns: 1fr; }
+  #checkInModal .ci-footer { flex-direction: column-reverse; align-items: stretch; padding: 12px 16px; }
+  #checkInModal .ci-footnote { text-align: center; }
+  #checkInModal .ci-actions { display: grid; grid-template-columns: 1fr 1fr; margin-left: 0; }
 }

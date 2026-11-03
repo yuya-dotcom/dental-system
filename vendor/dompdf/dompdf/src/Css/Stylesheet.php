@@ -547,7 +547,7 @@ class Stylesheet
                 }
             }
             $tok = $this->parse_string($tok);
-    
+
 
             switch ($s) {
 
@@ -1272,7 +1272,7 @@ class Stylesheet
             /
                 # Skip leading whitespace
                 \s*
-                
+
                 # Match at-rules
                 (?<CSS_ATRULE>@(?<CSS_ATRULE_IDENTIFIER>
                     (?<CSS_ATFONT>font-face)
@@ -1281,7 +1281,7 @@ class Stylesheet
                     |(?<CSS_ATPAGE>page)
                     |(?<CSS_AT>[\w-]*)
                 ))?
-                
+
                 # Branch to process segment following at-rule match
                 (?(CSS_ATRULE)(?:
                     (?(CSS_ATFONT)\s*{(?<CSS_ATFONT_BODY>.*?)})
@@ -1296,7 +1296,7 @@ class Stylesheet
                     (?(CSS_ATPAGE)\s*(?<CSS_ATPAGE_RULE>[^{]*){(?<CSS_ATPAGE_BODY>.*?)})
                     (?(CSS_AT)\s*([^{;]*)(;|{(?<CSS_AT_BODY> (?:[^{}]*|(?R) \s*)+? )}))
                 )
-                
+
                 # Branch to match regular rules (not preceded by '@')
                 |(?<CSS_RULESET>[^{]*{[^}]*}))
             /isx
@@ -1324,6 +1324,10 @@ EOL;
             }
             if (preg_match($pattern, $css, $matches, PREG_OFFSET_CAPTURE, $start)) {
                 $len = $matches[0][1] - $start;
+            }
+            if ($len <= 0) {
+                $offset = $start + 5;
+                continue;
             }
             $data_uri = substr($css, $start, $len);
             $data_uri_hash = md5($data_uri);
@@ -1503,6 +1507,25 @@ EOL;
                 $url,
                 $this->_dompdf->getOptions()->getChroot()
             );
+
+            if ($path !== null && strpos($path, "blob:") !== 0) {
+                [$protocol] = Helpers::explode_url($path);
+                $options = $this->_dompdf->getOptions();
+                $allowed_protocols = $options->getAllowedProtocols();
+                if (!array_key_exists($protocol, $allowed_protocols)) {
+                    Helpers::record_warnings(E_USER_WARNING, "Permission denied on $path. The communication protocol is not supported.", __FILE__, __LINE__);
+                    $path = null;
+                }
+
+                foreach ($allowed_protocols[$protocol]["rules"] as $rule) {
+                    [$result, $message] = $rule($path);
+                    if ($result !== true) {
+                        Helpers::record_warnings(E_USER_WARNING, "Error loading $path: $message", __FILE__, __LINE__);
+                        $path = null;
+                    }
+                }
+            }
+
             if ($path === null) {
                 $path = "none";
             }

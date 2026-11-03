@@ -1,0 +1,383 @@
+/* ─────────────────────────────────────────────────────────────────────
+   EssenciaSmile — Patient Portal "Information" pages
+   assets/css/portal-info.css
+
+   Shared stylesheet for the Information section: design tokens, base
+   reset, the shared components used across pages (.portal-pill,
+   .modal-icon, .foot-link), the shared sidebar layout (.info-page /
+   .info-sidebar / .info-nav), and the content styles for Contact Us
+   and Terms and Conditions.
+
+   All three Information pages (contact-us.php, portal-terms.php,
+   patient-feedbacks.php) link this file for the shared layout.
+   Patient Feedback also loads its own assets/css/patient-feedback.css
+   on top of this one for its form-specific styles — nothing
+   feedback-specific lives in this file.
+
+   portal-login.php is untouched and keeps using portal-login.css.
+   ───────────────────────────────────────────────────────────────────── */
+
+:root {
+    --blue:         #1a56db;
+    --blue-dark:    #1245b5;
+    --blue-light:   #eef3ff;
+    --slate:        #1e2a3b;
+    --muted:        #6b7a90;
+    --border:       #dde3ed;
+    --border-focus: #93b4f7;
+    --bg:           #f3f6fb;
+    --surface:      #ffffff;
+    --radius:       10px;
+    --radius-lg:    14px;
+    --font-body:   'DM Sans', system-ui, sans-serif;
+    --font-display:'Fraunces', Georgia, serif;
+    --shadow-card:  0 8px 32px rgba(26,86,219,.09), 0 1px 4px rgba(0,0,0,.06);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+
+body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--slate);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SHARED COMPONENTS
+   ══════════════════════════════════════════════════════════════════════ */
+.portal-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    background: var(--blue-light);
+    color: var(--blue);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    padding: .3rem .8rem;
+    border-radius: 50px;
+    margin-bottom: .85rem;
+}
+.modal-icon {
+    width: 52px; height: 52px;
+    border-radius: 14px;
+    background: var(--blue-light);
+    color: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+}
+.foot-link {
+    color: var(--blue); font-weight: 600;
+    cursor: pointer; background: none; border: none;
+    font-family: var(--font-body); font-size: inherit;
+    padding: 0; text-decoration: none;
+}
+.foot-link:hover { text-decoration: underline; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   SHARED LAYOUT — Information pages
+   (left "Information" nav + right content, used by all three pages)
+   ══════════════════════════════════════════════════════════════════════ */
+.info-page {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2rem;
+    padding: 3rem 2.5rem 4rem;
+    background: var(--bg);
+}
+.info-sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 2rem;
+}
+.info-sidebar-inner {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 1.5rem 1.25rem;
+}
+.info-sidebar-title {
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--slate);
+    margin: .85rem 0 1rem;
+}
+.info-nav {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+}
+.info-nav-link {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    padding: .65rem .8rem;
+    border-radius: var(--radius);
+    font-size: .875rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-decoration: none;
+    transition: background .18s, color .18s;
+}
+.info-nav-link i {
+    width: 16px;
+    text-align: center;
+    color: var(--muted);
+    transition: color .18s;
+}
+.info-nav-link:hover { background: var(--blue-light); color: var(--blue); }
+.info-nav-link:hover i { color: var(--blue); }
+.info-nav-link.active { background: var(--blue-light); color: var(--blue); }
+.info-nav-link.active i { color: var(--blue); }
+
+.info-content { flex: 1; min-width: 0; max-width: 900px; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   TERMS AND CONDITIONS CONTENT (portal-terms.php)
+   ══════════════════════════════════════════════════════════════════════ */
+.terms-card {
+    width: 100%;
+    max-width: 1200px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 2.75rem 3.5rem;
+    animation: fadeUp .35s ease both;
+}
+.terms-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+    padding-bottom: 1.75rem;
+    border-bottom: 1.5px solid var(--border);
+}
+.terms-header h1 {
+    font-family: var(--font-body);
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--slate);
+    letter-spacing: -.3px;
+    line-height: 1.2;
+    margin: .55rem 0 .35rem;
+}
+.terms-updated {
+    font-size: .8rem;
+    color: var(--muted);
+}
+.terms-card > p {
+    font-size: .93rem;
+    color: #46536a;
+    line-height: 1.7;
+    padding-bottom: 20px;
+    max-width: 760px;
+}
+.terms-section {
+    display: grid;
+    grid-template-columns: 230px 1fr;
+    gap: 2.5rem;
+    padding: 1.85rem 0;
+    border-top: 1px solid var(--border);
+}
+.terms-section:first-of-type {
+    border-top: none;
+}
+.terms-card h2 {
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--slate);
+    line-height: 1.4;
+    margin: 0;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: baseline;
+    gap: .45rem;
+}
+.terms-card h2 span {
+    display: inline !important;
+    color: var(--blue);
+    font-size: 1rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.terms-section p,
+.terms-section li {
+    font-size: .89rem;
+    color: #46536a;
+    line-height: 1.7;
+    max-width: 640px;
+}
+.terms-section ul {
+    margin: .4rem 0 .4rem 1.2rem;
+}
+.terms-back-row {
+    margin-top: 1rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+}
+.terms-back-row .foot-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   CONTACT US CONTENT (contact-us.php)
+   ══════════════════════════════════════════════════════════════════════ */
+.contact-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 2.75rem 3.25rem;
+    animation: fadeUp .35s ease both;
+}
+.contact-card > p.contact-welcome {
+    font-size: .93rem;
+    color: #46536a;
+    line-height: 1.7;
+    padding-bottom: 1.75rem;
+    border-bottom: 1.5px solid var(--border);
+    margin-bottom: 1.75rem;
+    max-width: 720px;
+}
+.contact-quick-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 2.25rem;
+}
+.contact-quick-item {
+    display: flex;
+    align-items: flex-start;
+    gap: .75rem;
+    padding: 1rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.cq-icon {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    background: var(--blue-light);
+    color: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .9rem;
+    flex-shrink: 0;
+}
+.cq-label {
+    display: block;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: .2rem;
+}
+.cq-value {
+    display: block;
+    font-size: .875rem;
+    font-weight: 600;
+    color: var(--slate);
+    line-height: 1.4;
+}
+.contact-section-title {
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--blue);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    margin-bottom: 1.1rem;
+    padding-bottom: .5rem;
+    border-bottom: 1.5px solid var(--blue-light);
+}
+.branch-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.1rem;
+}
+.branch-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.35rem 1.25rem;
+    transition: border-color .18s, box-shadow .18s, transform .18s;
+}
+.branch-card:hover {
+    border-color: var(--border-focus);
+    box-shadow: 0 6px 18px rgba(26,86,219,.08);
+    transform: translateY(-3px);
+}
+.branch-card h3 {
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--slate);
+    margin-bottom: .75rem;
+}
+.branch-card p {
+    display: flex;
+    align-items: flex-start;
+    gap: .55rem;
+    font-size: .84rem;
+    color: #46536a;
+    line-height: 1.55;
+    margin-bottom: .5rem;
+}
+.branch-card p:last-child { margin-bottom: 0; }
+.branch-card p i {
+    color: var(--blue);
+    width: 14px;
+    margin-top: .2rem;
+    flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 860px) {
+    .terms-section {
+        grid-template-columns: 1fr;
+        gap: .6rem;
+    }
+}
+@media (max-width: 1100px) {
+    .contact-quick-grid { grid-template-columns: 1fr 1fr; }
+    .branch-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 900px) {
+    .info-page { flex-direction: column; padding: 2rem 1.75rem 3rem; }
+    .info-sidebar { width: 100%; position: static; }
+    .info-nav { flex-direction: row; flex-wrap: wrap; }
+    .contact-card { padding: 2rem 1.75rem; }
+}
+@media (max-width: 640px) {
+    .contact-quick-grid { grid-template-columns: 1fr; }
+    .branch-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+    .info-page { padding: 1.5rem 1rem 3rem; }
+    .terms-card { padding: 1.75rem 1.5rem; }
+    .terms-header { flex-direction: column; gap: .75rem; }
+    .contact-card { padding: 1.5rem 1.25rem; }
+}

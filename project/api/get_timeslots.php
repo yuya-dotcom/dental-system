@@ -1,46 +1,70 @@
 <?php
+// =============================================================
+//  api/get_timeslots.php
+//  GET ?date=YYYY-MM-DD&branch=ID[&services=1,2,3]
+//
+//  Start times for one branch and day, built from the branch's
+//  open/close time. When services are given, each start time is checked
+//  for the whole visit (sum of service durations): it must end by
+//  closing time and not overlap another booking.
+//
+//  Response:
+//    slots:    [{time:'09:00', label:'9:00 AM', ends:'9:30 AM', available:true, reason:null}, …]
+//              reason: 'booked' | 'closing'
+//    booked:   start times already taken (kept for older callers)
+//    duration: visit length in minutes · unavailable: why the whole day is
+//              unavailable (past | closed | inactive | invalid) or null
+// =============================================================
 
 header('Content-Type: application/json');
+require_once __DIR__ . '/../controllers/branch_config.php';
 
-require_once __DIR__ . '/../dbconfig.php'; 
+$date       = trim($_GET['date'] ?? '');
+$branchId   = (int)($_GET['branch'] ?? 0);
+$serviceIds = cleanServiceIds($_GET['services'] ?? '');
 
-$date     = $_GET['date']   ?? '';
-$branchId = $_GET['branch'] ?? '';
-
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+if (!isValidIsoDate($date)) {
     echo json_encode(['error' => 'Invalid date.']);
     exit;
 }
 
-if ($date < date('Y-m-d')) {
-    echo json_encode(['booked' => []]);
+$branch = getBookingBranch($branchId);
+if (!$branch) {
+    echo json_encode(['error' => 'Please select a branch.']);
     exit;
 }
 
-$filters = [
-    'appointment_date=eq.' . $date,
-    'status=neq.cancelled',
-    'status=neq.no_show',
-    'select=appointment_time',
+$visit = visitDurationFor($serviceIds);
+if ($visit['error']) {
+    echo json_encode(['error' => $visit['error']]);
+    exit;
+}
+$duration = $visit['minutes'];
+
+$base = [
+    'date'           => $date,
+    'duration'       => $duration,
+    'duration_label' => visitLengthLabel($duration),
+    'open'           => $branch['open_time'],
+    'close'          => $branch['close_time'],
 ];
 
-if ($branchId !== '') {
-    $filters[] = 'branch_id=eq.' . (int)$branchId;
+$reason = dateUnavailableReason($branch, $date);
+if ($reason) {
+    echo json_encode($base + ['unavailable' => $reason, 'slots' => [], 'booked' => []]);
+    exit;
 }
 
-$query = implode('&', $filters);
-
-$result = supabase_request('appointments', 'GET', [], $query);
-
-if ($result['error']) {
+$ranges = getBookedRanges($branchId, $date, $date);
+if (isset($ranges['__error'])) {
     http_response_code(500);
     echo json_encode(['error' => 'Could not load time slots.']);
     exit;
 }
+$dayRanges = $ranges[$date] ?? [];
 
-$booked = array_map(
-    fn($row) => substr($row['appointment_time'], 0, 5),
-    $result['data'] ?? []
-);
-
-echo json_encode(['booked' => $booked]);
+echo json_encode($base + [
+    'unavailable' => null,
+    'slots'       => buildDaySlots($branch, $duration, $dayRanges),
+    'booked'      => array_values(array_unique(array_map(fn($r) => minutesToTime($r[0]), $dayRanges))),
+]);

@@ -1,0 +1,190 @@
+/* ─────────────────────────────────────────────────────────────────────
+   EssenciaSmile — Terms and Conditions Page  |  portal-terms.css
+
+   Self-contained: this page does NOT load portal-login.css. The design
+   tokens and small set of shared components it needs (:root variables,
+   the base reset, body, .portal-pill, .modal-icon, .foot-link, and the
+   fadeUp animation) are duplicated below rather than shared, so this
+   file works entirely on its own.
+
+   NOTE: these values are copied from portal-login.css, not linked to
+   it. If you change a token there (e.g. --blue, --radius-lg), update
+   it here too if you want this page to match.
+   ───────────────────────────────────────────────────────────────────── */
+
+:root {
+    --blue:         #1a56db;
+    --blue-dark:    #1245b5;
+    --blue-light:   #eef3ff;
+    --slate:        #1e2a3b;
+    --muted:        #6b7a90;
+    --border:       #dde3ed;
+    --bg:           #f3f6fb;
+    --surface:      #ffffff;
+    --radius:       10px;
+    --radius-lg:    14px;
+    --font-body:   'DM Sans', system-ui, sans-serif;
+    --font-display:'Fraunces', Georgia, serif;
+    --shadow-card:  0 8px 32px rgba(26,86,219,.09), 0 1px 4px rgba(0,0,0,.06);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+
+body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--slate);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Shared components used on this page ── */
+.portal-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    background: var(--blue-light);
+    color: var(--blue);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    padding: .3rem .8rem;
+    border-radius: 50px;
+    margin-bottom: .85rem;
+}
+.modal-icon {
+    width: 52px; height: 52px;
+    border-radius: 14px;
+    background: var(--blue-light);
+    color: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+}
+.foot-link {
+    color: var(--blue); font-weight: 600;
+    cursor: pointer; background: none; border: none;
+    font-family: var(--font-body); font-size: inherit;
+    padding: 0; text-decoration: none;
+}
+.foot-link:hover { text-decoration: underline; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   TERMS AND CONDITIONS PAGE (portal-terms.php)
+   ══════════════════════════════════════════════════════════════════════ */
+.terms-page {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 3rem 2.5rem 4rem;
+    background: var(--bg);
+}
+.terms-card {
+    width: 100%;
+    max-width: 1200px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 2.75rem 3.5rem;
+    animation: fadeUp .35s ease both;
+}
+.terms-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+    padding-bottom: 1.75rem;
+    border-bottom: 1.5px solid var(--border);
+}
+.terms-header h1 {
+    font-family: var(--font-display);
+    font-size: 1.7rem;
+    font-weight: 600;
+    color: var(--slate);
+    letter-spacing: -.3px;
+    line-height: 1.2;
+    margin: .55rem 0 .35rem;
+}
+.terms-updated {
+    font-size: .8rem;
+    color: var(--muted);
+}
+.terms-card > p {
+    font-size: .93rem;
+    color: #46536a;
+    line-height: 1.7;
+    padding-bottom: 20px;
+    max-width: 760px;
+}
+
+/* ── Sections lay out as a wide row: number+heading in a fixed-width
+   left column, body text stretching across the remaining width ── */
+.terms-section {
+    display: grid;
+    grid-template-columns: 230px 1fr;
+    gap: 2.5rem;
+    padding: 1.85rem 0;
+    border-top: 1px solid var(--border);
+}
+.terms-section:first-of-type {
+    border-top: none;
+}
+.terms-card h2 {
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--slate);
+    line-height: 1.4;
+    margin: 0;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: baseline;
+    gap: .45rem;
+}
+.terms-card h2 span {
+    display: inline !important;
+    color: var(--blue);
+    font-size: 1rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.terms-section p,
+.terms-section li {
+    font-size: .89rem;
+    color: #46536a;
+    line-height: 1.7;
+    max-width: 640px;
+}
+.terms-section ul {
+    margin: .4rem 0 .4rem 1.2rem;
+}
+.terms-back-row {
+    margin-top: 1rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+}
+.terms-back-row .foot-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+}
+@media (max-width: 860px) {
+    .terms-section {
+        grid-template-columns: 1fr;
+        gap: .6rem;
+    }
+}
+@media (max-width: 600px) {
+    .terms-page { padding: 1.5rem 1rem 3rem; }
+    .terms-card { padding: 1.75rem 1.5rem; }
+    .terms-header { flex-direction: column; gap: .75rem; }
+}

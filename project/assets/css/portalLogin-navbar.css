@@ -4,7 +4,10 @@
 :root {
     --text:       #1c2b3a;
     --blue:       #0d6efd;
-    --green-dark: #5aa32e;
+    --green: #5AFF68;
+
+    --essenciasmile-font: "Playfair Display", serif;
+    --font-display:'Fraunces', Georgia, serif;
 }
 .topbar {
     height: 60px;
@@ -13,7 +16,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 2rem;
+    padding: 2.4rem 2rem;
     flex-shrink: 0;
     position: relative;
     z-index: 30;
@@ -42,9 +45,9 @@
     border-radius: 8px;
     transition: color .2s, background .2s;
 }
-.topbar-back:hover { 
-    color: var(--blue); 
-    background: var(--blue-light); 
+.topbar-back:hover {
+    color: var(--blue);
+    background: var(--blue-light);
 }
 .nav-brand {
     display: flex;
@@ -54,12 +57,27 @@
     flex-shrink: 0;
 }
 .nav-brand-text {
-  font-size: 1.05rem;
+  font-size: 1.6rem;
   font-weight: 700;
+  font-family: var(--essenciasmile-font);
   color: var(--blue);
   letter-spacing: -0.3px;
   line-height: 1;
 }
-.nav-brand-text span { 
-    color: var(--green-dark); 
+.nav-brand-text span {
+    color: var(--green);
+}
+.nav-brand-logo {
+    display: block;
+    height: 30px;
+    width: auto;
+    -webkit-user-drag: none;
+}
+@media (max-width: 600px) {
+    .nav-brand-logo { height: 26px; }
+}
+
+/* Small phones: the back link shows its arrow only (label stays for screen readers via aria-label/title) */
+@media (max-width: 400px) {
+    .topbar-back-label { display: none; }
 }

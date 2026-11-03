@@ -7,8 +7,90 @@ $role = $currentUser['role'] ?? '';
 $isOwner   = $role === 'owner';
 $isAdmin   = $role === 'admin';
 $isDentist = $role === 'dentist';
+
+// ── Role-based navigation ─────────────────────────────────────────
+// Each link lists the roles that may use it; keep these in step with the
+// page's own REQUIRED_ROLES guard (the server-side check is what actually
+// protects the page — hiding a link is only a convenience).
+// Groups / captions with no visible links are not rendered.
+$navSections = [
+    'Overview' => [
+        ['icon' => 'feather-airplay', 'label' => 'Dashboards', 'links' => [
+            ['dashboard.php', 'Overview',  ['owner']],
+            ['analytics.php', 'Analytics', ['owner']],
+        ]],
+    ],
+    'Operations' => [
+        ['icon' => 'feather-calendar', 'label' => 'Appointments', 'links' => [
+            ['appointments-records.php',  'Appointments Records',  ['owner', 'admin', 'dentist']],
+            ['appointments-schedule.php', 'Appointments Schedule', ['owner', 'admin', 'dentist']],
+        ]],
+        ['icon' => 'feather-activity', 'label' => 'Treatments', 'links' => [
+            ['treatments-records.php', 'Treatment Records',  ['owner', 'admin', 'dentist']],
+            ['treatments-active.php',  'Active Treatments',  ['owner', 'admin', 'dentist']],
+        ]],
+        ['icon' => 'feather-clipboard', 'label' => 'Patients', 'links' => [
+            ['patients-list.php', 'Patients List', ['owner', 'admin', 'dentist']],
+        ]],
+    ],
+    'Financial' => [
+        ['icon' => 'feather-file-text', 'label' => 'Billing', 'links' => [
+            ['billing-records.php', 'Billing Records', ['owner', 'admin']],
+        ]],
+    ],
+    'Inventory' => [
+        ['icon' => 'feather-package', 'label' => 'Inventory', 'links' => [
+            ['inventory-records.php',        'Inventory Records', ['owner', 'admin', 'dentist']],
+            ['inventory-stock-movement.php', 'Stock Movement',    ['owner', 'admin', 'dentist']],
+        ]],
+        ['icon' => 'feather-tool', 'label' => 'Materials Configuration', 'links' => [
+            ['service-records.php',   'Services',          ['owner', 'admin']],
+            ['discount-vouchers.php', 'Discount Vouchers', ['owner', 'admin']],
+        ]],
+    ],
+    'Management' => [
+        ['icon' => 'feather-user-check', 'label' => 'Dentists', 'links' => [
+            ['dentist-records.php', 'Dentist Records', ['owner']],
+        ]],
+        ['icon' => 'feather-server', 'label' => 'Branches', 'links' => [
+            ['branches-records.php', 'Branch Records', ['owner']],
+        ]],
+        ['icon' => 'feather-users', 'label' => 'Accounts', 'links' => [
+            ['accounts-records.php', 'Accounts Records', ['owner']],
+        ]],
+        ['icon' => 'feather-message-square', 'label' => 'Feedback', 'links' => [
+            ['feedback-records.php', 'Patient Feedback', ['owner']],
+        ]],
+    ],
+    'System' => [
+        ['icon' => 'feather-shield', 'label' => 'Audit Trail', 'links' => [
+            ['audit-records.php', 'Audit Records', ['owner', 'admin', 'dentist']],
+        ]],
+    ],
+];
+
+// Pages reached from a list (not linked directly) highlight their parent link
+$navCurrent = basename($_SERVER['SCRIPT_NAME'] ?? '');
+$navCurrent = [
+    'patient-records.php'   => 'patients-list.php',
+    'service-materials.php' => 'service-records.php',
+    'service-pricing.php'   => 'service-records.php',
+][$navCurrent] ?? $navCurrent;
+
+foreach ($navSections as $caption => $groups) {
+    foreach ($groups as $gi => $group) {
+        $group['links'] = array_values(array_filter($group['links'], fn($l) => in_array($role, $l[2], true)));
+        if ($group['links']) $navSections[$caption][$gi] = $group;
+        else unset($navSections[$caption][$gi]);
+    }
+    if (!$navSections[$caption]) unset($navSections[$caption]);
+}
 ?>
 <script>
+        // Staff interface marker: turns on the staff dropdown design in
+        // assets/css/custom-select.css (the patient portal doesn't include this sidebar).
+        document.documentElement.classList.add('es-staff');
+
         // ── Back-navigation / bfcache guard ──────────────────────────────
         // When a user logs out and presses Back, some browsers restore the
         // previous page from the bfcache (back-forward cache) without making
@@ -44,178 +126,36 @@ $isDentist = $role === 'dentist';
     <div class="navbar-wrapper">
         <div class="m-header">
             <a href="<?= $isOwner ? 'dashboard.php' : 'appointments-schedule.php' ?>" class="b-brand">
-                <img src="assets/images/essencia-full@3x.png" alt="" class="logo logo-lg">
-                <img src="assets/images/Essencia-abbr.png" alt="" class="logo logo-sm">
+                <img src="assets/images/EssenciaSmile-Original-Logo.svg" alt="EssenciaSmile" class="logo logo-lg" width="194" height="34" style="max-width:100%;height:auto;">
+
             </a>
         </div>
         <div class="navbar-content">
             <ul class="nxl-navbar">
 
-                <?php if ($isOwner): ?>
+                <?php foreach ($navSections as $caption => $groups): ?>
                     <li class="nxl-item nxl-caption">
-                        <label>Overview</label>
+                        <label><?= htmlspecialchars($caption) ?></label>
                     </li>
-                    <li class="nxl-item nxl-hasmenu">
-                        <a href="javascript:void(0);" class="nxl-link">
-                            <span class="nxl-micon"><i class="feather-airplay"></i></span>
-                            <span class="nxl-mtext">Dashboards</span>
-                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                        </a>
-                        <ul class="nxl-submenu">
-                            <li class="nxl-item"><a class="nxl-link" href="dashboard.php">Overview</a></li>
-                            <li class="nxl-item"><a class="nxl-link" href="analytics.php">Analytics</a></li>
-                        </ul>
-                    </li>
-                <?php endif; ?>
-
-                <li class="nxl-item nxl-caption">
-                    <label>Operations</label>
-                </li>
-
-                <li class="nxl-item nxl-hasmenu">
-                    <a href="javascript:void(0);" class="nxl-link">
-                        <span class="nxl-micon"><i class="feather-calendar"></i></span>
-                        <span class="nxl-mtext">Appointments</span>
-                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                    </a>
-                    <ul class="nxl-submenu">
-                        <li class="nxl-item"><a class="nxl-link" href="appointments-records.php">Appointments Records</a></li>
-                        <li class="nxl-item"><a class="nxl-link" href="appointments-schedule.php">Appointments Schedule</a></li>
-                    </ul>
-                </li>
-
-                <li class="nxl-item nxl-hasmenu">
-                    <a href="javascript:void(0);" class="nxl-link">
-                        <span class="nxl-micon"><i class="feather-activity"></i></span>
-                        <span class="nxl-mtext">Treatments</span>
-                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                    </a>
-                    <ul class="nxl-submenu">
-                        <li class="nxl-item"><a class="nxl-link" href="treatments-records.php">Treatment Records</a></li>
-                        <li class="nxl-item"><a class="nxl-link" href="treatments-active.php">Active Treatments</a></li>
-                    </ul>
-                </li>
-
-                <li class="nxl-item nxl-hasmenu">
-                    <a href="javascript:void(0);" class="nxl-link">
-                        <span class="nxl-micon"><i class="feather-clipboard"></i></span>
-                        <span class="nxl-mtext">Patients</span>
-                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                    </a>
-                    <ul class="nxl-submenu">
-                        <!--
-                            FIX: Was "patients-records.php" (the DETAIL page — requires ?id=N).
-                            Changed to "patients-list.php" (the LIST page — no ID needed).
-                            The detail page is only reached by clicking a patient row in the list.
-                        -->
-                        <li class="nxl-item"><a class="nxl-link" href="patients-list.php">Patients List</a></li>
-                    </ul>
-                </li>
-
-                <?php if ($isOwner || $isAdmin): ?>
-                    <li class="nxl-item nxl-caption">
-                        <label>Financial</label>
-                    </li>
-                    <li class="nxl-item nxl-hasmenu">
-                        <a href="javascript:void(0);" class="nxl-link">
-                            <span class="nxl-micon"><i class="feather-file-text"></i></span>
-                            <span class="nxl-mtext">Billing</span>
-                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                        </a>
-                        <ul class="nxl-submenu">
-                            <li class="nxl-item"><a class="nxl-link" href="billing-records.php">Billing Records</a></li>
-                        </ul>
-                    </li>
-                <?php endif; ?>
-
-                <li class="nxl-item nxl-caption">
-                    <label>Inventory</label>
-                </li>
-
-                <li class="nxl-item nxl-hasmenu">
-                    <a href="javascript:void(0);" class="nxl-link">
-                        <span class="nxl-micon"><i class="feather-package"></i></span>
-                        <span class="nxl-mtext">Inventory</span>
-                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                    </a>
-                    <ul class="nxl-submenu">
-                        <li class="nxl-item"><a class="nxl-link" href="inventory-records.php">Inventory Records</a></li>
-                        <li class="nxl-item"><a class="nxl-link" href="inventory-stock-movement.php">Stock Movement</a></li>
-                    </ul>
-                </li>
-
-                <?php if ($isOwner || $isAdmin): ?>
-                    <li class="nxl-item nxl-hasmenu">
-                        <a href="javascript:void(0);" class="nxl-link">
-                            <span class="nxl-micon"><i class="feather-tool"></i></span>
-                            <span class="nxl-mtext">Materials Configuration</span>
-                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                        </a>
-                        <ul class="nxl-submenu">
-                            <li class="nxl-item"><a class="nxl-link" href="service-materials.php">Service Materials</a></li>
-                            <li class="nxl-item"><a class="nxl-link" href="service-pricing.php">Service Pricing</a></li>
-                        </ul>
-                    </li>
-                <?php endif; ?>
-
-                <?php if ($isOwner || $isAdmin): ?>
-                    <li class="nxl-item nxl-caption">
-                        <label>Management</label>
-                    </li>
-
-                    <li class="nxl-item nxl-hasmenu">
-                        <a href="javascript:void(0);" class="nxl-link">
-                            <span class="nxl-micon"><i class="feather-user-check"></i></span>
-                            <span class="nxl-mtext">Dentists</span>
-                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                        </a>
-                        <ul class="nxl-submenu">
-                            <li class="nxl-item"><a class="nxl-link" href="dentist-records.php">Dentist Records</a></li>
-                        </ul>
-                    </li>
-                <?php endif; ?>
-
-                <?php if ($isOwner): ?>
-                    <li class="nxl-item nxl-hasmenu">
-                        <a href="javascript:void(0);" class="nxl-link">
-                            <span class="nxl-micon"><i class="feather-server"></i></span>
-                            <span class="nxl-mtext">Branches</span>
-                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                        </a>
-                        <ul class="nxl-submenu">
-                            <li class="nxl-item"><a class="nxl-link" href="branches-records.php">Branch Records</a></li>
-                        </ul>
-                    </li>
-
-                    <li class="nxl-item nxl-hasmenu">
-                        <a href="javascript:void(0);" class="nxl-link">
-                            <span class="nxl-micon"><i class="feather-users"></i></span>
-                            <span class="nxl-mtext">Accounts</span>
-                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                        </a>
-                        <ul class="nxl-submenu">
-                            <li class="nxl-item"><a class="nxl-link" href="accounts-records.php">Accounts Records</a></li>
-                        </ul>
-                    </li>
-                <?php endif; ?>
-
-                <li class="nxl-item nxl-caption">
-                    <label>System</label>
-                </li>
-
-                <li class="nxl-item nxl-hasmenu">
-                    <a href="javascript:void(0);" class="nxl-link">
-                        <span class="nxl-micon"><i class="feather-shield"></i></span>
-                        <span class="nxl-mtext">Audit Trail</span>
-                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                    </a>
-                    <ul class="nxl-submenu">
-                        <li class="nxl-item"><a class="nxl-link" href="audit-records.php">Audit Records</a></li>
-                    </ul>
-                </li>
+                    <?php foreach ($groups as $group):
+                        $groupActive = in_array($navCurrent, array_column($group['links'], 0), true); ?>
+                        <li class="nxl-item nxl-hasmenu<?= $groupActive ? ' active nxl-trigger' : '' ?>">
+                            <a href="javascript:void(0);" class="nxl-link">
+                                <span class="nxl-micon"><i class="<?= $group['icon'] ?>"></i></span>
+                                <span class="nxl-mtext"><?= htmlspecialchars($group['label']) ?></span>
+                                <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                            </a>
+                            <ul class="nxl-submenu">
+                                <?php foreach ($group['links'] as [$href, $text]): ?>
+                                    <li class="nxl-item<?= $href === $navCurrent ? ' active' : '' ?>"><a class="nxl-link" href="<?= $href ?>"><?= htmlspecialchars($text) ?></a></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </li>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
 
                 <li class="nxl-item">
-                    <a href="logout.php" class="nxl-link">
+                    <a href="logout.php" class="nxl-link" data-signout-confirm>
                         <span class="nxl-micon"><i class="feather-log-out"></i></span>
                         <span class="nxl-mtext">Logout</span>
                     </a>

@@ -18,13 +18,20 @@ if (!isOwner()) {
     }
 }
 
+// Low stock is decided from the live quantity vs. the item's own reorder
+// level (min_stock), not the stored status, so the bell is never stale:
+// it updates on the next page load after any stock change, and an item
+// drops off as soon as it is restocked above its min_stock.
 $lowStockRes   = supabase_request('inventory', 'GET', [],
     'select=item_id,item_code,item_name,stock_quantity,min_stock,status,branches(branch_name)'
-    . '&status=in.(low_stock,out_of_stock)'
+    . '&status=neq.inactive'
     . $notifBranchFilter
-    . '&order=stock_quantity.asc&limit=50'   // fetch up to 50 — list scrolls
+    . '&order=stock_quantity.asc&limit=1000'
 );
-$lowStockItems = is_array($lowStockRes['data']) ? $lowStockRes['data'] : [];
+$lowStockItems = array_values(array_filter(
+    is_array($lowStockRes['data']) ? $lowStockRes['data'] : [],
+    fn($i) => (int)$i['stock_quantity'] <= (int)$i['min_stock'] || (int)$i['stock_quantity'] <= 0
+));
 $notifCount    = count($lowStockItems);
 ?>
     <header class="nxl-header">
@@ -133,12 +140,13 @@ $notifCount    = count($lowStockItems);
                                  style="max-height:300px; overflow-y:auto; overflow-x:hidden;">
 
                                 <?php foreach ($lowStockItems as $item):
-                                    $isOut      = ($item['status'] ?? '') === 'out_of_stock';
+                                    $isOut      = (int)($item['stock_quantity'] ?? 0) <= 0;
                                     $iconClass  = $isOut ? 'feather-alert-octagon' : 'feather-alert-triangle';
                                     $colorClass = $isOut ? 'text-danger' : 'text-warning';
                                     $bgClass    = $isOut ? 'bg-soft-danger'  : 'bg-soft-warning';
                                     $badgeClass = $isOut ? 'bg-soft-danger text-danger' : 'bg-soft-warning text-warning';
-                                    $label      = $isOut ? 'Out of Stock' : 'Low Stock';
+                                    // 0 units: unavailable for treatments until restocked/reconciled
+                                    $label      = $isOut ? 'Out of Stock · Unavailable' : 'Low Stock';
                                     $branch     = htmlspecialchars($item['branches']['branch_name'] ?? '');
                                 ?>
                                 <a href="inventory-records.php"
@@ -213,7 +221,7 @@ $notifCount    = count($lowStockItems);
                                 </span>
                             </div>
                             <div class="dropdown-divider"></div>
-                            <a href="logout.php" class="dropdown-item text-danger">
+                            <a href="logout.php" class="dropdown-item text-danger" data-signout-confirm>
                                 <i class="feather-log-out me-2"></i>Sign Out
                             </a>
                         </div>
@@ -223,3 +231,5 @@ $notifCount    = count($lowStockItems);
             </div>
         </div>
     </header>
+    <!-- Sign-out confirmation shared with the patient portal (handles a[data-signout-confirm]) -->
+    <script src="assets/js/signout-confirm.js?v=2"></script>

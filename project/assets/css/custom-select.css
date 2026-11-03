@@ -1,0 +1,456 @@
+/* =============================================================
+   EssenciaSmile — Custom Select Dropdown
+   File: assets/css/custom-select.css
+   Reusable across all pages/modals.
+   ============================================================= */
+
+.modal-cs {
+  position: relative;
+  user-select: none;
+}
+.modal-cs-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 45px;
+  border: 1.2px solid #e5e7eb;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #9da6b0;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  overflow: hidden;
+}
+.modal-cs.open .modal-cs-trigger {
+  border-color: #185fa5;
+  box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.1);
+  border-radius: 9px 9px 0 0;
+}
+.modal-cs-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.modal-cs-value.cs-selected {
+  color: #1a1a2e;
+  font-weight: 500;
+}
+.modal-cs-arrow {
+  color: #9da6b0;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+.modal-cs.open .modal-cs-arrow {
+  transform: rotate(180deg);
+}
+.modal-cs-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1.5px solid #185fa5;
+  border-top: none;
+  border-radius: 0 0 9px 9px;
+  box-shadow: 0 8px 24px rgba(10, 35, 66, 0.12);
+  z-index: 1060;
+  overflow: hidden;
+}
+.modal-cs.open .modal-cs-dropdown {
+  display: block;
+}
+/* Search: full-width strip, magnifying glass inside it (original address-dropdown design) */
+.modal-cs-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0px 10px;
+  border-bottom: 1px solid #e8e4de;
+  background: #f8f7f5;
+}
+.modal-cs-search-wrap svg {
+  color: #9da6b0;
+  flex-shrink: 0;
+}
+.modal-cs-search-wrap > i {
+  color: #9da6b0;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+.modal-cs-search {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 0.84rem;
+  color: #1a1a2e;
+  width: 100%;
+  height: 38px;
+}
+.modal-cs-search::placeholder {
+  color: #b4bed0;
+}
+
+/* Hover / keyboard focus / disabled / validation error */
+.modal-cs:not(.open):not(.is-disabled) .modal-cs-trigger:hover {
+  border-color: #b9c7d8;
+}
+.modal-cs-trigger:focus-visible {
+  outline: none;
+  border-color: #185fa5;
+  box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.15);
+}
+.modal-cs.is-disabled .modal-cs-trigger {
+  background: #f5f6f8;
+  color: #b4bed0;
+  cursor: not-allowed;
+}
+.modal-cs.is-invalid .modal-cs-trigger,
+select.is-invalid + .modal-cs .modal-cs-trigger {
+  border-color: #dc3545;
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.08);
+}
+.modal-cs-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 188px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.modal-cs-list li {
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 0.84rem;
+  color: #1a1a2e;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.modal-cs-list li:hover {
+  background: #e8f0fb;
+  color: #185fa5;
+}
+.modal-cs-list li.active {
+  background: #185fa5;
+  color: #fff;
+  font-weight: 600;
+}
+.modal-cs-list li .cs-item-price {
+  font-size: 0.76rem;
+  font-weight: 500;
+  opacity: 0.75;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.modal-cs-list li.active .cs-item-price {
+  opacity: 0.85;
+}
+.modal-cs-list li.cs-disabled {
+  color: #b4bed0;
+  cursor: not-allowed;
+  font-style: italic;
+}
+.modal-cs-list li.cs-disabled:hover {
+  background: transparent;
+  color: #b4bed0;
+}
+/* ── Admin header filters: <select class="js-custom-select" data-cs-filter> ──
+   Same look as the address dropdowns, sized to sit beside .hdr-btn.
+   The list is position:fixed (placed by custom-select.js) so tables,
+   cards and scroll areas can't clip it. */
+.modal-cs.cs-filter {
+  flex: 0 0 auto;
+  width: 170px;
+  min-width: 0;
+}
+.modal-cs.cs-filter.cs-wide { width: 200px; }
+.modal-cs.cs-filter .modal-cs-trigger {
+  height: 34px;
+  padding: 0 10px 0 12px;
+  font-size: 0.8125rem;
+  border-radius: 5px;
+}
+.modal-cs.cs-filter .modal-cs-value { color: #1a1a2e; font-weight: 500; }
+.modal-cs.cs-filter .modal-cs-arrow { font-size: 0.7rem; }
+.modal-cs.cs-filter.open .modal-cs-arrow { color: #185fa5; }
+.modal-cs.cs-filter .modal-cs-dropdown,
+.modal-cs.cs-float .modal-cs-dropdown {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: auto;
+  z-index: 1080;
+}
+.modal-cs.cs-filter .modal-cs-list { max-height: 260px; }
+/* Opening upward: the list joins the field's top edge */
+.modal-cs.cs-filter.cs-above .modal-cs-dropdown,
+.modal-cs.cs-float.cs-above .modal-cs-dropdown {
+  border-top: 1.5px solid #185fa5;
+  border-bottom: none;
+  border-radius: 9px 9px 0 0;
+  box-shadow: 0 -8px 24px rgba(10, 35, 66, 0.12);
+}
+.modal-cs.cs-filter.open.cs-above .modal-cs-trigger,
+.modal-cs.cs-float.open.cs-above .modal-cs-trigger { border-radius: 0 0 9px 9px; }
+/* List wider than the field: a standalone rounded panel */
+.modal-cs.cs-filter.cs-detached .modal-cs-dropdown { border: 1.5px solid #185fa5; border-radius: 9px; }
+.modal-cs.cs-filter.open.cs-detached .modal-cs-trigger { border-radius: 5px; }
+
+@media (max-width: 767.98px) {
+  .modal-cs.cs-filter,
+  .modal-cs.cs-filter.cs-wide { flex: 1 1 150px; width: auto; }
+}
+
+/* ── Admin list toolbar (controllers/list_filters.php) ──────────────
+   Search / Sort By / Date Range / extra filters / Reset, shown above a
+   records table. Controls reuse the .cs-filter dropdown look. */
+.list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+  padding: 14px 20px 24px;         /* extra space under the filters, inside the toolbar */
+  border-bottom: 1px solid #e5e7eb;
+  background: #fbfcfe;
+}
+.list-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.list-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7a90;
+  margin: 0;
+}
+.list-field-search { flex: 1 1 220px; max-width: 320px; }
+.list-search { position: relative; }
+.list-search i {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  font-size: 0.8rem; color: #9da6b0; pointer-events: none;
+}
+.list-search input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px 0 32px;
+  border: 1.2px solid #e5e7eb;
+  border-radius: 5px;
+  background: #fff;
+  font-size: 0.8125rem;
+  color: #1a1a2e;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.list-search input::placeholder { color: #9da6b0; }
+.list-search input:focus { outline: none; border-color: #185fa5; box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.1); }
+.list-dates { display: flex; align-items: center; gap: 6px; }
+.list-input {
+  width: 96px; height: 34px; padding: 0 10px;
+  border: 1.2px solid #e5e7eb; border-radius: 5px; background: #fff;
+  font-size: 0.8125rem; color: #1a1a2e;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.list-input::placeholder { color: #9da6b0; }
+.list-input:focus { outline: none; border-color: #185fa5; box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.1); }
+.list-dates .modal-cs.cs-filter { width: 140px; }
+.list-dates-sep { color: #9da6b0; font-size: 0.8rem; }
+.list-field-reset { margin-left: auto; }
+.list-reset {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 14px;
+  border: 1.2px solid #e5e7eb; border-radius: 5px;
+  background: #fff; color: #185fa5;
+  font-size: 0.8125rem; font-weight: 500; white-space: nowrap;
+  transition: border-color 0.18s, background 0.18s;
+}
+.list-reset:hover { border-color: #185fa5; background: #e8f0fb; color: #185fa5; }
+.list-reset.disabled { color: #b4bed0; pointer-events: none; background: #fff; }
+.list-active-count {
+  display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 2px;
+  border-radius: 9px; background: #185fa5; color: #fff;
+  font-size: 0.6875rem; line-height: 18px; text-align: center;
+}
+
+@media (max-width: 767.98px) {
+  .list-toolbar { padding: 12px 14px 18px; }
+  .list-field, .list-field-search { flex: 1 1 100%; max-width: none; }
+  .list-field .modal-cs.cs-filter, .list-field .modal-cs.cs-filter.cs-wide { width: 100%; flex: 1 1 auto; }
+  .list-dates .modal-cs.cs-filter, .list-dates .list-input { flex: 1 1 0; width: auto; min-width: 0; }
+  .list-field-reset { margin-left: 0; }
+  .list-reset { width: 100%; justify-content: center; }
+}
+/* Narrow cards (e.g. the services list on Service Materials): two controls per row */
+.list-toolbar.is-compact { padding: 12px 14px 18px; }
+.list-toolbar.is-compact .list-field { flex: 1 1 140px; max-width: none; }
+.list-toolbar.is-compact .list-field-search { flex-basis: 100%; }
+.list-toolbar.is-compact .modal-cs.cs-filter { width: 100%; }
+.list-toolbar.is-compact .list-field-reset { flex: 0 0 auto; margin-left: auto; }
+
+/* Fluid toolbar: controls flex with the card (not the viewport), so the row
+   fits whether the sidebar is open or collapsed. Each control keeps a usable
+   minimum; when the card is too narrow they wrap and stretch to fill each
+   row, and Reset stays at the end of the last row instead of being stranded. */
+.list-toolbar.is-fluid .list-field { flex: 1 1 130px; }
+.list-toolbar.is-fluid .list-field:has(.list-dates) { flex: 2 1 250px; }
+.list-toolbar.is-fluid .list-field:has(#listSort) { flex-basis: 160px; }
+.list-toolbar.is-fluid .list-field-reset { flex: 0 0 auto; margin-left: 0; }
+.list-toolbar.is-fluid .list-field .modal-cs.cs-filter,
+.list-toolbar.is-fluid .list-field .modal-cs.cs-filter.cs-wide { width: 100%; flex: 1 1 auto; }
+.list-toolbar.is-fluid .list-dates .modal-cs.cs-filter,
+.list-toolbar.is-fluid .list-dates .list-input { flex: 1 1 0; width: auto; min-width: 0; }
+@media (max-width: 767.98px) {
+  .list-toolbar.is-fluid .list-field { flex-basis: 100%; }
+  .list-toolbar.is-fluid .list-field-reset { flex: 1 1 100%; }
+}
+
+/* Sortable table headers (listTh in controllers/list_filters.php) */
+th > a.th-sort {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: inherit; text-decoration: none; white-space: nowrap; cursor: pointer;
+}
+th > a.th-sort i { font-size: 0.75em; transition: opacity 0.15s; }
+th > a.th-sort .th-sort-idle { opacity: 0.35; }
+th > a.th-sort:hover { color: #185fa5; }
+th > a.th-sort:hover .th-sort-idle { opacity: 0.8; }
+th > a.th-sort.active { color: #185fa5; }
+
+/* ═════════════════════════════════════════════════════════════════
+   STAFF DROPDOWN DESIGN (Owner / Admin / Dentist)
+   Scoped to html.es-staff (set by partials/sidebar.php), so the
+   patient portal keeps its own look. Trigger, search and options
+   are three distinct parts: the options panel is a separate card
+   floating --cs-gap below the field (custom-select.js reads it).
+   ═════════════════════════════════════════════════════════════════ */
+html.es-staff {
+  --cs-gap: 6px;
+  --cs-accent: #01A8EC;
+  --cs-accent-soft: #e6f6fd;
+  --cs-accent-ink: #0077b6;
+  --cs-border: #d5dde6;
+  --cs-ink: #1e293b;
+  --cs-muted: #94a3b8;
+}
+
+/* ── A. Closed trigger ── */
+.es-staff .modal-cs .modal-cs-trigger {
+  gap: 8px;
+  height: 42px;
+  padding: 0 12px 0 14px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.875rem;
+  color: var(--cs-muted);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.es-staff .modal-cs .modal-cs-value.cs-selected { color: var(--cs-ink); font-weight: 500; }
+.es-staff .modal-cs .modal-cs-arrow { margin-left: 0; font-size: 0.72rem; color: var(--cs-muted); transition: transform 0.2s ease, color 0.15s; }
+.es-staff .modal-cs.open .modal-cs-arrow { transform: rotate(180deg); color: var(--cs-accent); }
+.es-staff .modal-cs:not(.open):not(.is-disabled) .modal-cs-trigger:hover { border-color: #b8c4d2; }
+/* Focus / open: accent outline, corners stay rounded (never merged with the panel) */
+.es-staff .modal-cs.open .modal-cs-trigger,
+.es-staff .modal-cs .modal-cs-trigger:focus-visible,
+.es-staff .modal-cs.cs-float.open.cs-above .modal-cs-trigger,
+.es-staff .modal-cs.cs-filter.open.cs-above .modal-cs-trigger,
+.es-staff .modal-cs.cs-filter.open.cs-detached .modal-cs-trigger,
+.es-staff .modal-cs.cs-date.open.dp-above .modal-cs-trigger,
+.es-staff .modal-cs.cs-date.open.dp-detached .modal-cs-trigger {
+  border-color: var(--cs-accent);
+  border-radius: 10px;
+  box-shadow: 0 0 0 3px rgba(1, 168, 236, 0.15);
+}
+.es-staff .modal-cs.is-disabled .modal-cs-trigger { background: #f1f5f9; border-color: #e2e8f0; color: var(--cs-muted); cursor: not-allowed; }
+.es-staff .modal-cs.is-invalid .modal-cs-trigger,
+.es-staff select.is-invalid + .modal-cs .modal-cs-trigger { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12); }
+
+/* Compact list / header filters keep their height, same look */
+.es-staff .modal-cs.cs-filter .modal-cs-trigger { height: 36px; padding: 0 10px 0 12px; border-radius: 8px; font-size: 0.8125rem; }
+.es-staff .modal-cs.cs-filter.open .modal-cs-trigger,
+.es-staff .modal-cs.cs-filter.open.cs-above .modal-cs-trigger,
+.es-staff .modal-cs.cs-filter.open.cs-detached .modal-cs-trigger { border-radius: 8px; }
+.es-staff .modal-cs.cs-filter .modal-cs-value { color: var(--cs-ink); }
+
+/* Date pickers: calendar icon doesn't rotate */
+.es-staff .modal-cs.cs-date.open .modal-cs-arrow { transform: none; }
+
+/* ── B. Options panel: its own card below (or above) the field ── */
+.es-staff .modal-cs .modal-cs-dropdown,
+.es-staff .modal-cs.cs-float.cs-above .modal-cs-dropdown,
+.es-staff .modal-cs.cs-filter.cs-above .modal-cs-dropdown,
+.es-staff .modal-cs.cs-filter.cs-detached .modal-cs-dropdown,
+.es-staff .modal-cs.cs-date.dp-above .modal-cs-dropdown,
+.es-staff .modal-cs.cs-date.dp-detached .modal-cs-dropdown,
+.es-staff #apt_svc_select.apt-cs-above .modal-cs-dropdown {
+  border: 1px solid var(--cs-border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(15, 42, 92, 0.14);
+  overflow: hidden;
+}
+/* In-flow panels (not floated by JS) sit one gap below the field */
+.es-staff .modal-cs:not(.cs-float):not(.cs-filter):not(.cs-date) .modal-cs-dropdown { top: calc(100% + var(--cs-gap)); }
+
+/* ── C. Search section: separate strip, one-outline input, icon inside ── */
+.es-staff .modal-cs .modal-cs-search-wrap {
+  position: relative;
+  display: block;
+  padding: 10px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e6ebf1;
+}
+.es-staff .modal-cs .modal-cs-search-wrap > i,
+.es-staff .modal-cs .modal-cs-search-wrap > svg {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  color: var(--cs-muted);
+  pointer-events: none;
+}
+.es-staff .modal-cs .modal-cs-search {
+  display: block;
+  width: 100%;
+  height: 36px;
+  padding: 0 12px 0 34px;
+  border: 1px solid var(--cs-border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.84rem;
+  color: var(--cs-ink);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.es-staff .modal-cs .modal-cs-search::placeholder { color: var(--cs-muted); }
+.es-staff .modal-cs .modal-cs-search:focus { border-color: var(--cs-accent); box-shadow: 0 0 0 3px rgba(1, 168, 236, 0.15); }
+
+/* Options list: scrolls on its own, search stays visible */
+.es-staff .modal-cs .modal-cs-list { padding: 6px; max-height: 240px; overflow-y: auto; }
+.es-staff .modal-cs .modal-cs-list li { padding: 9px 10px; border-radius: 8px; font-size: 0.86rem; color: var(--cs-ink); }
+.es-staff .modal-cs .modal-cs-list li:hover,
+.es-staff .modal-cs .modal-cs-list li.cs-focus { background: #f1f5f9; color: var(--cs-ink); }
+/* Selected: subtle accent background */
+.es-staff .modal-cs .modal-cs-list li.active,
+.es-staff .modal-cs .modal-cs-list li.active.cs-focus { background: var(--cs-accent-soft); color: var(--cs-accent-ink); font-weight: 600; }
+.es-staff .modal-cs .modal-cs-list li.cs-disabled,
+.es-staff .modal-cs .modal-cs-list li.cs-disabled:hover { background: transparent; color: var(--cs-muted); }
+
+/* Neighbouring list-toolbar controls follow the same field look */
+.es-staff .list-search input,
+.es-staff .list-input,
+.es-staff .list-reset { height: 36px; border: 1px solid var(--cs-border); border-radius: 8px; }
+.es-staff .list-search input:focus,
+.es-staff .list-input:focus { border-color: #01A8EC; box-shadow: 0 0 0 3px rgba(1, 168, 236, 0.15); }
+
+/* Compact forms (<select class="form-select-sm">): same look, Bootstrap "sm" height */
+.es-staff .modal-cs.cs-sm .modal-cs-trigger { height: 32px; padding: 0 10px 0 12px; border-radius: 8px; font-size: 0.8125rem; }
+.es-staff .modal-cs.cs-sm.open .modal-cs-trigger { border-radius: 8px; }
+.es-staff .modal-cs.cs-sm .modal-cs-list li { padding: 7px 10px; font-size: 0.8125rem; }

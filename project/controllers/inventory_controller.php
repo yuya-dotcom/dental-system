@@ -18,15 +18,17 @@ const MOV_PER_PAGE = 10;
 //  INVENTORY QUERIES
 // ─────────────────────────────────────────────────────────────
 
-function getInventoryRecords(int $page, int $branchId, string $category, string $status): array
+// $order: validated 'order=…' clause; $extra: prebuilt PostgREST filters (list_filters.php)
+function getInventoryRecords(int $page, int $branchId, string $category, string $status, string $order = 'order=item_name.asc', array $extra = []): array
 {
     $offset = ($page - 1) * INV_PER_PAGE;
 
     $q = [
-        'select=item_id,item_code,item_name,category,stock_quantity,min_stock,status,branches(branch_name)',
-        'order=item_name.asc',
+        'select=item_id,item_code,item_name,category,stock_quantity,min_stock,status,created_at,branches(branch_name)',
+        $order,
         'limit='  . INV_PER_PAGE,
         'offset=' . $offset,
+        ...$extra,
     ];
 
     if ($branchId > 0) $q[] = 'branch_id=eq.' . $branchId;

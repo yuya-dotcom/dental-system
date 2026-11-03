@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../controllers/auth_controller.php';
 require_once __DIR__ . '/../controllers/audit_controller.php';
+require_once __DIR__ . '/../controllers/name_helper.php';
 
 header('Content-Type: application/json');
 requireLogin();
@@ -21,11 +22,13 @@ function addPatient(array $d): array
 {
     if (empty($d['full_name']))  return ['success' => false, 'message' => 'Full name is required.'];
     if (empty($d['branch_id']))  return ['success' => false, 'message' => 'Branch is required.'];
+    $gender = normalize_gender($d['gender'] ?? '');
+    if ($gender === null)        return ['success' => false, 'message' => 'Please select a valid gender.'];
 
     $payload = [
         'full_name'      => trim($d['full_name']),
         'contact_number' => $d['contact_number'] ?? null,
-        'gender'         => $d['gender']         ?? null,
+        'gender'         => $gender ?: null,
         'birthdate'      => $d['birthdate']       ?: null,
         'branch_id'      => (int)$d['branch_id'],
         'last_visit'     => $d['last_visit']      ?: null,
@@ -51,17 +54,20 @@ function editPatient(array $d): array
 {
     if (empty($d['patient_id'])) return ['success' => false, 'message' => 'Missing patient ID.'];
     if (empty($d['full_name']))  return ['success' => false, 'message' => 'Full name is required.'];
+    // null = unrecognised value: leave the stored gender untouched
+    $gender = normalize_gender($d['gender'] ?? '');
 
     $payload = [
         'full_name'      => trim($d['full_name']),
         'contact_number' => $d['contact_number'] ?? null,
-        'gender'         => $d['gender']         ?? null,
+        'gender'         => $gender ?: null,
         'birthdate'      => $d['birthdate']       ?: null,
         'branch_id'      => (int)$d['branch_id'],
         'last_visit'     => $d['last_visit']      ?: null,
         'status'         => $d['status']          ?? 'active',
         'updated_at'     => date('c'),
     ];
+    if ($gender === null) unset($payload['gender']);
 
     $result = supabase_request('patients', 'PATCH', $payload, 'patient_id=eq.' . (int)$d['patient_id']);
     if ($result['error']) return ['success' => false, 'message' => $result['error']];

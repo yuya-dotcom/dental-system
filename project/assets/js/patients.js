@@ -1,17 +1,3 @@
-/* ── View Details Modal ────────────────────────────────────────── */
-function viewPatient(code, name, contact, birth, gender, branch, lastVisit, status) {
-    document.getElementById('pd_code').textContent    = code      || '—';
-    document.getElementById('pd_name').textContent    = name      || '—';
-    document.getElementById('pd_contact').textContent = contact   || '—';
-    document.getElementById('pd_birth').textContent   = birth     || '—';
-    document.getElementById('pd_gender').textContent  = gender    || '—';
-    document.getElementById('pd_branch').textContent  = branch    || '—';
-    document.getElementById('pd_visit').textContent   = lastVisit || '—';
-    document.getElementById('pd_status').textContent  = status    || '—';
-    new bootstrap.Modal(document.getElementById('patientViewModal')).show();
-}
-
-
 /* ── Open Add Modal ────────────────────────────────────────────── */
 function openAddPatientModal() {
     document.getElementById('patModalTitle').textContent  = 'Add Patient';
@@ -23,22 +9,6 @@ function openAddPatientModal() {
     document.getElementById('pat_branch').value           = '';
     document.getElementById('pat_last_visit').value       = '';
     document.getElementById('pat_status').value           = 'active';
-    document.getElementById('patModalError').style.display = 'none';
-    new bootstrap.Modal(document.getElementById('patientModal')).show();
-}
-
-
-/* ── Open Edit Modal ───────────────────────────────────────────── */
-function openEditPatientModal(pat) {
-    document.getElementById('patModalTitle').textContent  = 'Edit Patient';
-    document.getElementById('pat_id').value               = pat.patient_id;
-    document.getElementById('pat_name').value             = pat.full_name      || '';
-    document.getElementById('pat_contact').value          = pat.contact_number || '';
-    document.getElementById('pat_gender').value           = pat.gender         || '';
-    document.getElementById('pat_birthdate').value        = pat.birthdate      || '';
-    document.getElementById('pat_branch').value           = pat.branch_id      || '';
-    document.getElementById('pat_last_visit').value       = pat.last_visit     || '';
-    document.getElementById('pat_status').value           = pat.status         || 'active';
     document.getElementById('patModalError').style.display = 'none';
     new bootstrap.Modal(document.getElementById('patientModal')).show();
 }
@@ -94,12 +64,16 @@ function savePatient() {
         btn.innerHTML        = '<i class="feather-save me-1"></i> Save';
     });
 }
+/* ── Open Edit Modal (Patients List → Action → Edit) ── */
 function editPatient(p) {
     document.getElementById('patModalTitle').textContent    = 'Edit Patient';
     document.getElementById('pat_id').value                = p.patient_id;
     document.getElementById('pat_name').value              = p.full_name       || '';
     document.getElementById('pat_contact').value           = p.contact_number  || '';
-    document.getElementById('pat_gender').value            = p.gender          || '';
+    // Keep a stored value that isn't one of the current options instead of blanking it
+    const genderSel = document.getElementById('pat_gender');
+    if (p.gender && ![...genderSel.options].some(o => o.value === p.gender)) genderSel.add(new Option(p.gender, p.gender));
+    genderSel.value = p.gender || '';
     document.getElementById('pat_birthdate').value         = p.birthdate       || '';
     document.getElementById('pat_last_visit').value        = p.last_visit      || '';
     document.getElementById('pat_branch').value            = p.branch_id       || '';

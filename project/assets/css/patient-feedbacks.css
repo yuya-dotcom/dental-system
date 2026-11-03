@@ -1,0 +1,190 @@
+/* ─────────────────────────────────────────────────────────────────────
+   EssenciaSmile — Patient Feedback Page  |  patient-feedback.css
+   assets/css/patient-feedback.css
+
+   Page-specific styles for patient-feedbacks.php ONLY: the feedback
+   card, form fields, star rating, the public-testimonial consent
+   checkbox, submit button, and the post-submit thank-you state.
+
+   This file depends on portal-info.css for shared tokens, the base
+   reset, body, the fadeUp animation, and the shared .modal-icon /
+   .portal-pill components — load portal-info.css BEFORE this file:
+
+       <link rel="stylesheet" href="assets/css/portal-info.css">
+       <link rel="stylesheet" href="assets/css/patient-feedback.css">
+
+   Nothing here duplicates portal-info.css; --danger/--success and
+   .modal-icon-success are added here because they're only used on
+   this page.
+   ───────────────────────────────────────────────────────────────────── */
+
+:root {
+    --danger:  #d93025;
+    --success: #178a5c;
+}
+
+.modal-icon-success { background: #f0fdf4; color: var(--success); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   PATIENT FEEDBACK CONTENT (patient-feedbacks.php)
+   ══════════════════════════════════════════════════════════════════════ */
+.feedback-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 2.75rem 3.25rem;
+    animation: fadeUp .35s ease both;
+}
+.feedback-card > p.contact-welcome {
+    font-size: .93rem;
+    color: #46536a;
+    line-height: 1.7;
+    padding-bottom: 1.75rem;
+    border-bottom: 1.5px solid var(--border);
+    margin-bottom: 1.75rem;
+    max-width: 720px;
+}
+
+/* ── Form fields ── */
+.field { margin-bottom: 1.1rem; }
+.field label {
+    display: block;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--slate);
+    margin-bottom: .4rem;
+}
+.field label .opt {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: .75rem;
+    margin-left: 4px;
+}
+.field input[type="text"],
+.field textarea {
+    width: 100%;
+    padding: .7rem .9rem;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: .9rem;
+    color: var(--slate);
+    background: #fff;
+    transition: border-color .18s, box-shadow .18s;
+    outline: none;
+    resize: vertical;
+}
+.field input[type="text"]:focus,
+.field textarea:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3.5px rgba(26,86,219,.1);
+}
+.field input::placeholder,
+.field textarea::placeholder { color: #b4bed0; }
+.field-err {
+    font-size: .77rem;
+    color: var(--danger);
+    margin-top: .35rem;
+    display: none;
+}
+.alert-bar {
+    padding: .7rem .95rem;
+    border-radius: 9px;
+    font-size: .845rem;
+    margin-bottom: 1rem;
+    display: none;
+    border-left: 3.5px solid;
+    line-height: 1.45;
+}
+.alert-bar.danger { background: #fff5f5; border-color: var(--danger); color: #9b2020; }
+
+/* ── Star rating (radio-driven, no JS needed for the visual fill) ── */
+.star-rating {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: 4px;
+}
+.star-rating input { position: absolute; opacity: 0; pointer-events: none; }
+.star-rating label {
+    font-size: 1.6rem;
+    color: var(--border);
+    cursor: pointer;
+    transition: color .15s;
+}
+.star-rating input:checked ~ label,
+.star-rating label:hover,
+.star-rating label:hover ~ label {
+    color: #f5a623;
+}
+
+/* ── Public-testimonial consent checkbox ── */
+.feedback-consent { margin-top: .3rem; margin-bottom: 1.3rem; }
+.feedback-check {
+    display: flex;
+    align-items: flex-start;
+    gap: .55rem;
+    cursor: pointer;
+    user-select: none;
+}
+.feedback-check input[type="checkbox"] {
+    width: 16px; height: 16px; min-width: 16px;
+    margin: .15rem 0 0;
+    accent-color: var(--blue);
+    cursor: pointer;
+}
+.feedback-check span {
+    font-size: .84rem;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+/* ── Submit button ── */
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    padding: .82rem 1.4rem;
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: .935rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .2s, box-shadow .2s, transform .1s;
+    letter-spacing: .1px;
+}
+.btn-primary:hover { background: var(--blue-dark); box-shadow: 0 4px 18px rgba(26,86,219,.28); }
+.btn-primary:active { transform: scale(.985); }
+
+/* ── Post-submit thank-you state ── */
+.feedback-thanks { text-align: center; padding: 1rem 0 .5rem; }
+.feedback-thanks .modal-icon { margin: 0 auto 1rem; }
+.feedback-thanks h2 {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--slate);
+    margin-bottom: .5rem;
+}
+.feedback-thanks p {
+    font-size: .9rem;
+    color: var(--muted);
+    line-height: 1.6;
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+    .feedback-card { padding: 2rem 1.75rem; }
+}
+@media (max-width: 600px) {
+    .feedback-card { padding: 1.5rem 1.25rem; }
+}

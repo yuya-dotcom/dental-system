@@ -13,19 +13,21 @@ const DENT_PER_PAGE = 10;
 //  QUERIES
 // ─────────────────────────────────────────────────────────────
 
-function getDentistRecords(int $page, int $branchId, string $status): array
+// $order: validated 'order=…' clause; $extra: prebuilt PostgREST filters (list_filters.php)
+function getDentistRecords(int $page, int $branchId, string $status, string $order = 'order=full_name.asc', array $extra = []): array
 {
     $offset = ($page - 1) * DENT_PER_PAGE;
 
     $q = [
-        'select=dentist_id,full_name,specialization,contact_number,status,branches(branch_name)',
-        'order=full_name.asc',
+        'select=dentist_id,full_name,specialization,contact_number,status,branch_id,created_at,branches(branch_name)',
+        $order,
         'limit='  . DENT_PER_PAGE,
         'offset=' . $offset,
     ];
 
     if ($branchId > 0) $q[] = 'branch_id=eq.' . $branchId;
     if ($status)       $q[] = 'status=eq.'    . urlencode($status);
+    array_push($q, ...$extra);
 
     $result = supabase_request('dentists', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
     $rows   = is_array($result['data']) ? $result['data'] : [];

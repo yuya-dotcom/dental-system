@@ -8,22 +8,66 @@ require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
 require_once __DIR__ . '/controllers/patient_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
+require_once __DIR__ . '/controllers/list_filters.php';
 
 $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : (isOwner() || isAdmin() ? 0 : getSessionBranch());
 if (!isOwner() && !isAdmin() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
 $branches     = getAllBranches();
-$filterStatus = isset($_GET['status']) ? trim($_GET['status']) : '';
+$filterStatus = in_array($_GET['status'] ?? '', ['active', 'inactive'], true) ? $_GET['status'] : '';
 $page         = max(1, (int)($_GET['page'] ?? 1));
 
-// getPatientRecords() now returns: rows, totalRecords, totalPages, from, to
-$data         = getPatientRecords($page, $filterBranch, $filterStatus);
+
+// Sort (table headers) / search / registration date (validated in list_filters.php)
+$sortOptions  = [
+    'oldest'      => ['Oldest Registered',        'created_at.asc,patient_id.asc'],
+    'code_asc'    => ['Patient ID (A–Z)',         'patient_code.asc,patient_id.asc'],
+    'code_desc'   => ['Patient ID (Z–A)',         'patient_code.desc,patient_id.desc'],
+    'name_asc'    => ['Name (A–Z)',               'full_name.asc,patient_id.asc'],
+    'name_desc'   => ['Name (Z–A)',               'full_name.desc,patient_id.desc'],
+    'branch_asc'  => ['Branch (A–Z)',             'branches(branch_name).asc.nullslast,full_name.asc'],
+    'branch_desc' => ['Branch (Z–A)',             'branches(branch_name).desc.nullslast,full_name.asc'],
+    'birth_asc'   => ['Birthdate (Oldest)',       'birthdate.asc.nullslast,full_name.asc'],
+    'birth_desc'  => ['Birthdate (Newest)',       'birthdate.desc.nullslast,full_name.asc'],
+    'visit_desc'  => ['Last Visit (Most Recent)', 'last_visit.desc.nullslast,full_name.asc'],
+    'visit_asc'   => ['Last Visit (Oldest)',      'last_visit.asc.nullslast,full_name.asc'],
+    'status_asc'  => ['Status (A–Z)',             'status.asc,full_name.asc'],
+    'status_desc' => ['Status (Z–A)',             'status.desc,full_name.asc'],
+];
+[$sortKey, $sortOrder] = listSort($sortOptions, 'oldest');
+$search       = listSearch();
+$dateFrom     = listDate('from');
+$dateTo       = listDate('to');
+$extra        = listSearchFilter($search, ['full_name', 'patient_code', 'contact_number']);
+array_push($extra, ...listDateRange('created_at', $dateFrom, $dateTo, true));
+$filtersOn    = listActiveCount([isOwner() ? $filterBranch : 0, $filterStatus, $search, $dateFrom, $dateTo, $sortKey !== 'oldest']);
+
+$data         = getPatientRecords($page, $filterBranch, $filterStatus, $sortOrder, $extra);
 $patients     = $data['rows']         ?? [];
 $totalRecords = $data['totalRecords'] ?? 0;
 $totalPages   = $data['totalPages']   ?? 1;
 $from         = $data['from']         ?? 0;
 $to           = $data['to']           ?? 0;
 
-$baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode($filterStatus);
+// Admin/Dentist "Last Visit (Date/Time)": patients.last_visit only stores a date.
+// A time is shown only when the patient's latest completed appointment falls on
+// that same date (so the time is real, never guessed).
+$lastVisitTimes = [];
+if (!isOwner() && $patients) {
+    $ids = implode(',', array_filter(array_map(fn($p) => (int)($p['patient_id'] ?? 0), $patients)));
+    if ($ids !== '') {
+        $lvRes = supabase_request('appointments', 'GET', [],
+            'select=patient_id,appointment_date,appointment_time&status=eq.completed'
+            . '&patient_id=in.(' . $ids . ')&order=appointment_date.desc,appointment_time.desc');
+        foreach (($lvRes['data'] ?? []) as $r) {
+            $pid = (int)$r['patient_id'];
+            if (!isset($lastVisitTimes[$pid])) $lastVisitTimes[$pid] = $r;   // first row = latest
+        }
+    }
+}
+
+$baseUrl = listUrl('patients-list.php', ['branch' => $filterBranch, 'status' => $filterStatus, 'q' => $search, 'from' => $dateFrom, 'to' => $dateTo, 'sort' => $sortKey === 'oldest' ? '' : $sortKey]);
+$sortBase = listUrl('patients-list.php', ['branch' => $filterBranch, 'status' => $filterStatus, 'q' => $search, 'from' => $dateFrom, 'to' => $dateTo]);
+
 ?>
 <!DOCTYPE html>
 <html lang="zxx">
@@ -36,8 +80,9 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
     <link rel="stylesheet" type="text/css" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
-    <link rel="stylesheet" href="assets/css/custom.css">
+    <link rel="stylesheet" href="assets/css/custom.css?v=5">
     <link rel="stylesheet" href="assets/css/admin.css">
+    <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
 </head>
 
 <body>
@@ -60,22 +105,6 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                 <div class="page-header-right ms-auto">
                     <div class="page-header-right-items">
                         <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-                            <select id="filterStatus" class="form-select hdr-control" onchange="applyFilters()">
-                                <option value="">All Statuses</option>
-                                <option value="active" <?= $filterStatus === 'active'   ? 'selected' : '' ?>>Active</option>
-                                <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
-                            </select>
-                            <?php if (isOwner()): ?>
-                                <select id="filterBranch" class="form-select hdr-control" onchange="applyFilters()">
-                                    <option value="0">All Branches</option>
-                                    <?php foreach ($branches as $b): ?>
-                                        <option value="<?= (int)$b['branch_id'] ?>"
-                                            <?= (int)$b['branch_id'] === $filterBranch ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($b['branch_name']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -89,7 +118,6 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                             <div class="card-header">
                                 <h5 class="card-title">
                                     Patients List
-                                    <!-- Now correctly shows real total from DB -->
                                     <span class="badge bg-soft-primary text-primary ms-2"><?= $totalRecords ?> total</span>
                                 </h5>
                                 <div class="card-header-action">
@@ -104,27 +132,51 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                                 </div>
                             </div>
 
+                            <div class="list-toolbar">
+                                <?= listSearchControl($search, 'Name, patient code or contact') ?>
+                            <div class="list-field"><label class="list-label" for="filterStatus">Status</label>                            <select id="filterStatus" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                <option value="">All Statuses</option>
+                                <option value="active"   <?= $filterStatus === 'active'   ? 'selected' : '' ?>>Active</option>
+                                <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                            </select></div>
+                            <?php if (isOwner()): ?>
+                                <div class="list-field"><label class="list-label" for="filterBranch">Branch</label>
+                                <select id="filterBranch" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                    <option value="0">All Branches</option>
+                                    <?php foreach ($branches as $b): ?>
+                                        <option value="<?= (int)$b['branch_id'] ?>"
+                                            <?= (int)$b['branch_id'] === $filterBranch ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($b['branch_name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select></div>
+                            <?php endif; ?>
+                                <?= listDateRangeControl($dateFrom, $dateTo, 'Registration Date') ?>
+                                <?= listResetControl('patients-list.php', $filtersOn) ?>
+                            </div>
                             <div class="card-body custom-card-action p-0">
-                                <div class="table-responsive" style="overflow:visible;">
-                                    <table class="table table-hover mb-0">
+                                <!-- pat-table-wrapper mirrors apt-table-wrapper / trt-table-wrapper -->
+                                <div class="table-responsive pat-table-wrapper">
+                                    <table class="table table-hover mb-0 pat-patients-table">
                                         <thead>
                                             <tr>
-                                                <th>Patient ID</th>
-                                                <th>Full Name</th>
-                                                <th>Contact</th>
-                                                <th>Gender</th>
-                                                <th>Birthdate</th>
-                                                <th>Branch</th>
-                                                <th>Last Visit</th>
-                                                <th>Status</th>
+                                                <?= listTh('Patient ID', 'code_asc', 'code_desc', $sortKey, $sortBase) ?>
+                                                <?= listTh('Patient Name', 'name_asc', 'name_desc', $sortKey, $sortBase) ?>
+                                                <?php if (isOwner()): ?>
+                                                    <?= listTh('Branch', 'branch_asc', 'branch_desc', $sortKey, $sortBase) ?>
+                                                    <?= listTh('Last Visit', 'visit_desc', 'visit_asc', $sortKey, $sortBase) ?>
+                                                <?php else: ?>
+                                                    <?= listTh('Last Visit (Date/Time)', 'visit_desc', 'visit_asc', $sortKey, $sortBase) ?>
+                                                <?php endif; ?>
+                                                <?= listTh('Status', 'status_asc', 'status_desc', $sortKey, $sortBase) ?>
                                                 <th class="text-end">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <?php if (empty($patients)): ?>
                                                 <tr>
-                                                    <td colspan="9" class="text-center py-4 text-muted">
-                                                        <i class="feather-users me-2"></i>No patients found.
+                                                    <td colspan="<?= isOwner() ? 6 : 5 ?>" class="text-center py-4 text-muted">
+                                                        <i class="feather-users me-2"></i><?= $filtersOn ? 'No patients match the selected filters. <a href="patients-list.php" class="fw-semibold">Reset filters</a>' : 'No patients found.' ?>
                                                     </td>
                                                 </tr>
                                             <?php else: ?>
@@ -144,11 +196,20 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                                                                 </a>
                                                             </div>
                                                         </td>
-                                                        <td><?= htmlspecialchars($p['contact_number'] ?? '—') ?></td>
-                                                        <td><?= htmlspecialchars(ucfirst($p['gender'] ?? '—')) ?></td>
-                                                        <td><?= formatPatBirthdate($p['birthdate'] ?? null) ?></td>
-                                                        <td><?= htmlspecialchars($p['branches']['branch_name'] ?? '—') ?></td>
-                                                        <td><?= formatPatLastVisit($p['last_visit'] ?? null) ?></td>
+                                                        <?php if (isOwner()): ?>
+                                                            <td><?= htmlspecialchars($p['branches']['branch_name'] ?? '—') ?></td>
+                                                            <td><?= formatPatLastVisit($p['last_visit'] ?? null) ?></td>
+                                                        <?php else: ?>
+                                                            <?php
+                                                            $lv   = $lastVisitTimes[(int)($p['patient_id'] ?? 0)] ?? null;
+                                                            $lvTm = ($lv && !empty($p['last_visit']) && $lv['appointment_date'] === $p['last_visit'] && !empty($lv['appointment_time']))
+                                                                ? date('g:i A', strtotime($lv['appointment_time'])) : '';
+                                                            ?>
+                                                            <td>
+                                                                <div class="pat-bd-date"><?= formatPatLastVisit($p['last_visit'] ?? null) ?></div>
+                                                                <?php if ($lvTm): ?><div class="pat-bd-age"><?= $lvTm ?></div><?php endif; ?>
+                                                            </td>
+                                                        <?php endif; ?>
                                                         <td>
                                                             <span class="badge <?= patStatusBadge($p['status'] ?? null) ?>">
                                                                 <?= ucfirst($p['status'] ?? 'active') ?>
@@ -165,23 +226,25 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                                                                         class="dropdown-item">
                                                                         <i class="feather-eye"></i> View Details
                                                                     </a>
+                                                                    <?php if (isOwner()): ?>
                                                                     <a href="javascript:void(0);" class="dropdown-item text-primary"
                                                                         onclick='editPatient(<?= json_encode([
-                                                                                                    "patient_id"     => $p["patient_id"],
-                                                                                                    "full_name"      => $p["full_name"] ?? "",
-                                                                                                    "contact_number" => $p["contact_number"] ?? "",
-                                                                                                    "gender"         => $p["gender"] ?? "",
-                                                                                                    "birthdate"      => $p["birthdate"] ?? "",
-                                                                                                    "last_visit"     => $p["last_visit"] ?? "",
-                                                                                                    "branch_id"      => $p["branch_id"] ?? "",
-                                                                                                    "status"         => $p["status"] ?? "active",
-                                                                                                ], JSON_HEX_QUOT | JSON_HEX_TAG) ?>)'>
+                                                                            "patient_id"     => $p["patient_id"],
+                                                                            "full_name"      => $p["full_name"] ?? "",
+                                                                            "contact_number" => $p["contact_number"] ?? "",
+                                                                            "gender"         => $p["gender"] ?? "",
+                                                                            "birthdate"      => $p["birthdate"] ?? "",
+                                                                            "last_visit"     => $p["last_visit"] ?? "",
+                                                                            "branch_id"      => $p["branch_id"] ?? "",
+                                                                            "status"         => $p["status"] ?? "active",
+                                                                        ], JSON_HEX_QUOT | JSON_HEX_TAG) ?>)'>
                                                                         <i class="feather-edit-2"></i> Edit
                                                                     </a>
                                                                     <a href="appointments-schedule.php?patient_id=<?= (int)($p['patient_id'] ?? 0) ?>"
                                                                         class="dropdown-item">
                                                                         <i class="feather-calendar"></i> View Appointments
                                                                     </a>
+                                                                    <?php endif; ?>
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -193,11 +256,10 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                                 </div>
                             </div>
 
-                            <!-- Pagination footer — $from/$to/$totalRecords now real values -->
                             <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
                                 <p class="text-muted small mb-0">
                                     Showing <?= $from ?>–<?= $to ?> of <?= $totalRecords ?> patient(s)
-                                    <?php if ($filterBranch || $filterStatus): ?>
+                                    <?php if ($filtersOn): ?>
                                         &nbsp;·&nbsp;
                                         <a href="patients-list.php" class="text-danger">
                                             <i class="feather-x-circle me-1"></i>Clear filters
@@ -252,7 +314,8 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
         </div>
     </main>
 
-    <!-- ADD / EDIT PATIENT MODAL -->
+    <!-- ADD / EDIT PATIENT MODAL (Owner: Edit action) -->
+    <?php if (isOwner()): ?>
     <div class="modal fade" id="patientModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
@@ -277,10 +340,12 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Gender</label>
-                            <select id="pat_gender" class="form-select">
+                            <select id="pat_gender" class="form-select js-custom-select" data-cs-float>
                                 <option value="">— Select —</option>
                                 <option value="Male">Male</option>
                                 <option value="Female">Female</option>
+                                <option value="Non-binary">Non-binary</option>
+                                <option value="Another gender">Another gender</option>
                                 <option value="Prefer not to say">Prefer not to say</option>
                             </select>
                         </div>
@@ -294,7 +359,7 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Branch <span class="text-danger">*</span></label>
-                            <select id="pat_branch" class="form-select">
+                            <select id="pat_branch" class="form-select js-custom-select" data-cs-float data-cs-search>
                                 <option value=""> Select Branch </option>
                                 <?php foreach ($branches as $b): ?>
                                     <option value="<?= (int)$b['branch_id'] ?>"><?= htmlspecialchars($b['branch_name']) ?></option>
@@ -303,7 +368,7 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Status</label>
-                            <select id="pat_status" class="form-select">
+                            <select id="pat_status" class="form-select js-custom-select" data-cs-float>
                                 <option value="active">Active</option>
                                 <option value="inactive">Inactive</option>
                             </select>
@@ -322,12 +387,14 @@ $baseUrl = 'patients-list.php?branch=' . $filterBranch . '&status=' . urlencode(
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="assets/js/admin.js"></script>
+    <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/patients.js"></script>
     <script>
         function applyFilters() {

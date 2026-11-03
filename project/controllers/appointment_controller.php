@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/notification_helper.php';   // patient portal notifications
 // =============================================================
 //  controllers/AppointmentController.php
 //  Business Process Controller — Appointments
@@ -10,6 +11,7 @@
 //    - Status update logic
 //    - Badge class helpers
 //    - Date / time formatters
+//    - Auto-expiry (no_show) for overdue appointments
 //
 //  Zero HTML. Zero $_GET/$_POST reading.
 //  UI files call these functions and render results.
@@ -27,17 +29,20 @@ const APT_PER_PAGE = 10;
  * Fetch paginated appointment schedule ordered by date + time.
  * Used by: appointments-schedule.php
  */
-function getAppointmentSchedule(int $page, int $branchId, string $status, string $date): array
+// $order: validated 'order=…' clause; $extra: prebuilt PostgREST filters (list_filters.php)
+function getAppointmentSchedule(int $page, int $branchId, string $status, string $date, string $order = 'order=appointment_date.asc,appointment_time.asc', array $extra = []): array
 {
     $offset = ($page - 1) * APT_PER_PAGE;
 
     $q = [
         'select=appointment_id,appointment_code,appointment_date,appointment_time,'
-            . 'status,payment_status,patient_id,patients(full_name),branches(branch_name),services(service_name)',
-        // Soonest appointment first
-        'order=appointment_date.asc,appointment_time.asc',
+            . 'status,payment_status,patient_id,branch_id,notes,'
+            . 'patients(patient_code,full_name,contact_number),branches(branch_name),services(service_name)',
+        // Default: soonest appointment first
+        $order,
         'limit='  . APT_PER_PAGE,
         'offset=' . $offset,
+        ...$extra,
     ];
 
     if ($branchId > 0) $q[] = 'branch_id=eq.' . $branchId;
@@ -67,17 +72,19 @@ function getAppointmentSchedule(int $page, int $branchId, string $status, string
  * Fetch paginated appointment records ordered by appointment_code.
  * Used by: appointments-records.php
  */
-function getAppointmentRecords(int $page, int $branchId, string $status): array
+// $order: validated 'order=…' clause; $extra: prebuilt PostgREST filters (list_filters.php)
+function getAppointmentRecords(int $page, int $branchId, string $status, string $order = 'order=appointment_date.asc,appointment_time.asc', array $extra = []): array
 {
     $offset = ($page - 1) * APT_PER_PAGE;
 
     $q = [
         'select=appointment_id,appointment_code,appointment_date,appointment_time,'
             . 'status,payment_status,patient_id,patients(full_name),branches(branch_name),services(service_name)',
-        // Soonest appointment first
-        'order=appointment_date.asc,appointment_time.asc',
+        // Default: soonest appointment first
+        $order,
         'limit='  . APT_PER_PAGE,
         'offset=' . $offset,
+        ...$extra,
     ];
 
     if ($branchId > 0) $q[] = 'branch_id=eq.' . $branchId;
@@ -102,6 +109,8 @@ function updateAppointmentStatus(int $appointmentId, string $newStatus): array
         return ['success' => false, 'message' => 'Invalid input.'];
     }
 
+    $before = notif_appt_snapshot($appointmentId);
+
     $result = supabase_request(
         'appointments',
         'PATCH',
@@ -113,7 +122,88 @@ function updateAppointmentStatus(int $appointmentId, string $newStatus): array
         return ['success' => false, 'message' => 'Update failed: ' . $result['error']];
     }
 
+    notif_appointment($result['data'][0] ?? $appointmentId, $before);
+
     return ['success' => true, 'message' => 'Status updated to ' . $newStatus];
+}
+
+// ─────────────────────────────────────────────────────────────
+//  AUTO-EXPIRY — NO SHOW
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Mark overdue appointments as no_show automatically.
+ *
+ * An appointment is overdue when its scheduled date+time has already
+ * passed and it is still in a pending or confirmed state — meaning
+ * the patient never showed up and no staff action was taken.
+ *
+ * How it works:
+ *   - Targets only status IN (pending, confirmed).
+ *   - checked_in is intentionally excluded: patient arrived, so staff
+ *     must resolve it manually (complete or cancel).
+ *   - Runs a single Supabase PATCH (one DB round-trip, atomic).
+ *   - Uses two OR conditions via PostgREST:
+ *       (a) appointment_date < today        → entire past days
+ *       (b) appointment_date = today
+ *           AND appointment_time < now      → earlier slots today
+ *   - Optionally scoped to one branch (for admin/dentist users).
+ *
+ * Called once at the top of appointments-schedule.php, before the
+ * data fetch, so the page always shows a current list.
+ *
+ * Returns the number of appointments marked no_show (best-effort;
+ * Supabase may not return a count — 0 is a safe default).
+ */
+function expireOverdueAppointments(int $branchId = 0): int
+{
+    $nowDate = date('Y-m-d');   // e.g. 2026-09-28
+    $nowTime = date('H:i:s');   // e.g. 09:30:00
+
+    // PostgREST OR filter:
+    //   appointment_date < today
+    //   OR (appointment_date = today AND appointment_time < now)
+    $orFilter = 'or=(appointment_date.lt.' . $nowDate
+              . ',and(appointment_date.eq.' . $nowDate
+              . ',appointment_time.lt.'     . $nowTime . '))';
+
+    $filterParts = [
+        $orFilter,
+        'status=in.(pending,confirmed)',   // only unhandled appointments
+    ];
+
+    if ($branchId > 0) {
+        $filterParts[] = 'branch_id=eq.' . $branchId;
+    }
+
+    $result = supabase_request(
+        'appointments',
+        'PATCH',
+        [
+            'status'     => 'no_show',
+            'updated_at' => date('c'),
+        ],
+        implode('&', $filterParts)
+    );
+
+    if ($result['error']) {
+        // Fail silently — the page still loads normally.
+        // Errors here are non-critical (network blip, etc.).
+        return 0;
+    }
+
+    // PATCH returns the updated rows (return=representation) → notify each patient
+    foreach ((is_array($result['data']) ? $result['data'] : []) as $row) {
+        if (is_array($row)) notif_appointment($row, ['status' => 'pending'] + $row);
+    }
+
+    // Best-effort count from Content-Range header (e.g. "0-4/5" → 5)
+    $cr = $result['headers']['content-range'] ?? '';
+    if ($cr && str_contains($cr, '/')) {
+        return (int) explode('/', $cr)[1];
+    }
+
+    return 0;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -121,42 +211,42 @@ function updateAppointmentStatus(int $appointmentId, string $newStatus): array
 // ─────────────────────────────────────────────────────────────
 
 if (!function_exists('aptStatusBadge')) {
-function aptStatusBadge(string $status): string
-{
-    return match (strtolower($status)) {
-        'confirmed' => 'bg-soft-success text-success',
-        'pending'   => 'bg-soft-warning text-warning',
-        'completed' => 'bg-soft-primary text-primary',
-        'cancelled' => 'bg-soft-danger text-danger',
-        'no_show'   => 'bg-soft-secondary text-secondary',
-        default     => 'bg-soft-secondary text-secondary',
-    };
-}
+    function aptStatusBadge(string $status): string
+    {
+        return match (strtolower($status)) {
+            'confirmed' => 'bg-soft-success text-success',
+            'pending'   => 'bg-soft-warning text-warning',
+            'completed' => 'bg-soft-primary text-primary',
+            'cancelled' => 'bg-soft-danger text-danger',
+            'no_show'   => 'bg-soft-secondary text-secondary',
+            default     => 'bg-soft-secondary text-secondary',
+        };
+    }
 }
 
 if (!function_exists('aptPaymentBadge')) {
-function aptPaymentBadge(?string $status): string
-{
-    return match (strtolower($status ?? 'unpaid')) {
-        'paid'    => 'bg-soft-success text-success',
-        'partial' => 'bg-soft-warning text-warning',
-        default   => 'bg-soft-danger text-danger',
-    };
-}
+    function aptPaymentBadge(?string $status): string
+    {
+        return match (strtolower($status ?? 'unpaid')) {
+            'paid'    => 'bg-soft-success text-success',
+            'partial' => 'bg-soft-warning text-warning',
+            default   => 'bg-soft-danger text-danger',
+        };
+    }
 }
 
 if (!function_exists('formatAptDate')) {
-function formatAptDate(string $date): string
-{
-    return date('M. d, Y', strtotime($date));
-}
+    function formatAptDate(string $date): string
+    {
+        return date('M. d, Y', strtotime($date));
+    }
 }
 
 if (!function_exists('formatAptTime')) {
-function formatAptTime(string $time): string
-{
-    return date('g:i A', strtotime($time));
-}
+    function formatAptTime(string $time): string
+    {
+        return date('g:i A', strtotime($time));
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -172,45 +262,45 @@ function formatAptTime(string $time): string
  * Layer 3 — Array length          (last resort)
  */
 if (!function_exists('resolveCount')) {
-function resolveCount(array $result, string $table, array $qParts): int
-{
-    // Layer 1: Content-Range header e.g. "0-9/42"
-    $cr = $result['headers']['content-range'] ?? '';
-    if ($cr && str_contains($cr, '/')) {
-        return (int) explode('/', $cr)[1];
-    }
-
-    // Layer 2: separate count-only query
-    $idCol  = $table === 'patients' ? 'patient_id' : 'appointment_id';
-    $countQ = ['select=' . $idCol];
-    foreach ($qParts as $p) {
-        $key = explode('=', $p, 2)[0];
-        if (!in_array($key, ['select', 'limit', 'offset', 'order'], true)) {
-            $countQ[] = $p;
+    function resolveCount(array $result, string $table, array $qParts): int
+    {
+        // Layer 1: Content-Range header e.g. "0-9/42"
+        $cr = $result['headers']['content-range'] ?? '';
+        if ($cr && str_contains($cr, '/')) {
+            return (int) explode('/', $cr)[1];
         }
-    }
-    $countResult = supabase_request($table, 'GET', [], implode('&', $countQ), ['Prefer: count=exact']);
-    $cr2 = $countResult['headers']['content-range'] ?? '';
-    if ($cr2 && str_contains($cr2, '/')) {
-        return (int) explode('/', $cr2)[1];
-    }
 
-    // Layer 3: count returned rows
-    return is_array($countResult['data']) ? count($countResult['data']) : 0;
-}
+        // Layer 2: separate count-only query
+        $idCol  = $table === 'patients' ? 'patient_id' : 'appointment_id';
+        $countQ = ['select=' . $idCol];
+        foreach ($qParts as $p) {
+            $key = explode('=', $p, 2)[0];
+            if (!in_array($key, ['select', 'limit', 'offset', 'order'], true)) {
+                $countQ[] = $p;
+            }
+        }
+        $countResult = supabase_request($table, 'GET', [], implode('&', $countQ), ['Prefer: count=exact']);
+        $cr2 = $countResult['headers']['content-range'] ?? '';
+        if ($cr2 && str_contains($cr2, '/')) {
+            return (int) explode('/', $cr2)[1];
+        }
+
+        // Layer 3: count returned rows
+        return is_array($countResult['data']) ? count($countResult['data']) : 0;
+    }
 }
 
 if (!function_exists('buildPageResult')) {
-function buildPageResult(array $rows, int $total, int $page, int $offset, int $perPage): array
-{
-    return [
-        'rows'         => $rows,
-        'totalRecords' => $total,
-        'totalPages'   => max(1, (int) ceil($total / $perPage)),
-        'from'         => $total === 0 ? 0 : $offset + 1,
-        'to'           => min($offset + $perPage, $total),
-    ];
-}
+    function buildPageResult(array $rows, int $total, int $page, int $offset, int $perPage): array
+    {
+        return [
+            'rows'         => $rows,
+            'totalRecords' => $total,
+            'totalPages'   => max(1, (int) ceil($total / $perPage)),
+            'from'         => $total === 0 ? 0 : $offset + 1,
+            'to'           => min($offset + $perPage, $total),
+        ];
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -265,6 +355,8 @@ function createAppointment(int $patientId, int $branchId, string $date, string $
         return ['appointment_code' => null, 'error' => 'Could not save appointment. Please try again.'];
     }
 
+    notif_appointment($result['data'][0]);
+
     return ['appointment_code' => $result['data'][0]['appointment_code'], 'error' => null];
 }
 
@@ -289,4 +381,24 @@ function getServices(): array
     }
 
     return $result['data'];
+}
+
+/**
+ * Fetch audit info for a single appointment (used by api/appointments.php).
+ * Returns ['patient_name' => string, 'old_status' => string]
+ */
+if (!function_exists('getAppointmentInfoForAudit')) {
+    function getAppointmentInfoForAudit(int $appointmentId): array
+    {
+        $res = supabase_request(
+            'appointments', 'GET', [],
+            'appointment_id=eq.' . $appointmentId
+            . '&select=status,patients(full_name)&limit=1'
+        );
+        $row = $res['data'][0] ?? [];
+        return [
+            'patient_name' => $row['patients']['full_name'] ?? '',
+            'old_status'   => $row['status'] ?? '',
+        ];
+    }
 }

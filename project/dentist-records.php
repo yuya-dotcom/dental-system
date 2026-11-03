@@ -4,19 +4,42 @@ require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
 require_once __DIR__ . '/controllers/dentist_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
+require_once __DIR__ . '/controllers/list_filters.php';
 
 $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : getSessionBranch();
 if (!isOwner() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
 $filterStatus = isset($_GET['status']) ? trim($_GET['status']) : '';
 $page         = max(1, (int)($_GET['page'] ?? 1));
 $branches     = getAllBranches();
-$data         = getDentistRecords($page, $filterBranch, $filterStatus);
+
+// Sort / search / specialization (validated in list_filters.php)
+$sortOptions  = [
+    'name_asc'    => ['Name (A–Z)',           'full_name.asc,dentist_id.asc'],
+    'name_desc'   => ['Name (Z–A)',           'full_name.desc,dentist_id.desc'],
+    'spec_asc'    => ['Specialization (A–Z)', 'specialization.asc.nullslast,full_name.asc'],
+    'spec_desc'   => ['Specialization (Z–A)', 'specialization.desc.nullslast,full_name.asc'],
+    'branch_asc'  => ['Branch (A–Z)',         'branches(branch_name).asc.nullslast,full_name.asc'],
+    'branch_desc' => ['Branch (Z–A)',         'branches(branch_name).desc.nullslast,full_name.asc'],
+    'status_asc'  => ['Status (A–Z)',         'status.asc,full_name.asc'],
+    'status_desc' => ['Status (Z–A)',         'status.desc,full_name.asc'],
+];
+[$sortKey, $sortOrder] = listSort($sortOptions, 'name_asc');
+$search       = listSearch();
+$specRes      = supabase_request('dentists', 'GET', [], 'select=specialization&specialization=not.is.null&order=specialization.asc');
+$specs        = array_values(array_unique(array_filter(array_map('trim', array_column(is_array($specRes['data']) ? $specRes['data'] : [], 'specialization')))));
+$filterSpec   = in_array($_GET['spec'] ?? '', $specs, true) ? $_GET['spec'] : '';
+$extra        = listSearchFilter($search, ['full_name', 'specialization', 'contact_number']);
+if ($filterSpec) $extra[] = 'specialization=eq.' . rawurlencode($filterSpec);
+$filtersOn    = listActiveCount([$filterStatus, isOwner() ? $filterBranch : 0, $filterSpec, $search, $sortKey !== 'name_asc']);
+
+$data         = getDentistRecords($page, $filterBranch, $filterStatus, $sortOrder, $extra);
 $dentists     = $data['rows'];
 $totalRecords = $data['totalRecords'];
 $totalPages   = $data['totalPages'];
 $from         = $data['from'];
 $to           = $data['to'];
-$baseUrl      = 'dentist-records.php?branch=' . $filterBranch . '&status=' . urlencode($filterStatus);
+$baseUrl      = listUrl('dentist-records.php', ['branch' => $filterBranch, 'status' => $filterStatus, 'spec' => $filterSpec, 'q' => $search, 'sort' => $sortKey === 'name_asc' ? '' : $sortKey]);
+$sortBase = listUrl('dentist-records.php', ['branch' => $filterBranch, 'status' => $filterStatus, 'spec' => $filterSpec, 'q' => $search]);
 ?>
 <!DOCTYPE html>
 <html lang="zxx">
@@ -30,6 +53,7 @@ $baseUrl      = 'dentist-records.php?branch=' . $filterBranch . '&status=' . url
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
     <link rel="stylesheet" href="assets/css/custom.css">
     <link rel="stylesheet" href="assets/css/admin.css">
+    <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -47,20 +71,6 @@ $baseUrl      = 'dentist-records.php?branch=' . $filterBranch . '&status=' . url
                 <div class="page-header-right ms-auto">
                     <div class="page-header-right-items">
                         <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-                            <select id="filterStatus" class="form-select form-select-sm hdr-control" onchange="applyFilters()" style="max-width:150px;">
-                                <option value="">All Statuses</option>
-                                <option value="active"   <?= $filterStatus==='active'   ? 'selected':'' ?>>Active</option>
-                                <option value="inactive" <?= $filterStatus==='inactive' ? 'selected':'' ?>>Inactive</option>
-                                <option value="on_leave" <?= $filterStatus==='on_leave' ? 'selected':'' ?>>On Leave</option>
-                            </select>
-                            <?php if (isOwner()): ?>
-                            <select id="filterBranch" class="form-select form-select-sm hdr-control" onchange="applyFilters()" style="max-width:180px;">
-                                <option value="0">All Branches</option>
-                                <?php foreach ($branches as $b): ?>
-                                <option value="<?= $b['branch_id'] ?>" <?= (int)$b['branch_id']===$filterBranch?'selected':'' ?>><?= htmlspecialchars($b['branch_name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -75,17 +85,38 @@ $baseUrl      = 'dentist-records.php?branch=' . $filterBranch . '&status=' . url
                                 <div data-bs-toggle="tooltip" title="Maximize/Minimize"><a href="javascript:void(0);" class="avatar-text avatar-xs bg-success" data-bs-toggle="expand"></a></div>
                             </div></div>
                         </div>
+                        <div class="list-toolbar">
+                            <?= listSearchControl($search, 'Name, specialization or contact') ?>
+                            <div class="list-field"><label class="list-label" for="filterStatus">Status</label>
+                            <select id="filterStatus" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                <option value="">All Statuses</option>
+                                <option value="active"   <?= $filterStatus==='active'   ? 'selected':'' ?>>Active</option>
+                                <option value="inactive" <?= $filterStatus==='inactive' ? 'selected':'' ?>>Inactive</option>
+                                <option value="on_leave" <?= $filterStatus==='on_leave' ? 'selected':'' ?>>On Leave</option>
+                            </select></div>
+                            <?= listSelectControl('Specialization', 'spec', ['' => 'All Specializations'] + array_combine($specs, $specs), $filterSpec) ?>
+                            <?php if (isOwner()): ?>
+                            <div class="list-field"><label class="list-label" for="filterBranch">Branch</label>
+                            <select id="filterBranch" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                <option value="0">All Branches</option>
+                                <?php foreach ($branches as $b): ?>
+                                <option value="<?= $b['branch_id'] ?>" <?= (int)$b['branch_id']===$filterBranch?'selected':'' ?>><?= htmlspecialchars($b['branch_name']) ?></option>
+                                <?php endforeach; ?>
+                            </select></div>
+                            <?php endif; ?>
+                            <?= listResetControl('dentist-records.php', $filtersOn) ?>
+                        </div>
                         <div class="card-body custom-card-action p-0">
                             <div class="table-responsive" style="overflow:visible;">
                                 <table class="table table-hover mb-0">
                                     <thead><tr>
-                                        <th>#</th><th>Full Name</th><th>Specialization</th>
-                                        <th>Contact</th><th>Branch</th><th>Status</th>
+                                        <th>No.</th><?= listTh('Full Name', 'name_asc', 'name_desc', $sortKey, $sortBase) ?><?= listTh('Specialization', 'spec_asc', 'spec_desc', $sortKey, $sortBase) ?>
+                                        <th>Contact</th><?= listTh('Branch', 'branch_asc', 'branch_desc', $sortKey, $sortBase) ?><?= listTh('Status', 'status_asc', 'status_desc', $sortKey, $sortBase) ?>
                                         <th class="text-end">Action</th>
                                     </tr></thead>
                                     <tbody>
                                     <?php if (empty($dentists)): ?>
-                                        <tr><td colspan="7" class="text-center py-4 text-muted"><i class="feather-user me-2"></i>No dentist records found.</td></tr>
+                                        <?= listEmptyRow(7, $filtersOn > 0, 'No dentist records found.', 'feather-user', 'dentist-records.php') ?>
                                     <?php else: ?>
                                         <?php foreach ($dentists as $i => $d): ?>
                                         <tr>
@@ -130,7 +161,7 @@ $baseUrl      = 'dentist-records.php?branch=' . $filterBranch . '&status=' . url
                         <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
                             <p class="text-muted small mb-0">
                                 Showing <?= $from ?>–<?= $to ?> of <?= $totalRecords ?> dentist(s)
-                                <?php if ($filterBranch || $filterStatus): ?>&nbsp;·&nbsp;<a href="dentist-records.php" class="text-danger"><i class="feather-x-circle me-1"></i>Clear filters</a><?php endif; ?>
+                                <?php if ($filtersOn): ?>&nbsp;·&nbsp;<a href="dentist-records.php" class="text-danger"><i class="feather-x-circle me-1"></i>Clear filters</a><?php endif; ?>
                             </p>
                             <?php if ($totalPages > 1): ?>
                             <ul class="list-unstyled d-flex align-items-center gap-1 mb-0 pagination-common-style">
@@ -202,7 +233,7 @@ $baseUrl      = 'dentist-records.php?branch=' . $filterBranch . '&status=' . url
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Branch <span class="text-danger">*</span></label>
-                            <select id="dnt_branch" class="form-select">
+                            <select id="dnt_branch" class="form-select js-custom-select" data-cs-float data-cs-search>
                                 <option value="">— Select Branch —</option>
                                 <?php foreach ($branches as $b): ?>
                                 <option value="<?= $b['branch_id'] ?>"><?= htmlspecialchars($b['branch_name']) ?></option>
@@ -211,7 +242,7 @@ $baseUrl      = 'dentist-records.php?branch=' . $filterBranch . '&status=' . url
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Status</label>
-                            <select id="dnt_status" class="form-select">
+                            <select id="dnt_status" class="form-select js-custom-select" data-cs-float>
                                 <option value="active">Active</option>
                                 <option value="on_leave">On Leave</option>
                                 <option value="inactive">Inactive</option>
@@ -237,6 +268,7 @@ $baseUrl      = 'dentist-records.php?branch=' . $filterBranch . '&status=' . url
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="assets/js/admin.js"></script>
+    <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/dentists.js"></script>
     <script>
     function applyFilters() {

@@ -9,6 +9,8 @@
 session_start();
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../controllers/auth_controller.php';
+require_once __DIR__ . '/../controllers/notification_helper.php';
+require_once __DIR__ . '/../controllers/audit_controller.php';
 
 header('Content-Type: application/json');
 requireLogin();
@@ -83,7 +85,10 @@ if ($method === 'POST') {
         'created_at'     => date('c'),
     ]);
 
+    $pmLabel = auditPeso($amount) . ($method_ ? ' (' . $method_ . ')' : '');
     if ($res['status'] < 200 || $res['status'] >= 300) {
+        logBillingActivity('INSERT', $invoiceId, getInvoiceInfoForAudit($invoiceId),
+            'FAILED — payment of ' . $pmLabel . ' could not be saved: ' . ($res['error'] ?? 'Unknown error'));
         echo json_encode(['success' => false, 'message' => $res['error'] ?? 'Failed to record payment.']); exit;
     }
 
@@ -92,11 +97,26 @@ if ($method === 'POST') {
     $newBalance = round(max(0, $total - $newPaid), 2);
     $newStatus  = $newBalance <= 0 ? 'paid' : 'partial';
 
-    supabase_request('invoices', 'PATCH', [
+    $invUpd = supabase_request('invoices', 'PATCH', [
         'amount_paid'    => $newPaid,
         'payment_status' => $newStatus,
         'updated_at'     => date('c'),
     ], 'invoice_id=eq.' . $invoiceId);
+
+    // Notify only once the payment row AND invoice totals are both saved
+    $invSaved = $invUpd['status'] >= 200 && $invUpd['status'] < 300;
+    if ($invSaved && !empty($res['data'][0]['payment_id'])) {
+        notif_payment_recorded((int)$res['data'][0]['payment_id'], $invoiceId, $amount, $newBalance);
+    }
+
+    $pmRef = !empty($res['data'][0]['payment_id']) ? ' [payment #' . (int)$res['data'][0]['payment_id'] . ']' : '';
+    logBillingActivity('INSERT', $invoiceId, getInvoiceInfoForAudit($invoiceId),
+        'Payment of ' . $pmLabel . ' recorded' . $pmRef . ($date ? ' dated ' . $date : '') . '. ' .
+        ($invSaved
+            ? 'Paid ' . auditPeso($alreadyPaid) . ' → ' . auditPeso($newPaid) .
+              '; balance ' . auditPeso($balance) . ' → ' . auditPeso($newBalance) .
+              '; status ' . ($invoice['payment_status'] ?? 'unpaid') . ' → ' . $newStatus . '.'
+            : 'FAILED — invoice totals could not be updated: ' . ($invUpd['error'] ?? 'Unknown error')));
 
     // Sync appointment payment_status if invoice is linked to one
     $invFull = supabase_request('invoices', 'GET', [],
@@ -137,16 +157,19 @@ if ($method === 'DELETE') {
     $payment   = $pmt['data'][0];
     $invId     = (int)$payment['invoice_id'];
     $pmtAmount = (float)$payment['amount'];
+    $before    = getInvoiceInfoForAudit($invId);
 
     // Delete the payment
     $del = supabase_request('payments', 'DELETE', [], 'payment_id=eq.' . $id);
     if ($del['status'] < 200 || $del['status'] >= 300) {
+        logBillingActivity('DELETE', $invId, $before,
+            'FAILED — payment #' . $id . ' of ' . auditPeso($pmtAmount) . ' could not be removed: ' . ($del['error'] ?? 'Unknown error'));
         echo json_encode(['success' => false, 'message' => $del['error'] ?? 'Failed to delete payment.']); exit;
     }
 
-    // Reverse invoice totals
+    // Reverse invoice totals (appointment_id is needed to sync the appointment's payment status)
     $inv = supabase_request('invoices', 'GET', [],
-        'invoice_id=eq.' . $invId . '&select=total_amount,amount_paid,balance&limit=1'
+        'invoice_id=eq.' . $invId . '&select=total_amount,amount_paid,balance,appointment_id&limit=1'
     );
     if (!empty($inv['data'][0])) {
         $total      = (float)$inv['data'][0]['total_amount'];
@@ -154,11 +177,22 @@ if ($method === 'DELETE') {
         $newBalance = round(max(0, $total - $newPaid), 2);
         $newStatus  = $newPaid <= 0 ? 'unpaid' : ($newBalance <= 0 ? 'paid' : 'partial');
 
-        supabase_request('invoices', 'PATCH', [
+        $invUpd = supabase_request('invoices', 'PATCH', [
             'amount_paid'    => $newPaid,
             'payment_status' => $newStatus,
             'updated_at'     => date('c'),
         ], 'invoice_id=eq.' . $invId);
+
+        logBillingActivity('DELETE', $invId, $before,
+            'Payment #' . $id . ' of ' . auditPeso($pmtAmount) . ' removed (reversal). ' .
+            ($invUpd['status'] >= 200 && $invUpd['status'] < 300
+                ? 'Paid ' . auditPeso($inv['data'][0]['amount_paid']) . ' → ' . auditPeso($newPaid) .
+                  '; balance ' . auditPeso($before['balance'] ?? ($total - (float)$inv['data'][0]['amount_paid'])) . ' → ' . auditPeso($newBalance) .
+                  '; status ' . ($before['payment_status'] ?? '—') . ' → ' . $newStatus . '.'
+                : 'FAILED — invoice totals could not be updated: ' . ($invUpd['error'] ?? 'Unknown error')));
+    } else {
+        logBillingActivity('DELETE', $invId, $before,
+            'Payment #' . $id . ' of ' . auditPeso($pmtAmount) . ' removed; the invoice could not be re-read to reverse its totals.');
 
         // Sync appointment payment_status
         $apptId = $inv['data'][0]['appointment_id'] ?? null;

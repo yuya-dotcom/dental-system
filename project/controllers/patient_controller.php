@@ -94,16 +94,18 @@ function patBuildPageResult(
  * Fetch paginated patient records.
  * Used by: patients-list.php
  */
-function getPatientRecords(int $page, int $branchId, string $status): array
+// $order: validated 'order=…' clause; $extra: prebuilt PostgREST filters (list_filters.php)
+function getPatientRecords(int $page, int $branchId, string $status, string $order = 'order=created_at.asc', array $extra = []): array
 {
     $perPage = PAT_PER_PAGE;
     $offset  = ($page - 1) * $perPage;
 
     $q = [
-        'select=patient_id,patient_code,full_name,contact_number,gender,birthdate,last_visit,status,branch_id,branches(branch_name)',
-        'order=created_at.asc',
+        'select=patient_id,patient_code,full_name,contact_number,gender,birthdate,last_visit,status,branch_id,created_at,branches(branch_name)',
+        $order,
         'limit='  . $perPage,
         'offset=' . $offset,
+        ...$extra,
     ];
 
     if ($branchId > 0) $q[] = 'branch_id=eq.' . $branchId;

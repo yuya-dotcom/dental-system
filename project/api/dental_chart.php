@@ -270,12 +270,13 @@ if ($method === 'POST') {
             if ($type === 'tooth' || !$surface) {
                 // Whole-tooth update
                 $oldCond = $row['condition'];
-                supabase_request('dental_chart', 'PATCH', [
+                $toothPatch = [
                     'condition'  => $condition,
-                    'notes'      => $notes ?: null,
                     'updated_by' => $userId ?: null,
                     'updated_at' => date('c'),
-                ], 'chart_id=eq.' . $chartId);
+                ];
+                if ($notes !== '') $toothPatch['notes'] = $notes;   // keep the existing note otherwise
+                supabase_request('dental_chart', 'PATCH', $toothPatch, 'chart_id=eq.' . $chartId);
 
                 supabase_request('dental_chart_history', 'POST', [
                     'patient_id'    => $patientId,
@@ -302,11 +303,10 @@ if ($method === 'POST') {
                 $oldCond = null;
                 if (!empty($existingSurf['data'][0])) {
                     $oldCond = $existingSurf['data'][0]['condition'];
-                    supabase_request('dental_chart_surfaces', 'PATCH', [
-                        'condition'  => $condition,
-                        'notes'      => $notes ?: null,
-                        'updated_at' => date('c'),
-                    ], 'surface_id=eq.' . $existingSurf['data'][0]['surface_id']);
+                    $surfPatch = ['condition' => $condition, 'updated_at' => date('c')];
+                    if ($notes !== '') $surfPatch['notes'] = $notes;   // keep the existing note otherwise
+                    supabase_request('dental_chart_surfaces', 'PATCH', $surfPatch,
+                        'surface_id=eq.' . $existingSurf['data'][0]['surface_id']);
                 } else {
                     supabase_request('dental_chart_surfaces', 'POST', [
                         'chart_id'   => $chartId,

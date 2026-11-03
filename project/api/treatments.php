@@ -11,6 +11,7 @@
 session_start();
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../controllers/auth_controller.php';
+require_once __DIR__ . '/../controllers/notification_helper.php';
 
 header('Content-Type: application/json');
 requireLogin();
@@ -94,6 +95,7 @@ if ($method === 'POST') {
     $res = supabase_request('treatments', 'POST', $payload);
 
     if ($res['status'] >= 200 && $res['status'] < 300) {
+        if (!empty($res['data'][0]['treatment_id'])) notif_treatment((int)$res['data'][0]['treatment_id']);
         echo json_encode(['success' => true, 'message' => 'Treatment added successfully.', 'treatment_code' => $trtCode]);
     } else {
         echo json_encode(['success' => false, 'message' => $res['error'] ?? 'Failed to create treatment.']);
@@ -117,9 +119,11 @@ if ($method === 'PATCH') {
     if (array_key_exists('status', $body))          $payload['status']          = $body['status'];
     if (array_key_exists('treatment_date', $body))  $payload['treatment_date']  = $body['treatment_date'];
 
+    $prevTrt = supabase_request('treatments', 'GET', [], 'treatment_id=eq.' . (int)$id . '&select=status&limit=1');
     $res = supabase_request('treatments', 'PATCH', $payload, 'treatment_id=eq.' . $id);
 
     if ($res['status'] >= 200 && $res['status'] < 300) {
+        if (!empty($prevTrt['data'][0])) notif_treatment((int)$id, $prevTrt['data'][0]);
         echo json_encode(['success' => true, 'message' => 'Treatment updated successfully.']);
     } else {
         echo json_encode(['success' => false, 'message' => $res['error'] ?? 'Failed to update treatment.']);

@@ -1,10 +1,15 @@
+/* Custom.css */
+
 .action-dropdown {
-    max-height: 250px !important;
-    padding-right: 5px;
+    /* Fit the screen instead of a fixed 250px (Billing has 5 items + dividers) */
+    max-height: calc(100vh - 24px) !important;
+    overflow-y: auto;
 }
 .table-responsive .dropdown-menu {
     z-index: 1055;    /* above Bootstrap modals (1050) */
 }
+/* Billing moves its open row menu here, on <body> (billing.js) */
+.bil-menu-holder { position: absolute; top: 0; left: 0; z-index: 1055; }
 .table > tbody > tr:last-child .dropdown-menu,
 .table > tbody > tr:nth-last-child(2) .dropdown-menu {
     --bs-dropdown-min-width: 10rem;
@@ -25,4 +30,1486 @@
     white-space: nowrap;
     display: inline-flex !important;
     align-items: center !important;
+}
+/* ── Appointment Schedule — header controls ── */
+.action-dropdown {
+    /* Fit the screen instead of a fixed 250px (Billing has 5 items + dividers) */
+    max-height: calc(100vh - 24px) !important;
+    overflow-y: auto;
+}
+.table-responsive .dropdown-menu {
+    z-index: 1055;
+}
+.table > tbody > tr:last-child .dropdown-menu,
+.table > tbody > tr:nth-last-child(2) .dropdown-menu {
+    --bs-dropdown-min-width: 10rem;
+}
+.hdr-control {
+    height: 34px !important;
+    padding-top: .25rem !important;
+    padding-bottom: .25rem !important;
+    padding-right: 2rem !important;
+    font-size: .8125rem !important;
+    min-width: 120px;
+}
+.hdr-btn {
+    height: 33px !important;
+    padding-top: .2rem !important;
+    padding-bottom: .2rem !important;
+    font-size: .6rem !important;
+    white-space: nowrap;
+    display: inline-flex !important;
+    align-items: center !important;
+}
+
+/* ── View Appointment Details modal — unified font ── */
+#aptViewModal .modal-body table,
+#aptViewModal .modal-body th,
+#aptViewModal .modal-body td {
+    font-family: Arial, sans-serif !important;
+    font-size: 0.82rem !important;
+}
+#aptViewModal .modal-body th {
+    font-weight: 500;
+    color: #888;
+}
+#aptViewModal .modal-body td {
+    font-weight: 600;
+    color: #1c2b3a;
+}
+
+/* ── ★ APPOINTMENT RECORDS TABLE OVERFLOW FIX ─────────────── */
+.apt-table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;  /* smooth scrolling on iOS */
+    border-bottom: 1px solid #e9ecef;
+}
+
+.apt-records-table {
+    min-width: 720px;   /* 5 columns */
+    margin-bottom: 0;
+}
+
+.apt-records-table thead th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    padding: 10px 12px;
+    white-space: nowrap;
+    vertical-align: middle;
+    border-bottom: 2px solid #dee2e6;
+    color: #374151;
+}
+
+.apt-records-table tbody td {
+    padding: 12px;
+    vertical-align: middle;
+    font-size: 0.875rem;
+}
+
+.apt-records-table tbody tr {
+    border-bottom: 1px solid #e9ecef;
+}
+
+.apt-records-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Column sizing — 5 columns:
+   Date/Time | Patient Name | Branch (owner) or Service (admin/dentist) | Status | Action */
+.apt-records-table th:nth-child(1),
+.apt-records-table td:nth-child(1) {
+    min-width: 140px;  /* Date / Time */
+    width: 20%;
+}
+
+.apt-records-table th:nth-child(2),
+.apt-records-table td:nth-child(2) {
+    min-width: 170px;  /* Patient Name */
+    width: 28%;
+}
+
+.apt-records-table th:nth-child(3),
+.apt-records-table td:nth-child(3) {
+    min-width: 170px;  /* Branch / Service */
+    width: 32%;
+}
+
+.apt-records-table th:nth-child(4),
+.apt-records-table td:nth-child(4) {
+    min-width: 100px;  /* Status */
+    width: 14%;
+}
+
+.apt-records-table th:nth-child(5),
+.apt-records-table td:nth-child(5) {
+    min-width: 60px;   /* Action */
+    width: 6%;
+    text-align: right;
+}
+
+/* Scrollbar styling */
+.apt-table-wrapper::-webkit-scrollbar {
+    height: 8px;
+}
+
+.apt-table-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.apt-table-wrapper::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.apt-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #888;
+}
+
+/* Firefox scrollbar styling */
+.apt-table-wrapper {
+    scrollbar-color: #c1c1c1 #f1f1f1;
+    scrollbar-width: thin;
+}
+
+/* Responsive adjustments for tablets and smaller screens */
+@media (max-width: 1024px) {
+    .apt-records-table {
+        min-width: 680px;
+    }
+    .apt-records-table th,
+    .apt-records-table td {
+        padding: 10px;
+        font-size: 0.8rem;
+    }
+    .apt-records-table thead th {
+        font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .apt-records-table {
+        min-width: 640px;
+    }
+
+    .apt-records-table th,
+    .apt-records-table td {
+        padding: 8px;
+        font-size: 0.75rem;
+    }
+
+    .apt-records-table thead th {
+        font-size: 0.7rem;
+    }
+
+    .badge {
+        font-size: 0.65rem;
+        padding: 0.25rem 0.5rem;
+    }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   APPOINTMENT RECORD DETAILS MODAL
+   Scoped under #aptRecordModal to avoid bleeding into other UI
+   ══════════════════════════════════════════════════════════════ */
+
+/* Dialog */
+.apt-record-dialog {
+    max-width: 980px;
+}
+.apt-record-content {
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+    overflow: hidden;
+}
+
+/* ── Header ── */
+.apt-record-header {
+    background: #fff;
+    border-bottom: 1px solid #e9ecef;
+    padding: 20px 28px;
+    align-items: flex-start;
+}
+.apt-record-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.apt-record-icon {
+    width: 44px;
+    height: 44px;
+    background: #e8ecfb;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #3454d1;
+    font-size: 20px;
+}
+.apt-record-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #111;
+    line-height: 1.3;
+}
+.apt-record-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+}
+.apt-record-code {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #6b7280;
+    letter-spacing: .04em;
+}
+.apt-record-header .btn-close {
+    filter: none;
+    opacity: 0.6;
+}
+.apt-record-header .btn-close:hover { opacity: 1; }
+
+/* ── Body ── */
+.apt-record-body {
+    background: #f8f9fa;
+    min-height: 200px;
+}
+
+/* ── Loading / Error States ── */
+.apt-record-loading,
+.apt-record-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+    background: #f8f9fa;
+}
+
+/* ── Two-column section grid ── */
+.apt-record-sections-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    background: #fff;
+}
+.apt-record-sections-border {
+    border-top: 1px solid #e9ecef;
+}
+.apt-record-section {
+    padding: 22px 28px;
+    border-right: 1px solid #e9ecef;
+}
+.apt-record-section:last-child {
+    border-right: none;
+}
+
+/* ── Section header ── */
+.apt-record-section-header {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: #3454d1;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e8ecf8;
+}
+
+/* ── Field rows ── */
+.apt-record-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.apt-record-field {
+    display: grid;
+    grid-template-columns: 115px 1fr;
+    align-items: baseline;
+    gap: 8px;
+}
+.arf-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.arf-value {
+    font-size: 0.85rem;
+    color: #1c2b3a;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+/* ── Information cards (2 × 2 grid) ──
+   Patient / Appointment / Treatment / Billing.
+   Replaces the divider-based .apt-record-sections-grid layout
+   in appointments-records.php. */
+#aptRecordModal .ar-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    padding: 20px 28px;
+    background: #fff;
+}
+
+#aptRecordModal .ar-card {
+    min-width: 0;
+    padding: 14px 16px;
+    background: rgba(52, 84, 209, 0.035);
+    border: 1px solid rgba(52, 84, 209, 0.14);
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(28, 43, 58, 0.04);
+}
+
+#aptRecordModal .ar-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+#aptRecordModal .ar-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: rgba(52, 84, 209, 0.1);
+    color: #3454d1;
+    font-size: 0.9rem;
+}
+
+#aptRecordModal .ar-card-title {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: inherit;
+}
+
+#aptRecordModal .ar-card-fields {
+    display: grid;
+    row-gap: 8px;
+}
+
+#aptRecordModal .ar-card-field {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: baseline;
+}
+
+#aptRecordModal .ar-card-label {
+    font-size: 0.74rem;
+    font-weight: 600;
+    opacity: 0.62;
+}
+
+#aptRecordModal .ar-card-value {
+    min-width: 0;
+    font-size: 0.84rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+#aptRecordModal .ar-card-value .badge {
+    white-space: normal;
+    text-align: left;
+}
+
+/* Below 992px Bootstrap narrows this modal to 500px, so stack the cards */
+@media (max-width: 991.98px) {
+    #aptRecordModal .ar-cards-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+        padding: 16px 18px;
+    }
+}
+
+@media (max-width: 420px) {
+    #aptRecordModal .ar-card-field {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 1px;
+    }
+}
+
+/* ── Bottom tabs ── */
+.apt-record-tabs-wrap {
+    border-top: 1px solid #e9ecef;
+    background: #fff;
+}
+.apt-record-tabs {
+    padding: 0 20px;
+    border-bottom: 1px solid #e9ecef;
+    background: #fff;
+    gap: 2px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+.apt-record-tabs .nav-link {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #6c757d;
+    padding: 12px 14px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    white-space: nowrap;
+    transition: color .15s, border-color .15s;
+}
+.apt-record-tabs .nav-link:hover {
+    color: #3454d1;
+    border-bottom-color: #c7d0f5;
+    background: none;
+}
+.apt-record-tabs .nav-link.active {
+    color: #3454d1;
+    border-bottom-color: #3454d1;
+    background: none;
+    font-weight: 700;
+}
+.apt-record-tab-content {
+    padding: 0;
+}
+
+/* Tab inner padding */
+.ar-tab-inner {
+    padding: 20px 28px;
+    min-height: 80px;
+}
+.ar-tab-empty {
+    text-align: center;
+    padding: 24px;
+    font-size: 0.85rem;
+}
+.ar-notes-box {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 0.85rem;
+    color: #374151;
+    min-height: 60px;
+}
+
+/* Detail tables inside tabs */
+.ar-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+.ar-detail-table thead tr {
+    background: #f3f4f6;
+}
+.ar-detail-table th,
+.ar-detail-table td {
+    padding: 9px 14px;
+    border-bottom: 1px solid #e9ecef;
+    text-align: left;
+    vertical-align: middle;
+}
+.ar-detail-table th {
+    font-weight: 600;
+    color: #6b7280;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    width: 40%;
+}
+.ar-detail-table td {
+    color: #1c2b3a;
+    font-weight: 500;
+}
+.ar-detail-table tbody tr:last-child td { border-bottom: none; }
+
+/* ── Timeline ── */
+#arTabTimeline { padding: 20px 28px; }
+.ar-timeline { position: relative; }
+.ar-timeline-empty { text-align: center; font-size: 0.85rem; padding: 20px; }
+.ar-tl-item {
+    display: flex;
+    gap: 14px;
+    position: relative;
+    padding-bottom: 20px;
+}
+.ar-tl-item.ar-tl-last { padding-bottom: 0; }
+.ar-tl-item:not(.ar-tl-last)::before {
+    content: '';
+    position: absolute;
+    left: 15px;             /* centred under the 32px dot */
+    top: 36px;
+    bottom: 4px;
+    width: 2px;
+    border-radius: 2px;
+    background: #e5e7eb;
+}
+.ar-tl-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+    line-height: 1;
+    z-index: 1;
+}
+/* Font Awesome Solid glyphs have varying advance widths (e.g. user-check is
+   wider) — fix the box so every icon sits at the same optical centre. */
+.ar-tl-dot i {
+    display: block;
+    width: 1.25em;
+    font-size: 13px;
+    line-height: 1;
+    text-align: center;
+}
+.ar-tl-dot-primary  { background: #e3eafc; color: #3454d1; }
+.ar-tl-dot-success  { background: #dcf3e8; color: #198754; }
+.ar-tl-dot-info     { background: #e3eafc; color: #3454d1; }
+.ar-tl-dot-warning  { background: #e3eafc; color: #3454d1; }
+.ar-tl-dot-danger   { background: #fde8e8; color: #dc3545; }
+.ar-tl-body { padding-top: 6px; min-width: 0; }
+.ar-tl-label { font-size: 0.84rem; font-weight: 600; color: #1c2b3a; }
+.ar-tl-sub   { font-size: 0.78rem; color: #6b7280; margin-top: 2px; }
+.ar-tl-date  { font-size: 0.75rem; color: #9ca3af; margin-top: 2px; }
+
+/* ── Footer ── */
+.apt-record-footer {
+    background: #fff;
+    border-top: 1px solid #e9ecef;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ── Responsive: single column on mobile ── */
+@media (max-width: 768px) {
+    .apt-record-dialog { max-width: 100%; margin: 0.5rem; }
+    .apt-record-sections-grid {
+        grid-template-columns: 1fr;
+    }
+    .apt-record-section {
+        border-right: none;
+        border-bottom: 1px solid #e9ecef;
+        padding: 16px 18px;
+    }
+    .apt-record-field { grid-template-columns: 95px 1fr; }
+    .apt-record-tabs { padding: 0 12px; }
+    .ar-tab-inner { padding: 14px 16px; }
+    #arTabTimeline { padding: 14px 16px; }
+    .apt-record-header { padding: 16px 18px; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   TREATMENT RECORDS TABLE OVERFLOW FIX
+   Mirrors the apt-table-wrapper / apt-records-table pattern.
+   8 columns: Treatment ID | Date | Patient Name | Branch |
+              Dentist | Service | Status | Action
+   ══════════════════════════════════════════════════════════════ */
+
+.trt-table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 1px solid #e9ecef;
+    scrollbar-color: #c1c1c1 #f1f1f1;
+    scrollbar-width: thin;
+}
+
+.trt-table-wrapper::-webkit-scrollbar {
+    height: 8px;
+}
+.trt-table-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+.trt-table-wrapper::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+.trt-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #888;
+}
+
+.trt-records-table {
+    min-width: 720px;   /* 5 columns — enough to stay readable */
+    margin-bottom: 0;
+}
+
+.trt-records-table thead th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    padding: 10px 12px;
+    white-space: nowrap;
+    vertical-align: middle;
+    border-bottom: 2px solid #dee2e6;
+    color: #374151;
+}
+
+.trt-records-table tbody td {
+    padding: 12px;
+    vertical-align: middle;
+    font-size: 0.875rem;
+}
+
+.trt-records-table tbody tr {
+    border-bottom: 1px solid #e9ecef;
+}
+
+.trt-records-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Column sizing — 5 columns:
+   Date/Time | Patient Name | Branch (owner) or Dentist (admin/dentist) | Status | Action */
+.trt-records-table th:nth-child(1),
+.trt-records-table td:nth-child(1) {
+    min-width: 140px;  /* Date / Time */
+    width: 20%;
+}
+
+.trt-records-table th:nth-child(2),
+.trt-records-table td:nth-child(2) {
+    min-width: 170px;  /* Patient Name */
+    width: 30%;
+}
+
+.trt-records-table th:nth-child(3),
+.trt-records-table td:nth-child(3) {
+    min-width: 160px;  /* Branch / Dentist */
+    width: 30%;
+}
+
+.trt-records-table th:nth-child(4),
+.trt-records-table td:nth-child(4) {
+    min-width: 100px;  /* Status */
+    width: 14%;
+}
+
+.trt-records-table th:nth-child(5),
+.trt-records-table td:nth-child(5) {
+    min-width: 60px;   /* Action */
+    width: 6%;
+    text-align: right;
+}
+
+/* Responsive — tablets */
+@media (max-width: 1024px) {
+    .trt-records-table {
+        min-width: 680px;
+    }
+    .trt-records-table th,
+    .trt-records-table td {
+        padding: 10px;
+        font-size: 0.8rem;
+    }
+    .trt-records-table thead th {
+        font-size: 0.75rem;
+    }
+}
+
+/* Responsive — mobile */
+@media (max-width: 768px) {
+    .trt-records-table {
+        min-width: 640px;
+    }
+    .trt-records-table th,
+    .trt-records-table td {
+        padding: 8px;
+        font-size: 0.75rem;
+    }
+    .trt-records-table thead th {
+        font-size: 0.7rem;
+    }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   PATIENTS LIST TABLE OVERFLOW FIX
+   Mirrors the apt-table-wrapper / trt-table-wrapper pattern.
+   7 columns: Patient ID | Patient Name | Branch |
+              Birthdate | Last Visit | Status | Action
+   ══════════════════════════════════════════════════════════════ */
+
+.pat-table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 1px solid #e9ecef;
+    scrollbar-color: #c1c1c1 #f1f1f1;
+    scrollbar-width: thin;
+}
+
+.pat-table-wrapper::-webkit-scrollbar {
+    height: 8px;
+}
+.pat-table-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+.pat-table-wrapper::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+.pat-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #888;
+}
+
+.pat-patients-table {
+    min-width: 720px;   /* 5–6 columns */
+    margin-bottom: 0;
+}
+
+.pat-patients-table thead th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    padding: 10px 12px;
+    white-space: nowrap;
+    vertical-align: middle;
+    border-bottom: 2px solid #dee2e6;
+    color: #374151;
+}
+
+.pat-patients-table tbody td {
+    padding: 12px;
+    vertical-align: middle;
+    font-size: 0.875rem;
+}
+
+.pat-patients-table tbody tr {
+    border-bottom: 1px solid #e9ecef;
+}
+
+.pat-patients-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Column sizing — Owner: Patient ID | Patient Name | Branch | Last Visit | Status | Action
+                  Admin/Dentist: Patient ID | Patient Name | Last Visit | Status | Action */
+.pat-patients-table th:first-child,
+.pat-patients-table td:first-child {
+    min-width: 110px;  /* Patient ID */
+    width: 14%;
+}
+
+.pat-patients-table th:nth-child(2),
+.pat-patients-table td:nth-child(2) {
+    min-width: 190px;  /* Patient Name (includes avatar) */
+    width: 30%;
+}
+
+.pat-patients-table th:last-child,
+.pat-patients-table td:last-child {
+    min-width: 60px;   /* Action */
+    width: 6%;
+    text-align: right;
+}
+
+/* Birthdate stacked layout */
+.pat-bd-date {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #1c2b3a;
+    line-height: 1.3;
+}
+
+.pat-bd-age {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    margin-top: 2px;
+    line-height: 1.2;
+}
+
+/* Responsive — tablets */
+@media (max-width: 1024px) {
+    .pat-patients-table {
+        min-width: 680px;
+    }
+    .pat-patients-table th,
+    .pat-patients-table td {
+        padding: 10px;
+        font-size: 0.8rem;
+    }
+    .pat-patients-table thead th {
+        font-size: 0.75rem;
+    }
+    .pat-bd-date { font-size: 0.8rem; }
+    .pat-bd-age  { font-size: 0.7rem; }
+}
+
+/* Responsive — mobile */
+@media (max-width: 768px) {
+    .pat-patients-table {
+        min-width: 680px;
+    }
+    .pat-patients-table th,
+    .pat-patients-table td {
+        padding: 8px;
+        font-size: 0.75rem;
+    }
+    .pat-patients-table thead th {
+        font-size: 0.7rem;
+    }
+    .pat-bd-date { font-size: 0.75rem; }
+    .pat-bd-age  { font-size: 0.68rem; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   ACCOUNTS RECORDS TABLE OVERFLOW FIX
+   Mirrors the apt/trt/pat table wrapper pattern.
+   6 columns: Full Name | Username | Role | Branch | Status | Action
+   ══════════════════════════════════════════════════════════════ */
+
+.acc-table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 1px solid #e9ecef;
+    scrollbar-color: #c1c1c1 #f1f1f1;
+    scrollbar-width: thin;
+}
+
+.acc-table-wrapper::-webkit-scrollbar {
+    height: 8px;
+}
+.acc-table-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+.acc-table-wrapper::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+.acc-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #888;
+}
+
+.acc-accounts-table {
+    min-width: 720px;   /* 6 columns */
+    margin-bottom: 0;
+}
+
+.acc-accounts-table thead th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    padding: 10px 12px;
+    white-space: nowrap;
+    vertical-align: middle;
+    border-bottom: 2px solid #dee2e6;
+    color: #374151;
+}
+
+.acc-accounts-table tbody td {
+    padding: 12px;
+    vertical-align: middle;
+    font-size: 0.875rem;
+}
+
+.acc-accounts-table tbody tr {
+    border-bottom: 1px solid #e9ecef;
+}
+
+.acc-accounts-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Column sizing — 6 columns:
+   Full Name | Username | Role | Branch | Status | Action */
+.acc-accounts-table th:nth-child(1),
+.acc-accounts-table td:nth-child(1) {
+    min-width: 180px;  /* Full Name (includes avatar) */
+    width: 26%;
+}
+
+.acc-accounts-table th:nth-child(2),
+.acc-accounts-table td:nth-child(2) {
+    min-width: 130px;  /* Username */
+    width: 17%;
+}
+
+.acc-accounts-table th:nth-child(3),
+.acc-accounts-table td:nth-child(3) {
+    min-width: 90px;   /* Role */
+    width: 12%;
+}
+
+.acc-accounts-table th:nth-child(4),
+.acc-accounts-table td:nth-child(4) {
+    min-width: 180px;  /* Branch */
+    width: 28%;
+}
+
+.acc-accounts-table th:nth-child(5),
+.acc-accounts-table td:nth-child(5) {
+    min-width: 90px;   /* Status */
+    width: 12%;
+}
+
+.acc-accounts-table th:nth-child(6),
+.acc-accounts-table td:nth-child(6) {
+    min-width: 50px;   /* Action */
+    width: 5%;
+    text-align: right;
+}
+
+/* Responsive — tablets */
+@media (max-width: 1024px) {
+    .acc-accounts-table {
+        min-width: 640px;
+    }
+    .acc-accounts-table th,
+    .acc-accounts-table td {
+        padding: 10px;
+        font-size: 0.8rem;
+    }
+    .acc-accounts-table thead th {
+        font-size: 0.75rem;
+    }
+}
+
+/* Responsive — mobile */
+@media (max-width: 768px) {
+    .acc-accounts-table {
+        min-width: 560px;
+    }
+    .acc-accounts-table th,
+    .acc-accounts-table td {
+        padding: 8px;
+        font-size: 0.75rem;
+    }
+    .acc-accounts-table thead th {
+        font-size: 0.7rem;
+    }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   ACCOUNTS MODAL — Add/Edit + View Details
+   ══════════════════════════════════════════════════════════════ */
+
+/* Section labels inside modal */
+.usr-section-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #6c757d;
+    margin-bottom: 10px;
+    margin-top: 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #f1f4f8;
+}
+
+/* Field labels inside modal */
+.usr-field-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 4px;
+}
+
+/* View Details: field rows */
+.usr-view-fields {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 2px 0;
+    overflow: hidden;
+}
+
+.usr-view-row {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 8px;
+    align-items: baseline;
+    padding: 9px 14px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.usr-view-row:last-child {
+    border-bottom: none;
+}
+
+.usr-view-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    white-space: nowrap;
+}
+
+.usr-view-value {
+    font-size: 0.855rem;
+    color: #1c2b3a;
+    word-break: break-word;
+}
+/* ══════════════════════════════════════════════════════════════════════
+   APPOINTMENT MODALS — #aptRecordModal (records), #viewAppointmentModal + #appointmentModal (schedule).
+   Styled to match the portal's Appointment Details modal (portal-dashboard.css → .adm-*).
+   Footer buttons keep their own Bootstrap styling.
+   ══════════════════════════════════════════════════════════════════════ */
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) {
+    --ar-primary: #2563eb;
+    --ar-primary-light: #eff6ff;
+    --ar-border: #e2e8f0;
+    --ar-text: #1e293b;
+    --ar-muted: #64748b;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-dialog { max-width: 980px; }
+@media (min-width: 576px) and (max-width: 1019.98px) {
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-dialog { max-width: calc(100% - 2rem); }
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-content { border-radius: 16px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18); }
+
+/* Header (white, icon tile, title + reference) */
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-header {
+    align-items: center;
+    background: #fff;
+    border-bottom: none;
+    padding: 1.5rem 1.75rem 1rem;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-title-wrap { gap: 0.9rem; min-width: 0; }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-icon {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    background: var(--ar-primary-light);
+    color: var(--ar-primary);
+    font-size: 1.3rem;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-title { font-size: 1.2rem; font-weight: 800; color: var(--ar-text); line-height: 1.25; }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-meta { display: block; margin-top: 0.15rem; font-size: 0.85rem; color: var(--ar-muted); }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-code { font-size: inherit; font-weight: 600; letter-spacing: 0; color: var(--ar-text); }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-header .btn-close { align-self: flex-start; }
+
+/* Body */
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-body { background: #fff; }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) #arContent { padding: 0.25rem 1.75rem 1.5rem; }
+
+/* Summary row — 1px gaps show the border colour as dividers */
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
+    gap: 1px;
+    margin-bottom: 1.25rem;
+    background: var(--ar-border);
+    border: 1px solid var(--ar-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-sum-item {
+    display: flex; align-items: flex-start; gap: 0.75rem;
+    min-width: 0;
+    padding: 1rem 1.15rem;
+    background: #fbfdff;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-sum-status { flex-direction: column; gap: 0.45rem; }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-sum-icon {
+    width: 22px; flex-shrink: 0; margin-top: 0.1rem;
+    color: var(--ar-primary); font-size: 1.15rem; text-align: center;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-sum-text { min-width: 0; }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-sum-label { margin-bottom: 0.2rem; font-size: 0.75rem; font-weight: 600; color: var(--ar-muted); }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-sum-value {
+    font-size: 0.9rem; font-weight: 700; line-height: 1.4;
+    color: var(--ar-text); overflow-wrap: anywhere;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-sum-services { font-weight: 600; }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-sum-status .badge { font-size: 0.82rem; padding: 0.35rem 0.85rem; }
+
+/* Status / payment badges: portal-style pill with a dot */
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-summary .badge,
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-value .badge {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    border-radius: 50px;
+    font-weight: 700; letter-spacing: 0.2px;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-summary .badge::before,
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) #arAptStatus .badge::before,
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) #arBillPayStatus .badge::before,
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) #arTrtStatus .badge::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+
+/* Information cards (2 × 2) */
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-cards-grid { gap: 1rem; padding: 0; background: transparent; }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card {
+    min-width: 0; padding: 0;
+    background: #fff;
+    border: 1px solid var(--ar-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-header {
+    gap: 0.6rem; margin: 0;
+    padding: 0.8rem 1.1rem;
+    background: #f0f6ff;
+    border-bottom: 1px solid #dbe7fb;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-icon {
+    width: 26px; height: 26px;
+    background: none; color: var(--ar-primary); font-size: 1rem;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-title {
+    margin: 0;
+    font-size: 0.9rem; font-weight: 700; letter-spacing: 0; text-transform: none;
+    color: var(--ar-text);
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-fields { gap: 0; padding: 0.15rem 1.1rem; }
+/* Label : value rows */
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-field {
+    display: grid;
+    grid-template-columns: 128px minmax(0, 1fr);
+    column-gap: 0.5rem;
+    align-items: baseline;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid #eef2f7;
+    font-size: 0.85rem;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-field:last-child { border-bottom: none; }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-label {
+    display: flex; justify-content: space-between; gap: 0.5rem;
+    font-size: inherit; font-weight: 400; text-transform: none; letter-spacing: 0;
+    color: var(--ar-muted);
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-label::after { content: ":"; color: #94a3b8; }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-value {
+    min-width: 0;
+    font-size: inherit; font-weight: 500; line-height: 1.45;
+    color: var(--ar-text); overflow-wrap: anywhere;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) #arPatientName { font-weight: 700; }
+
+/* Bottom tabs sit in a card like the rest of the content */
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-tabs-wrap {
+    margin-top: 1.25rem; padding: 0;
+    border: 1px solid var(--ar-border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+}
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-tabs { padding: 0 0.75rem; background: #f0f6ff; border-bottom: 1px solid #dbe7fb; }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-tabs .nav-link.active { color: var(--ar-primary); border-bottom-color: var(--ar-primary); background: transparent; }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-tab-content { padding: 1rem 1.1rem; background: #fff; }
+
+/* Footer: light band, buttons unchanged */
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-footer {
+    background: #f8fafc;
+    border-top: 1px solid var(--ar-border);
+    padding: 0.9rem 1.75rem;
+}
+
+/* Responsive */
+@media (max-width: 991.98px) {
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767.98px) {
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-cards-grid { grid-template-columns: minmax(0, 1fr); }
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-tabs { overflow-x: auto; flex-wrap: nowrap; }
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-tabs .nav-link { white-space: nowrap; }
+}
+@media (max-width: 575.98px) {
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-header { padding: 1rem 1rem 0.75rem; }
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) #arContent { padding: 0.25rem 1rem 1rem; }
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-footer { padding: 0.75rem 1rem; }
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .apt-record-icon { width: 40px; height: 40px; font-size: 1.1rem; }
+}
+@media (max-width: 420px) {
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-summary { grid-template-columns: minmax(0, 1fr); }
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-field { grid-template-columns: minmax(0, 1fr); row-gap: 0.1rem; }
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-label { justify-content: flex-start; }
+    :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-label::after { content: none; }
+}
+
+/* ── Schedule page: View Appointment + Add/Edit Appointment ─────────── */
+/* Base card rules (the records modal gets these from its own block above) */
+:is(#viewAppointmentModal, .apt-form-dialog, .es-detail-modal) .ar-cards-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+:is(#viewAppointmentModal, .apt-form-dialog, .es-detail-modal) .ar-card-header { display: flex; align-items: center; }
+:is(#viewAppointmentModal, .apt-form-dialog, .es-detail-modal) .ar-card-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+:is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) .ar-card-label { opacity: 1; }
+:is(#viewAppointmentModal, .es-detail-modal) .ar-card-wide { grid-column: 1 / -1; }
+:is(#viewAppointmentModal, .es-detail-modal) .ar-view-body { padding: 0.25rem 1.75rem 1.5rem; }
+:is(#viewAppointmentModal, .es-detail-modal) .ar-strong { font-weight: 700; }
+:is(#viewAppointmentModal, .es-detail-modal) .ar-muted { color: var(--ar-muted); font-style: italic; font-weight: 400; }
+:is(#viewAppointmentModal, .es-detail-modal) .ar-card-value .badge.ar-dot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+:is(#viewAppointmentModal, .es-detail-modal) .ar-svc-list { margin: 0; padding: 0.35rem 0; list-style: none; counter-reset: svc; }
+:is(#viewAppointmentModal, .es-detail-modal) .ar-svc-list li {
+    counter-increment: svc;
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid #eef2f7;
+    font-size: 0.85rem; font-weight: 500; color: var(--ar-text);
+}
+:is(#viewAppointmentModal, .es-detail-modal) .ar-svc-list li:last-child { border-bottom: none; }
+:is(#viewAppointmentModal, .es-detail-modal) .ar-svc-list li::before {
+    content: counter(svc);
+    display: inline-grid; place-items: center; flex-shrink: 0;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--ar-primary-light); color: var(--ar-primary);
+    font-size: 0.72rem; font-weight: 700;
+}
+:is(#viewAppointmentModal, .es-detail-modal) .ar-notes { margin: 0; padding: 0.6rem 0; font-size: 0.85rem; line-height: 1.55; color: var(--ar-text); white-space: pre-wrap; overflow-wrap: anywhere; }
+:is(#viewAppointmentModal, .es-detail-modal) .apt-record-error { display: none; margin: 1.25rem 1.75rem; padding: 0.75rem 1rem; border-radius: 10px; background: #fef2f2; color: #b91c1c; font-size: 0.85rem; text-align: left; }
+
+/* Add / Edit form */
+.apt-form-dialog { max-width: 1140px; }
+@media (min-width: 576px) and (max-width: 1179.98px) {
+    .apt-form-dialog { max-width: calc(100% - 2rem); }
+}
+.apt-form-dialog .apt-form-body { padding: 0.25rem 1.75rem 1.5rem; background: #fff; }
+.apt-form-dialog .apt-form-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+.apt-form-dialog .apt-form-col { display: grid; gap: 1rem; min-width: 0; }
+.apt-form-dialog .apt-form-card-body { padding: 1rem 1.1rem 1.1rem; }
+/* The services list floats (fixed); keep this card from clipping its trigger focus ring */
+.apt-form-dialog .apt-form-card-open { overflow: visible; }
+.apt-form-dialog .apt-form-card-open .ar-card-header { border-radius: 12px 12px 0 0; }
+.apt-form-dialog .ar-card-title .apt-opt { margin-left: 0.25rem; }
+.apt-form-dialog .apt-field { margin-bottom: 0.9rem; }
+.apt-form-dialog .apt-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.8rem; font-weight: 600;
+    color: var(--ar-text);
+}
+.apt-form-dialog .apt-req { color: #dc2626; font-weight: 700; }
+.apt-form-dialog .apt-opt { font-size: 0.74rem; font-weight: 400; color: var(--ar-muted); }
+.apt-form-dialog .form-select,
+.apt-form-dialog .form-control {
+    min-height: 40px;
+    border: 1.5px solid #d8e0ec;
+    border-radius: 9px;
+    font-size: 0.86rem;
+    color: var(--ar-text);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.apt-form-dialog .form-select:focus,
+.apt-form-dialog .form-control:focus { border-color: var(--ar-primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
+.apt-form-dialog .form-select:disabled { background-color: #f1f5f9; color: #94a3b8; }
+.apt-form-dialog .form-select.is-invalid,
+.apt-form-dialog .form-control.is-invalid { border-color: #f87171; }
+.apt-form-dialog .apt-field-err { font-size: 0.78rem; color: #b91c1c; }
+.apt-form-dialog .apt-field-err:not(:empty) { margin-top: 0.35rem; }
+.apt-form-dialog .apt-field-err:not(:empty)::before { content: "⚠ "; }
+.apt-form-dialog .apt-form-alert {
+    margin-bottom: 1rem; padding: 0.7rem 0.95rem;
+    border: 1px solid #fecaca; border-radius: 10px;
+    background: #fef2f2; color: #b91c1c;
+    font-size: 0.85rem;
+}
+.apt-form-dialog #adminCalendarWrap { border-color: var(--ar-border) !important; border-radius: 12px !important; }
+.apt-form-dialog .apt-dt-summary {
+    align-items: center; gap: 0.5rem;
+    margin-top: 0.85rem; padding: 0.6rem 0.85rem;
+    border: 1px solid #bbf7d0; border-radius: 10px;
+    background: #f0fdf4; color: #15803d;
+    font-size: 0.84rem; font-weight: 600;
+}
+.apt-form-dialog #apt_svc_add_btn { height: 42px; border-radius: 10px; }
+.apt-form-dialog .apt-form-footer { justify-content: space-between; gap: 0.75rem; }
+.apt-form-dialog .apt-form-hint { font-size: 0.8rem; color: var(--ar-muted); }
+
+@media (max-width: 991.98px) {
+    .apt-form-dialog .apt-form-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 767.98px) {
+    :is(#viewAppointmentModal, .es-detail-modal) .ar-cards-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 575.98px) {
+    :is(#viewAppointmentModal, .es-detail-modal) .ar-view-body,
+    .apt-form-dialog .apt-form-body { padding: 0.25rem 1rem 1rem; }
+    .apt-form-dialog .apt-form-footer { flex-direction: column-reverse; align-items: stretch; }
+    .apt-form-dialog .apt-form-footer .d-flex { display: grid !important; grid-template-columns: 1fr 1fr; }
+    .apt-form-dialog .apt-form-hint { text-align: center; }
+}
+
+/* ── Edit / Add Appointment dropdowns: look comes from the shared staff design
+   (assets/css/custom-select.css, .es-staff); only layout here. ── */
+.apt-form-dialog .modal-cs { width: 100%; }
+.apt-form-dialog .modal-cs-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* Services picker "+ Add" sits beside a full-height dropdown */
+.apt-form-dialog #apt_svc_add_btn { border-radius: 10px; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   BILLING RECORDS TABLE — 8 columns, scrolls inside its card only
+   Date/Time | Patient ID | Patient Name | Total | Paid | Balance | Status | Action
+   ══════════════════════════════════════════════════════════════════════ */
+.bil-table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-color: #c1c1c1 #f1f1f1;
+    scrollbar-width: thin;
+}
+.bil-records-table { min-width: 860px; margin-bottom: 0; }
+.bil-records-table thead th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    padding: 10px 12px;
+    white-space: nowrap;
+    vertical-align: middle;
+    border-bottom: 2px solid #dee2e6;
+    color: #374151;
+}
+.bil-records-table tbody td { padding: 12px; vertical-align: middle; font-size: 0.875rem; }
+.bil-records-table tbody tr:hover { background-color: #f8f9fa; }
+.bil-records-table th:nth-child(1), .bil-records-table td:nth-child(1) { min-width: 120px; }  /* Date / Time */
+.bil-records-table th:nth-child(2), .bil-records-table td:nth-child(2) { min-width: 100px; }  /* Patient ID */
+.bil-records-table th:nth-child(3), .bil-records-table td:nth-child(3) { min-width: 170px; }  /* Patient Name */
+.bil-records-table .bil-amt { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bil-records-table th:last-child, .bil-records-table td:last-child { width: 60px; text-align: right; }
+@media (max-width: 768px) {
+    .bil-records-table { min-width: 760px; }
+    .bil-records-table th, .bil-records-table td { padding: 8px 10px; }
+}
+
+/* ── Shared detail modal (.es-detail-modal): inner tables + JSON blocks ── */
+.es-detail-modal .es-detail-table-wrap { margin: 0.35rem 0 0.6rem; border: 1px solid var(--ar-border); border-radius: 10px; overflow-x: auto; }
+.es-detail-modal .es-detail-table { font-size: 0.82rem; }
+.es-detail-modal .es-detail-table thead th {
+    background: #f8fafc; color: var(--ar-muted);
+    font-size: 0.74rem; font-weight: 600; white-space: nowrap;
+    border-bottom: 1px solid var(--ar-border);
+}
+.es-detail-modal .es-detail-table td { color: var(--ar-text); vertical-align: middle; border-color: #eef2f7; }
+.es-detail-modal .es-detail-table tbody tr:last-child td { border-bottom: none; }
+.es-detail-modal .es-json {
+    margin: 0.5rem 0 0.75rem; padding: 0.75rem 0.9rem; max-height: 320px; overflow: auto;
+    background: #f8fafc; border: 1px solid var(--ar-border); border-radius: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.76rem; line-height: 1.5;
+    color: var(--ar-text); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.es-detail-modal .es-json-empty { padding: 0.6rem 0; font-size: 0.85rem; color: var(--ar-muted); font-style: italic; }
+.es-detail-modal .es-json-label { margin-top: 0.6rem; font-size: 0.75rem; font-weight: 700; color: var(--ar-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ── Billing view: discount vouchers on an invoice (billing.js) ── */
+#billingViewModal .bv-discounts { display: grid; gap: 6px; width: 100%; }
+#billingViewModal .bv-discount {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 8px 6px 10px; border-radius: 10px;
+    background: #f0fdf4; border: 1px solid #bbf7d0; font-size: 0.82rem;
+}
+#billingViewModal .bv-discount-name { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--ar-text); }
+#billingViewModal .bv-discount-code {
+    display: inline-block; margin-right: 4px; padding: 1px 7px; border-radius: 6px;
+    background: #fff; border: 1px solid #bbf7d0; font-weight: 700; color: #15803d; letter-spacing: 0.02em;
+}
+#billingViewModal .bv-discount-amt { font-weight: 700; color: #15803d; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ── Add Payment modal (billing-records.php #addPaymentModal) ── */
+#addPaymentModal .pm-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#addPaymentModal .pm-form {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 18px;
+    padding: 14px 1.1rem 18px;  /* same side padding as .ar-card-fields */
+}
+#addPaymentModal .pm-field { min-width: 0; }
+#addPaymentModal .pm-span { grid-column: 1 / -1; }
+#addPaymentModal .pm-label { display: block; margin-bottom: 6px; font-size: 0.8rem; font-weight: 600; color: var(--ar-text); }
+#addPaymentModal .pm-optional { font-weight: 400; color: var(--ar-muted); }
+#addPaymentModal .form-control,
+#addPaymentModal .modal-cs-trigger { height: 42px; font-size: 0.88rem; }
+#addPaymentModal .form-control:focus { border-color: var(--ar-primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
+#addPaymentModal .pm-input-prefix { position: relative; }
+#addPaymentModal .pm-input-prefix > span {
+    position: absolute; top: 50%; left: 13px; transform: translateY(-50%);
+    font-weight: 600; color: var(--ar-muted); pointer-events: none;
+}
+#addPaymentModal .pm-input-prefix .form-control { padding-left: 32px; font-weight: 600; color: var(--ar-text); }
+#addPaymentModal .pm-readonly { background: #f8fafc; color: var(--ar-text); cursor: default; }
+#addPaymentModal .pm-readonly:focus { box-shadow: none; border-color: #cfd8e3; }
+#addPaymentModal .pm-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+#addPaymentModal .pm-quick-btn {
+    padding: 3px 10px; border: 1px solid #d6e4ff; border-radius: 999px; background: var(--ar-primary-light);
+    font-size: 0.74rem; font-weight: 600; color: var(--ar-primary); cursor: pointer;
+}
+#addPaymentModal .pm-quick-btn:hover { background: #dbeafe; }
+#addPaymentModal .pm-hint { margin-left: auto; font-size: 0.75rem; color: var(--ar-muted); }
+/* Voucher list/picker reuse the invoice view styles */
+#addPaymentModal .bv-discounts { display: grid; gap: 6px; width: 100%; }
+#addPaymentModal .bv-discount {
+    display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 10px; border-radius: 10px;
+    background: #f0fdf4; border: 1px solid #bbf7d0; font-size: 0.82rem;
+}
+#addPaymentModal .bv-discount-name { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--ar-text); }
+#addPaymentModal .bv-discount-code {
+    display: inline-block; margin-right: 4px; padding: 1px 7px; border-radius: 6px;
+    background: #fff; border: 1px solid #bbf7d0; font-weight: 700; color: #15803d;
+}
+#addPaymentModal .bv-discount-amt { font-weight: 700; color: #15803d; white-space: nowrap; }
+#addPaymentModal .bv-discount-remove {
+    display: inline-grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0;
+    border: 0; border-radius: 6px; background: transparent; color: #dc2626;
+}
+#addPaymentModal .bv-discount-remove:hover { background: #fee2e2; }
+#addPaymentModal .bv-voucher-apply { margin-top: 10px; padding-top: 12px; border-top: 1px dashed var(--ar-border); }
+#addPaymentModal .bv-voucher-apply .ar-card-label { display: block; margin-bottom: 6px; }
+#addPaymentModal .bv-voucher-row { display: flex; gap: 8px; }
+#addPaymentModal .bv-voucher-row .modal-cs { flex: 1; min-width: 0; }
+#addPaymentModal .bv-voucher-msg { margin-top: 6px; font-size: 0.8rem; color: #dc2626; }
+#addPaymentModal .bv-voucher-msg:empty { display: none; }
+@media (max-width: 575.98px) {
+    #addPaymentModal .pm-summary { grid-template-columns: 1fr; }
+    #addPaymentModal .pm-form { grid-template-columns: 1fr; }
+}
+
+/* ── Voucher picker: spacing + selected-voucher preview (Invoice Details & Add Payment) ── */
+:is(#billingViewModal, #addPaymentModal) .bv-voucher-apply {
+    margin-top: 12px;
+    padding: 4px 0 16px;                /* room below the dropdown / Apply button */
+    border-top: 0;                      /* the row above already draws a divider */
+}
+:is(#billingViewModal, #addPaymentModal) .bv-voucher-apply .ar-card-label { display: block; margin-bottom: 8px; }
+:is(#billingViewModal, #addPaymentModal) .bv-voucher-row { gap: 10px; align-items: stretch; }
+:is(#billingViewModal, #addPaymentModal) .bv-voucher-row .btn { min-width: 92px; height: 42px; border-radius: 10px; }
+:is(#billingViewModal, #addPaymentModal) .bv-voucher-msg { margin-top: 8px; }
+/* Long voucher labels stay on one line in the field and in the list */
+:is(#billingViewModal, #addPaymentModal) .bv-voucher-row .modal-cs-list li { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+:is(#billingViewModal, #addPaymentModal) .bv-voucher-preview {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid #cfeefb;
+    border-radius: 10px;
+    background: #f3fbfe;
+    font-size: 0.8rem;
+}
+:is(#billingViewModal, #addPaymentModal) .bv-voucher-preview[hidden] { display: none; }
+:is(#billingViewModal, #addPaymentModal) .bv-vp-head { display: flex; align-items: center; gap: 8px; min-width: 0; margin-bottom: 8px; }
+:is(#billingViewModal, #addPaymentModal) .bv-vp-head .bv-discount-code { border-color: #b6e6f8; color: #0077b6; }
+:is(#billingViewModal, #addPaymentModal) .bv-vp-name { min-width: 0; font-weight: 600; color: var(--ar-text); overflow-wrap: anywhere; }
+:is(#billingViewModal, #addPaymentModal) .bv-vp-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 24px; margin: 0; }
+:is(#billingViewModal, #addPaymentModal) .bv-vp-rows > div { display: flex; justify-content: space-between; gap: 8px; min-width: 0; }
+:is(#billingViewModal, #addPaymentModal) .bv-vp-rows dt { font-weight: 500; color: var(--ar-muted); }
+:is(#billingViewModal, #addPaymentModal) .bv-vp-rows dd { margin: 0; text-align: right; color: var(--ar-text); }
+:is(#billingViewModal, #addPaymentModal) .bv-vp-amt { color: #15803d; }
+
+@media (max-width: 575.98px) {
+    :is(#billingViewModal, #addPaymentModal) .bv-voucher-row { flex-wrap: wrap; }
+    :is(#billingViewModal, #addPaymentModal) .bv-voucher-row .btn { flex: 1 1 100%; }
+    :is(#billingViewModal, #addPaymentModal) .bv-vp-rows { grid-template-columns: minmax(0, 1fr); }
 }

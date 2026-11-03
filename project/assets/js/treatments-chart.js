@@ -6,48 +6,48 @@
 
 // ── State ─────────────────────────────────────────────────────
 const DC = {
-    patientId    : 0,
-    patientName  : '',
+    patientId: 0,
+    patientName: '',
     treatmentTooth: '',    // tooth(s) from the treatment row
-    activeTooth  : null,  // currently selected tooth number (string)
+    activeTooth: null,  // currently selected tooth number (string)
     activeSurface: null,  // currently selected surface key (B/M/O/L/D)
-    chartData    : {},    // { tooth_number: { condition, notes, surfaces: { B: {condition,notes}, … } } }
+    chartData: {},    // { tooth_number: { condition, notes, surfaces: { B: {condition,notes}, … } } }
     pendingChanges: [],   // array of change objects to batch-save
-    modified     : new Set(), // set of tooth_numbers with unsaved changes
+    modified: new Set(), // set of tooth_numbers with unsaved changes
 };
 
 // ── Condition colour map ───────────────────────────────────────
 const DC_COND = {
-    healthy    : { fill: '#ffffff', stroke: '#86efac', text: '#64748b' },
-    filled     : { fill: '#3b82f6', stroke: '#2563eb', text: '#ffffff' },
-    decay      : { fill: '#ef4444', stroke: '#dc2626', text: '#ffffff' },
-    impacted   : { fill: '#a855f7', stroke: '#9333ea', text: '#ffffff' },
-    missing    : { fill: '#9ca3af', stroke: '#6b7280', text: '#ffffff' },
-    crown      : { fill: '#eab308', stroke: '#ca8a04', text: '#1e293b' },
+    healthy: { fill: '#ffffff', stroke: '#86efac', text: '#64748b' },
+    filled: { fill: '#3b82f6', stroke: '#2563eb', text: '#ffffff' },
+    decay: { fill: '#ef4444', stroke: '#dc2626', text: '#ffffff' },
+    impacted: { fill: '#a855f7', stroke: '#9333ea', text: '#ffffff' },
+    missing: { fill: '#9ca3af', stroke: '#6b7280', text: '#ffffff' },
+    crown: { fill: '#eab308', stroke: '#ca8a04', text: '#1e293b' },
     impacted_ne: { fill: '#22c55e', stroke: '#16a34a', text: '#ffffff' },
-    none       : { fill: '#f8fafc', stroke: '#e2e8f0', text: '#94a3b8' },
+    none: { fill: '#f8fafc', stroke: '#e2e8f0', text: '#94a3b8' },
 };
 
 const DC_COND_LABELS = {
-    healthy    : 'Healthy',
-    filled     : 'Filled',
-    decay      : 'Decay',
-    impacted   : 'Impacted',
-    missing    : 'Missing',
-    crown      : 'Crown',
+    healthy: 'Healthy',
+    filled: 'Filled',
+    decay: 'Decay',
+    impacted: 'Impacted',
+    missing: 'Missing',
+    crown: 'Crown',
     impacted_ne: 'Impacted (NE)',
 };
 
 // ── Universal 1-32 tooth numbering ────────────────────────────
-const FDI_UPPER = ['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16'];
-const FDI_LOWER = ['17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32'];
+const FDI_UPPER = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'];
+const FDI_LOWER = ['17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32'];
 
 // SVG ring wedge paths (outer r=28, inner r=12, centre 40,40)
 const DC_RING = [
-    { key:'B', lx:40, ly:19, d:'M 20.2,20.2 A 28,28 0 0,1 59.8,20.2 L 48.5,31.5 A 12,12 0 0,0 31.5,31.5 Z' },
-    { key:'M', lx:57, ly:40, d:'M 59.8,20.2 A 28,28 0 0,1 59.8,59.8 L 48.5,48.5 A 12,12 0 0,0 48.5,31.5 Z' },
-    { key:'L', lx:40, ly:61, d:'M 59.8,59.8 A 28,28 0 0,1 20.2,59.8 L 31.5,48.5 A 12,12 0 0,0 48.5,48.5 Z' },
-    { key:'D', lx:23, ly:40, d:'M 20.2,59.8 A 28,28 0 0,1 20.2,20.2 L 31.5,31.5 A 12,12 0 0,0 31.5,48.5 Z' },
+    { key: 'B', lx: 40, ly: 19, d: 'M 20.2,20.2 A 28,28 0 0,1 59.8,20.2 L 48.5,31.5 A 12,12 0 0,0 31.5,31.5 Z' },
+    { key: 'M', lx: 57, ly: 40, d: 'M 59.8,20.2 A 28,28 0 0,1 59.8,59.8 L 48.5,48.5 A 12,12 0 0,0 48.5,31.5 Z' },
+    { key: 'L', lx: 40, ly: 61, d: 'M 59.8,59.8 A 28,28 0 0,1 20.2,59.8 L 31.5,48.5 A 12,12 0 0,0 48.5,48.5 Z' },
+    { key: 'D', lx: 23, ly: 40, d: 'M 20.2,59.8 A 28,28 0 0,1 20.2,20.2 L 31.5,31.5 A 12,12 0 0,0 31.5,48.5 Z' },
 ];
 
 const FF = "'Inter',sans-serif";
@@ -68,6 +68,7 @@ function dcBuildSVG(toothNum) {
     const wedges = DC_RING.map(({key, lx, ly, d}) => {
         const c = col(key);
         return `<path d="${d}" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.2"
+                    stroke-linejoin="round"
                     onclick="dcSelectSurface('${key}',event)" style="cursor:pointer;"/>
                 <text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle"
                     fill="${c.text}" font-size="8" font-weight="600" font-family=${FF}
@@ -76,16 +77,46 @@ function dcBuildSVG(toothNum) {
 
     const oc = col('O');
 
+    // Highlight overlay — soft glow, drawn last so nothing covers it
+    let highlightOverlay = '';
+    if (isActive && DC.activeSurface) {
+        const glowId = `dcGlow_${toothNum}`;
+        const filterDef = `<defs>
+            <filter id="${glowId}" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="1.8" result="blur"/>
+                <feMerge>
+                    <feMergeNode in="blur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+            </filter>
+        </defs>`;
+
+        if (DC.activeSurface === 'O') {
+            highlightOverlay = filterDef +
+                `<circle cx="40" cy="40" r="12" fill="none" stroke="#3454d1"
+                    stroke-width="2.5" filter="url(#${glowId})" style="pointer-events:none;"/>`;
+        } else {
+            const ring = DC_RING.find(r => r.key === DC.activeSurface);
+            if (ring) {
+                highlightOverlay = filterDef +
+                    `<path d="${ring.d}" fill="none" stroke="#3454d1"
+                        stroke-width="2.5" stroke-linejoin="round"
+                        filter="url(#${glowId})" style="pointer-events:none;"/>`;
+            }
+        }
+    }
+
     return `<div class="dc-tooth-box${isActive ? ' dc-active' : ''}${isMod ? ' dc-modified' : ''}"
                 id="dc_tooth_${toothNum}"
                 onclick="dcSelectTooth('${toothNum}',event)">
-        <svg class="dc-tooth-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+        <svg class="dc-tooth-svg" viewBox="-10 -10 100 100" xmlns="http://www.w3.org/2000/svg">
             ${wedges}
             <circle cx="40" cy="40" r="12" fill="${oc.fill}" stroke="${oc.stroke}" stroke-width="1.2"
                 onclick="dcSelectSurface('O',event)" style="cursor:pointer;"/>
             <text x="40" y="40" text-anchor="middle" dominant-baseline="middle"
                 fill="${oc.text}" font-size="8" font-weight="600" font-family=${FF}
                 style="pointer-events:none;">O</text>
+            ${highlightOverlay}
         </svg>
         <div class="dc-tooth-num">${toothNum}</div>
     </div>`;
@@ -112,17 +143,23 @@ function dcRefreshTooth(toothNum) {
 function dcSelectTooth(toothNum, event) {
     event?.stopPropagation();
 
-    // Deactivate previous
-    if (DC.activeTooth) {
-        const prev = document.getElementById('dc_tooth_' + DC.activeTooth);
+    const prevTooth = DC.activeTooth;
+
+    if (prevTooth) {
+        const prev = document.getElementById('dc_tooth_' + prevTooth);
         if (prev) prev.classList.remove('dc-active');
     }
 
-    DC.activeTooth  = toothNum;
+    DC.activeTooth = toothNum;
     DC.activeSurface = null;
 
     const el = document.getElementById('dc_tooth_' + toothNum);
     if (el) el.classList.add('dc-active');
+
+    // Re-render both: clears old wedge highlight, and ensures the new
+    // tooth's SVG reflects its "active" state cleanly
+    if (prevTooth && prevTooth !== toothNum) dcRefreshTooth(prevTooth);
+    dcRefreshTooth(toothNum);
 
     dcShowPanel();
 }
@@ -131,34 +168,35 @@ function dcSelectTooth(toothNum, event) {
 function dcSelectSurface(surfKey, event) {
     event?.stopPropagation();
 
-    // If no tooth is active yet, ignore
     if (!DC.activeTooth) return;
 
     DC.activeSurface = surfKey;
 
-    // Update surface button highlights
+    // Update surface button highlights (side panel)
     document.querySelectorAll('.dc-surface-btn').forEach(btn => {
         btn.classList.toggle('dc-surf-active', btn.dataset.surf === surfKey);
     });
 
-    // Show surface picker and pre-fill current condition
-    const picker    = document.getElementById('dcSurfacePicker');
-    const surfLabel = document.getElementById('dcActiveSurface');
-    const surfSel   = document.getElementById('dcSurfCondSelect');
+    // Highlight the clicked wedge directly on the tooth SVG
+    dcRefreshTooth(DC.activeTooth);
 
-    if (picker)    picker.style.display = '';
+    const picker = document.getElementById('dcSurfacePicker');
+    const surfLabel = document.getElementById('dcActiveSurface');
+    const surfSel = document.getElementById('dcSurfCondSelect');
+
+    if (picker) picker.style.display = '';
     if (surfLabel) surfLabel.textContent = surfKey;
 
     if (surfSel) {
-        const entry  = DC.chartData[DC.activeTooth];
-        const surfs  = entry?.surfaces || {};
+        const entry = DC.chartData[DC.activeTooth];
+        const surfs = entry?.surfaces || {};
         surfSel.value = surfs[surfKey]?.condition || entry?.condition || 'healthy';
     }
 }
 
 // ── Show right panel for active tooth ─────────────────────────
 function dcShowPanel() {
-    document.getElementById('dcPanelEmpty').style.display  = 'none';
+    document.getElementById('dcPanelEmpty').style.display = 'none';
     document.getElementById('dcPanelEditor').style.display = '';
     document.getElementById('dcSurfacePicker').style.display = 'none';
 
@@ -174,21 +212,21 @@ function dcShowPanel() {
     // Notes
     const notesEl = document.getElementById('dcToothNotes');
     if (notesEl) {
-        const entry    = DC.chartData[DC.activeTooth];
+        const entry = DC.chartData[DC.activeTooth];
         notesEl.value = entry?.notes || '';
     }
 }
 
 // ── Condition button grid ──────────────────────────────────────
 function dcRenderCondButtons() {
-    const grid  = document.getElementById('dcCondGrid');
+    const grid = document.getElementById('dcCondGrid');
     if (!grid) return;
 
-    const entry   = DC.chartData[DC.activeTooth];
+    const entry = DC.chartData[DC.activeTooth];
     const current = entry?.condition || 'none';
 
     grid.innerHTML = Object.entries(DC_COND_LABELS).map(([key, label]) => {
-        const dot   = `dc-dot-${key}`;
+        const dot = `dc-dot-${key}`;
         const active = key === current ? 'dc-cond-active' : '';
         return `<button class="dc-cond-btn ${active}" onclick="dcSetToothCondition('${key}')">
                     <span class="dc-cond-dot ${dot}"></span>${label}
@@ -204,9 +242,9 @@ function dcRenderSurfaceButtons() {
     const entry = DC.chartData[DC.activeTooth];
     const surfs = entry?.surfaces || {};
 
-    grid.innerHTML = ['B','M','O','L','D'].map(s => {
-        const cond    = surfs[s]?.condition || entry?.condition || 'none';
-        const c       = DC_COND[cond] || DC_COND.none;
+    grid.innerHTML = ['B', 'M', 'O', 'L', 'D'].map(s => {
+        const cond = surfs[s]?.condition || entry?.condition || 'none';
+        const c = DC_COND[cond] || DC_COND.none;
         const isActive = DC.activeSurface === s ? 'dc-surf-active' : '';
         return `<button class="dc-surface-btn ${isActive}" data-surf="${s}"
                     onclick="dcSelectSurface('${s}',event)">
@@ -235,7 +273,7 @@ function dcSetToothCondition(condition) {
 
 // ── Apply surface condition ────────────────────────────────────
 function applySurfaceCondition() {
-    const surf    = DC.activeSurface;
+    const surf = DC.activeSurface;
     const condSel = document.getElementById('dcSurfCondSelect');
     if (!surf || !condSel || !DC.activeTooth) return;
 
@@ -276,7 +314,7 @@ function applyToAllSurfaces() {
         DC.chartData[DC.activeTooth] = { condition: 'healthy', notes: '', surfaces: {} };
     }
 
-    ['B','M','O','L','D'].forEach(s => {
+    ['B', 'M', 'O', 'L', 'D'].forEach(s => {
         DC.chartData[DC.activeTooth].surfaces[s] = { condition, notes: '' };
     });
 
@@ -314,28 +352,28 @@ function dcUpdateChangesBadge() {
     if (!badge || !count) return;
 
     const n = DC.modified.size;
-    badge.style.display    = n > 0 ? '' : 'none !important';
-    badge.style.cssText    = n > 0 ? '' : 'display:none!important';
-    count.textContent      = n;
+    badge.style.display = n > 0 ? '' : 'none !important';
+    badge.style.cssText = n > 0 ? '' : 'display:none!important';
+    count.textContent = n;
 }
 
 // ── Open chart modal ──────────────────────────────────────────
 async function openChartModal(t) {
-    DC.patientId     = t.patient_id;
-    DC.patientName   = t.patient_name;
+    DC.patientId = t.patient_id;
+    DC.patientName = t.patient_name;
     DC.treatmentTooth = t.tooth_number || '';
-    DC.activeTooth   = null;
+    DC.activeTooth = null;
     DC.activeSurface = null;
-    DC.chartData     = {};
-    DC.modified      = new Set();
+    DC.chartData = {};
+    DC.modified = new Set();
 
-    document.getElementById('dc_patient_id').value   = t.patient_id;
+    document.getElementById('dc_patient_id').value = t.patient_id;
     document.getElementById('dc_treatment_tooth').value = t.tooth_number || '';
     document.getElementById('dcModalSubtitle').textContent =
         `${t.patient_name}  ·  ${t.treatment_code}  ·  ${t.service_name}`;
-    document.getElementById('dcPanelEmpty').style.display  = '';
+    document.getElementById('dcPanelEmpty').style.display = '';
     document.getElementById('dcPanelEditor').style.display = 'none';
-    document.getElementById('dcError').style.display       = 'none';
+    document.getElementById('dcError').style.display = 'none';
     dcUpdateChangesBadge();
 
     // Show modal first with loading grid
@@ -344,20 +382,20 @@ async function openChartModal(t) {
 
     // Fetch existing chart data
     try {
-        const res  = await fetch(`api/dental_chart.php?patient_id=${t.patient_id}`);
+        const res = await fetch(`api/dental_chart.php?patient_id=${t.patient_id}`);
         const data = await res.json();
         if (data.success && data.chart) {
             data.chart.forEach(row => {
                 DC.chartData[row.tooth_number] = {
                     condition: row.condition || 'healthy',
-                    notes    : row.notes     || '',
-                    surfaces : {},
+                    notes: row.notes || '',
+                    surfaces: {},
                 };
                 if (row.surfaces) {
                     Object.entries(row.surfaces).forEach(([surf, val]) => {
                         DC.chartData[row.tooth_number].surfaces[surf] = {
                             condition: val.condition || 'healthy',
-                            notes    : val.notes     || '',
+                            notes: val.notes || '',
                         };
                     });
                 }
@@ -387,13 +425,13 @@ async function saveDentalChart() {
         return;
     }
 
-    const btn    = document.getElementById('dcSaveBtn');
+    const btn = document.getElementById('dcSaveBtn');
     const errBox = document.getElementById('dcError');
     errBox.style.display = 'none';
-    btn.disabled  = true;
+    btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving…';
 
-    const source  = document.getElementById('dcSource').value;
+    const source = document.getElementById('dcSource').value;
     const changes = [];
 
     DC.modified.forEach(toothNum => {
@@ -404,31 +442,31 @@ async function saveDentalChart() {
 
         // Whole-tooth change
         changes.push({
-            type        : 'tooth',
+            type: 'tooth',
             tooth_number: toothNum,
-            surface     : null,
-            condition   : entry.condition || 'healthy',
+            surface: null,
+            condition: entry.condition || 'healthy',
             notes,
         });
 
         // Surface changes
         Object.entries(entry.surfaces || {}).forEach(([surf, val]) => {
             changes.push({
-                type        : 'surface',
+                type: 'surface',
                 tooth_number: toothNum,
-                surface     : surf,
-                condition   : val.condition || 'healthy',
-                notes       : val.notes || '',
+                surface: surf,
+                condition: val.condition || 'healthy',
+                notes: val.notes || '',
             });
         });
     });
 
     try {
-        const res  = await fetch('api/dental_chart.php', {
-            method : 'POST',
+        const res = await fetch('api/dental_chart.php', {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body   : JSON.stringify({
-                action    : 'upsert_batch',
+            body: JSON.stringify({
+                action: 'upsert_batch',
                 patient_id: DC.patientId,
                 source,
                 changes,
@@ -436,7 +474,7 @@ async function saveDentalChart() {
         });
         const data = await res.json();
 
-        btn.disabled  = false;
+        btn.disabled = false;
         btn.innerHTML = '<i class="feather-save me-1"></i> Save Chart';
 
         if (data.success) {
@@ -447,20 +485,20 @@ async function saveDentalChart() {
             bootstrap.Modal.getInstance(document.getElementById('dentalChartModal'))?.hide();
 
             Swal.fire({
-                icon : 'success',
+                icon: 'success',
                 title: 'Dental Chart Saved',
-                html : `${data.saved} tooth/surface change(s) saved for <strong>${DC.patientName}</strong>.`,
+                html: `${data.saved} tooth/surface change(s) saved for <strong>${DC.patientName}</strong>.`,
                 timer: 2200,
                 showConfirmButton: false,
             });
         } else {
-            errBox.textContent   = data.message || 'Save failed.';
+            errBox.textContent = data.message || 'Save failed.';
             errBox.style.display = '';
         }
     } catch (e) {
-        btn.disabled  = false;
+        btn.disabled = false;
         btn.innerHTML = '<i class="feather-save me-1"></i> Save Chart';
-        errBox.textContent   = 'Network error. Please try again.';
+        errBox.textContent = 'Network error. Please try again.';
         errBox.style.display = '';
     }
 }

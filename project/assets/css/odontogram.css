@@ -1,0 +1,493 @@
+/* =============================================================
+   assets/css/odontogram.css
+   Shared dental chart (odontogram) — drawn by assets/js/odontogram.js.
+   Used by the patient portal (portal-dashboard.php → My Dental Chart)
+   and the admin Start Treatment modal (treatments-active.php), so
+   both show the same teeth, numbering, colours and legend.
+   Page-specific layout (cards, details panel) stays in each page's CSS.
+   ============================================================= */
+
+.odo-chart,
+.odo-legend,
+.odo-badge,
+.odo-surface-svg,
+.odo-panel,
+.odo-state,
+.odo-extra {
+  --odo-primary: var(--primary, #2563eb);
+  --odo-primary-light: var(--primary-light, #eff6ff);
+  --odo-primary-dark: var(--primary-dark, #1d4ed8);
+  --odo-text: var(--text-dark, #1e293b);
+  --odo-muted: var(--text-muted, #64748b);
+  --odo-border: var(--border, #e2e8f0);
+}
+
+/* Legend */
+.odo-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1rem;
+}
+.odo-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--odo-text);
+  white-space: nowrap;
+}
+.odo-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1.5px solid transparent;
+  flex-shrink: 0;
+}
+.odo-sw-healthy     { background: #ffffff; border-color: #22c55e; }
+.odo-sw-filled      { background: #3b82f6; border-color: #1d4ed8; }
+.odo-sw-decay       { background: #ef4444; border-color: #b91c1c; }
+.odo-sw-crown       { background: #f59e0b; border-color: #b45309; }
+.odo-sw-impacted    { background: #8b5cf6; border-color: #6d28d9; }
+.odo-sw-impacted_ne { background: repeating-linear-gradient(45deg, #ede9fe 0 2px, #8b5cf6 2px 3.5px); border: 1.5px dashed #8b5cf6; }
+.odo-sw-missing     { background: transparent; border: 1.5px dashed #94a3b8; }
+.odo-sw-none        { background: #f1f5f9; border-color: #cbd5e1; }
+.odo-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #475569;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #cbd5e1;
+  margin: 0 2px;
+}
+
+/* Arches */
+.odo-sides {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--odo-muted);
+  margin-bottom: 0.25rem;
+}
+.odo-arch-label {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--odo-primary);
+  margin: 0.15rem 0 0.35rem;
+}
+.odo-row {
+  display: flex;
+  gap: 0;
+}
+.odo-half {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.odo-half-r {
+  border-right: 2px dashed #cbd5e1;     /* midline */
+  padding-right: 0.35rem;
+}
+.odo-half-l {
+  padding-left: 0.35rem;
+}
+.odo-half-label {
+  display: none;                         /* shown on narrow screens only */
+}
+.odo-teeth {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+}
+.odo-occlusal {
+  height: 1px;
+  margin: 0.35rem 0;
+  background: linear-gradient(90deg, transparent, #bfdbfe 15%, #bfdbfe 85%, transparent);
+}
+
+/* Tooth button */
+.odo-tooth {
+  flex: var(--w) 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 1px;
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  transform: translateY(var(--arc, 0px));
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.odo-tooth:hover {
+  background: var(--odo-primary-light);
+}
+.odo-tooth:focus-visible {
+  outline: none;
+  border-color: var(--odo-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+.odo-tooth.is-selected {
+  background: var(--odo-primary-light);
+  border-color: var(--odo-primary);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.18);
+}
+.odo-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.odo-num {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--odo-muted);
+  line-height: 1.2;
+  padding: 0 4px;
+  border-radius: 6px;
+}
+.odo-tooth.is-selected .odo-num {
+  background: var(--odo-primary);
+  color: #fff;
+}
+
+/* Tooth parts */
+.odo-root {
+  fill: #f8fafc;
+  stroke: #cbd5e1;
+  stroke-width: 1.2;
+}
+.odo-crown {
+  fill: #f1f5f9;
+  stroke: #cbd5e1;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+.odo-c-healthy .odo-crown     { fill: #ffffff; stroke: #22c55e; }
+.odo-c-filled .odo-crown      { fill: #3b82f6; stroke: #1d4ed8; }
+.odo-c-decay .odo-crown       { fill: #ef4444; stroke: #b91c1c; }
+.odo-c-crown .odo-crown       { fill: #fbbf24; stroke: #b45309; }
+.odo-c-impacted .odo-crown    { fill: #8b5cf6; stroke: #6d28d9; }
+.odo-c-impacted_ne .odo-crown { fill: url(#odoHatch); stroke: #8b5cf6; stroke-dasharray: 3 2; }
+.odo-c-impacted_ne .odo-root  { stroke: #c4b5fd; stroke-dasharray: 3 2; }
+.odo-c-missing .odo-crown,
+.odo-c-missing .odo-root      { fill: none; stroke: #94a3b8; stroke-dasharray: 3 2.5; }
+.odo-c-missing .odo-svg       { opacity: 0.75; }
+.odo-c-other .odo-crown       { fill: #e2e8f0; stroke: #64748b; }
+.odo-band {
+  stroke: #92400e;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.odo-x {
+  stroke: #64748b;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.odo-dot {
+  stroke: #ffffff;
+  stroke-width: 1.6;
+}
+
+/* Condition badges */
+.odo-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 50px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.odo-badge-healthy     { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+.odo-badge-filled      { background: var(--odo-primary-light); color: var(--odo-primary-dark); border-color: #bfdbfe; }
+.odo-badge-decay       { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.odo-badge-crown       { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+.odo-badge-impacted    { background: #f5f3ff; color: #5b21b6; border-color: #ddd6fe; }
+.odo-badge-impacted_ne { background: #f5f3ff; color: #6d28d9; border: 1px dashed #a78bfa; }
+.odo-badge-missing     { background: #f1f5f9; color: #475569; border: 1px dashed #94a3b8; }
+.odo-badge-none        { background: #f8fafc; color: var(--odo-muted); border-color: var(--odo-border); }
+.odo-badge-other       { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+
+/* Surface diagram (B / M / O / L / D) */
+.odo-surface-svg {
+  width: 86px;
+  height: 86px;
+  flex-shrink: 0;
+}
+.odo-surface-svg path,
+.odo-surface-svg circle {
+  stroke-width: 1.3;
+}
+.odo-surface-svg text {
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: auto;   /* vertical centring comes from dy="0.35em" on each label */
+  fill: #334155;
+  pointer-events: none;
+}
+.odo-s-healthy     { fill: #ffffff; stroke: #22c55e; }
+.odo-s-filled      { fill: #93c5fd; stroke: #1d4ed8; }
+.odo-s-decay       { fill: #fca5a5; stroke: #b91c1c; }
+.odo-s-crown       { fill: #fde68a; stroke: #b45309; }
+.odo-s-impacted    { fill: #c4b5fd; stroke: #6d28d9; }
+.odo-s-impacted_ne { fill: url(#odoHatch); stroke: #8b5cf6; }
+.odo-s-missing     { fill: #f8fafc; stroke: #94a3b8; stroke-dasharray: 3 2; }
+.odo-s-none,
+.odo-s-other       { fill: #f1f5f9; stroke: #cbd5e1; }
+
+/* Narrow screens: each arch splits into right / left halves so teeth stay tappable */
+@media (max-width: 575.98px) {
+  .odo-sides {
+    display: none;
+  }
+  .odo-row {
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .odo-half-r,
+  .odo-half-l {
+    border-right: none;
+    padding: 0;
+  }
+  .odo-half-label {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--odo-muted);
+    margin-bottom: 0.2rem;
+  }
+  .odo-tooth {
+    transform: none;                    /* no arch curve when split */
+  }
+}
+
+/* ── Opt-in: planned-procedure marker (Start Treatment) ── */
+.odo-tooth.is-planned { position: relative; }
+.odo-tooth.is-planned::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #0ea5e9;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #0284c7;
+}
+.odo-tooth.is-planned:not(.is-selected) .odo-num { color: #0369a1; }
+
+/* ── Opt-in: pickable surfaces (surfaceDiagram(entry, { pickable: true })) ── */
+.odo-surface-svg.is-pickable .odo-s-pick { cursor: pointer; transition: opacity 0.15s, stroke-width 0.15s; }
+.odo-surface-svg.is-pickable .odo-s-pick:hover { opacity: 0.8; }
+.odo-surface-svg.is-pickable .odo-s-pick:focus { outline: none; stroke: var(--odo-primary, #2563eb); stroke-width: 2.4; }
+.odo-surface-svg.is-pickable .odo-s-pick.is-picked { fill: #0ea5e9; stroke: #0369a1; stroke-width: 2.2; }
+
+/* ── Tooth details panel + load states (portal My Dental Chart, admin Patient Record) ──
+   The panel container (.odo-panel position / size) and page layout stay in each page CSS. */
+.odo-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 2.5rem 1rem;
+  font-size: 0.875rem;
+  color: var(--odo-muted);
+}
+.odo-state-error {
+  color: #dc2626;
+}
+.odo-extra {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  color: var(--odo-muted);
+  text-align: center;
+}
+
+.odo-panel-empty {
+  text-align: center;
+  padding: 2rem 0.75rem;
+}
+.odo-panel-empty-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--odo-primary-light);
+  color: var(--odo-primary);
+  font-size: 1.15rem;
+  margin-bottom: 0.65rem;
+}
+.odo-panel-empty-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+.odo-panel-empty p {
+  font-size: 0.82rem;
+  color: var(--odo-muted);
+  margin: 0;
+}
+.odo-p-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--odo-border);
+}
+.odo-p-num {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: var(--odo-primary-light);
+  color: var(--odo-primary);
+  font-weight: 800;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.odo-p-titles {
+  min-width: 0;
+  flex: 1;
+}
+.odo-p-title {
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--odo-text);
+  line-height: 1.2;
+}
+.odo-p-name {
+  font-size: 0.78rem;
+  color: var(--odo-muted);
+}
+.odo-p-badge {
+  flex-shrink: 0;
+}
+.odo-p-section {
+  padding: 0.85rem 0;
+  border-bottom: 1px solid #eef2f7;
+}
+.odo-p-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0.2rem;
+}
+.odo-p-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--odo-muted);
+  margin-bottom: 0.5rem;
+}
+.odo-p-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--odo-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.odo-p-muted {
+  margin: 0.4rem 0 0;
+  font-size: 0.82rem;
+  color: var(--odo-muted);
+  font-style: italic;
+}
+.odo-p-meta {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--odo-muted);
+}
+.odo-p-note {
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--odo-muted);
+  overflow-wrap: anywhere;
+}
+
+
+/* Surface diagram */
+.odo-p-surfaces {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+.odo-p-surface-list {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+}
+.odo-p-surface {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+.odo-p-skey {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--odo-primary-light);
+  color: var(--odo-primary);
+  font-weight: 800;
+  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* History */
+.odo-p-history {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 0.9rem;
+  border-left: 2px solid #dbeafe;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  font-size: 0.82rem;
+}
+.odo-p-history li {
+  position: relative;
+}
+.odo-p-history li::before {
+  content: "";
+  position: absolute;
+  left: calc(-0.9rem - 5px);
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--odo-primary);
+  box-shadow: 0 0 0 2px #fff;
+}
+.odo-p-hdate {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--odo-muted);
+  margin-bottom: 0.15rem;
+}
+.odo-p-arrow {
+  color: var(--odo-muted);
+  margin: 0 0.1rem;
+}

@@ -4,6 +4,22 @@
    Depends on: admin.js, sweetalert2
    ============================================================= */
 
+const BRN_DEFAULT_DAYS = [1, 2, 3, 4, 5, 6]; // Mon–Sat
+
+// Tick the day buttons for a list of weekday numbers (0 = Sun … 6 = Sat)
+function setBranchDays(days) {
+    const list = Array.isArray(days) && days.length ? days.map(Number) : BRN_DEFAULT_DAYS;
+    document.querySelectorAll('.brn-day').forEach(cb => {
+        cb.checked = list.includes(Number(cb.value));
+    });
+}
+
+function getBranchDays() {
+    return Array.from(document.querySelectorAll('.brn-day:checked'))
+        .map(cb => Number(cb.value))
+        .sort((a, b) => a - b);
+}
+
 function openAddBranchModal() {
     document.getElementById('brnModalTitle').textContent   = 'Add Branch';
     document.getElementById('brn_id').value                = '';
@@ -13,6 +29,7 @@ function openAddBranchModal() {
     document.getElementById('brn_open').value              = '09:00';
     document.getElementById('brn_close').value             = '17:00';
     document.getElementById('brn_status').value            = 'active';
+    setBranchDays(BRN_DEFAULT_DAYS);
     document.getElementById('brnModalError').style.display = 'none';
     new bootstrap.Modal(document.getElementById('branchModal')).show();
 }
@@ -26,6 +43,7 @@ function openEditBranchModal(brn) {
     document.getElementById('brn_open').value              = brn.open_time      ? brn.open_time.substring(0,5)  : '';
     document.getElementById('brn_close').value             = brn.close_time     ? brn.close_time.substring(0,5) : '';
     document.getElementById('brn_status').value            = brn.status         || 'active';
+    setBranchDays(brn.operating_days);
     document.getElementById('brnModalError').style.display = 'none';
     new bootstrap.Modal(document.getElementById('branchModal')).show();
 }
@@ -36,6 +54,7 @@ function viewBranch(brn) {
     document.getElementById('bv_address').textContent = brn.address        || '—';
     document.getElementById('bv_contact').textContent = brn.contact_number || '—';
     const fmt = t => t ? new Date('1970-01-01T' + t).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }) : '—';
+    document.getElementById('bv_days').textContent    = brn.days_label     || '—';
     document.getElementById('bv_hours').textContent   = fmt(brn.open_time) + ' – ' + fmt(brn.close_time);
     document.getElementById('bv_status').textContent  = brn.status ? brn.status.charAt(0).toUpperCase() + brn.status.slice(1) : '—';
     new bootstrap.Modal(document.getElementById('branchViewModal')).show();
@@ -53,10 +72,21 @@ function saveBranch() {
         contact_number: document.getElementById('brn_contact').value.trim(),
         open_time:      document.getElementById('brn_open').value,
         close_time:     document.getElementById('brn_close').value,
+        operating_days: getBranchDays(),
         status:         document.getElementById('brn_status').value,
     };
 
     errBox.style.display = 'none';
+    if (!payload.operating_days.length) {
+        errBox.textContent   = 'Please select at least one operating day.';
+        errBox.style.display = 'block';
+        return;
+    }
+    if (!payload.open_time || !payload.close_time || payload.close_time <= payload.open_time) {
+        errBox.textContent   = 'Close time must be later than open time.';
+        errBox.style.display = 'block';
+        return;
+    }
     btn.disabled  = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
 

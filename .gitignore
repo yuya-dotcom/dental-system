@@ -1,0 +1,22 @@
+# Local secrets (UniSMS API key etc.) — see project/config/secrets.example.php
+/project/config/secrets.php
+
+# Reminder run logs (contain appointment references)
+/project/cron/logs/
+
+# Local-only credentials and patient data
+/project/assets/json/client_secret*.json
+# Uploaded patient files stay local; only the no-execute .htaccess is tracked
+/project/uploads/*
+!/project/uploads/.htaccess
+
+# Deploy-time copy of the root vendor/ (made by .github/workflows/deploy.yml)
+/project/vendor/
+
+# Local installer
+/Composer-Setup.exe
+
+# Environment files
+/.env
+/project/.env
+/project/config/.env

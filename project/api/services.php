@@ -1,9 +1,10 @@
 <?php
 // =============================================================
 //  api/services.php
-//  GET — fetch all active services
-//  GET ?service_id=X — fetch single service
+//  GET — list services (used by admin appointment modal picker)
+//  Supports: ?status=active|inactive|all  ?limit=N
 // =============================================================
+
 session_start();
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../controllers/auth_controller.php';
@@ -11,17 +12,29 @@ require_once __DIR__ . '/../controllers/auth_controller.php';
 header('Content-Type: application/json');
 requireLogin();
 
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    echo json_encode(['success' => false, 'message' => 'Method not allowed.']);
+    exit;
+}
+
+$status    = trim($_GET['status']     ?? 'active');
+$limit     = max(1, min(500, (int)($_GET['limit'] ?? 200)));
 $serviceId = isset($_GET['service_id']) ? (int)$_GET['service_id'] : 0;
 
-$q = 'select=service_id,service_name,service_type,base_price&status=neq.inactive&order=service_name.asc';
-if ($serviceId) $q .= '&service_id=eq.' . $serviceId;
+$query = 'select=service_id,service_name,service_type,base_price,status,requires_tooth_selection,chart_outcome'
+       . '&order=service_name.asc'
+       . '&limit=' . $limit;
 
-$res = supabase_request('services', 'GET', [], $q);
+// Single service lookup — bypass status filter so inactive services still load
+if ($serviceId > 0) {
+    $query .= '&service_id=eq.' . $serviceId;
+} elseif ($status !== 'all') {
+    $query .= '&status=eq.' . urlencode($status);
+}
 
-// treatments.js expects 'price' for autoFillCost — map base_price to price
-$data = array_map(function($s) {
-    $s['price'] = $s['base_price'] ?? null;
-    return $s;
-}, $res['data'] ?? []);
+$res  = supabase_request('services', 'GET', [], $query);
+$list = is_array($res['data']) ? $res['data'] : [];
 
-echo json_encode($data);
+// Return a flat array — consistent with what the portal uses
+echo json_encode($list);

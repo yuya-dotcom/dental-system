@@ -25,7 +25,8 @@ const INV_PER_PAGE = 10;
  * All treatments ordered by treatment_code.
  * Used by: treatments-records.php
  */
-function getTreatmentRecords(int $page, int $branchId, string $status): array
+// $order: validated 'order=…' clause; $extra: prebuilt PostgREST filters (list_filters.php)
+function getTreatmentRecords(int $page, int $branchId, string $status, string $order = 'order=treatment_code.asc', array $extra = []): array
 {
     $offset = ($page - 1) * TRT_PER_PAGE;
 
@@ -34,10 +35,13 @@ function getTreatmentRecords(int $page, int $branchId, string $status): array
             . 'tooth_number,cost,procedure_notes,appointment_id,patient_id,'
             . 'dentist_id,branch_id,service_id,'
             . 'patients(full_name),branches(branch_name),'
-            . 'dentists(full_name),services(service_name,requires_tooth_selection)',
-        'order=treatment_code.asc',
+            . 'dentists(full_name),services(service_name,requires_tooth_selection),'
+            . 'appointments!treatments_appointment_id_fkey(appointment_code,appointment_time),'
+            . 'treatment_procedures(tooth_number,surfaces,unit_price,status,services(service_name))',
+        $order,
         'limit='  . TRT_PER_PAGE,
         'offset=' . $offset,
+        ...$extra,
     ];
 
     if ($branchId > 0) $q[] = 'branch_id=eq.' . $branchId;
@@ -54,6 +58,30 @@ function getTreatmentRecords(int $page, int $branchId, string $status): array
     $rows   = is_array($result['data']) ? $result['data'] : [];
     $total  = resolveCount($result, 'treatments', $q);
 
+    // Build appointment_id => appointment_code for the rows on this page
+    // (one batched request), then merge it into each row.
+    $apptCodeMap = [];
+    $apptIds = array_values(array_unique(array_filter(
+        array_map(fn($r) => (int)($r['appointment_id'] ?? 0), $rows)
+    )));
+    if ($apptIds) {
+        $apptRes = supabase_request(
+            'appointments',
+            'GET',
+            [],
+            'appointment_id=in.(' . implode(',', $apptIds) . ')&select=appointment_id,appointment_code'
+        );
+        foreach (($apptRes['data'] ?? []) as $a) {
+            $apptCodeMap[(int)$a['appointment_id']] = $a['appointment_code'] ?? '—';
+        }
+    }
+
+    foreach ($rows as &$row) {
+        $aid = isset($row['appointment_id']) ? (int)$row['appointment_id'] : null;
+        $row['appointment_code'] = $aid ? ($apptCodeMap[$aid] ?? '—') : '—';
+    }
+    unset($row);
+
     return buildPageResult($rows, $total, $page, $offset, TRT_PER_PAGE);
 }
 
@@ -62,16 +90,21 @@ function getTreatmentRecords(int $page, int $branchId, string $status): array
  * whose linked appointment is checked_in (or has no appointment).
  * Used by: treatments-active.php
  */
-function getActiveTreatments(int $page, int $branchId): array
+// $order: validated 'order=…' clause; $extra: prebuilt PostgREST filters (list_filters.php)
+function getActiveTreatments(int $page, int $branchId, string $order = 'order=treatment_date.asc', array $extra = []): array
 {
     $offset = ($page - 1) * TRT_PER_PAGE;
 
     // Step 1: Get all checked_in appointment IDs for this branch
-    $apptQ = ['select=appointment_id', 'status=eq.checked_in', 'limit=500'];
+    $apptQ = ['select=appointment_id,appointment_code', 'status=eq.checked_in', 'limit=500'];
     if ($branchId > 0) $apptQ[] = 'branch_id=eq.' . $branchId;
     $apptRes      = supabase_request('appointments', 'GET', [], implode('&', $apptQ));
-    $checkedInIds = array_column(is_array($apptRes['data']) ? $apptRes['data'] : [], 'appointment_id');
-
+    $apptData     = is_array($apptRes['data']) ? $apptRes['data'] : [];
+    $checkedInIds = array_column($apptData, 'appointment_id');
+    $apptCodeMap  = [];
+    foreach ($apptData as $a) {
+        $apptCodeMap[(int)$a['appointment_id']] = $a['appointment_code'] ?? '—';
+    }
     if (empty($checkedInIds)) {
         return buildPageResult([], 0, $page, $offset, TRT_PER_PAGE);
     }
@@ -86,14 +119,21 @@ function getActiveTreatments(int $page, int $branchId): array
             . 'dentists(full_name),services(service_name,requires_tooth_selection)',
         'appointment_id=in.(' . $idList . ')',
         'status=in.(pending,ongoing,in_progress)',
-        'order=treatment_date.asc',
+        $order,
         'limit='  . TRT_PER_PAGE,
         'offset=' . $offset,
+        ...$extra,
     ];
 
     $result = supabase_request('treatments', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
     $rows   = is_array($result['data']) ? $result['data'] : [];
     $total  = resolveCount($result, 'treatments', $q);
+
+    foreach ($rows as &$row) {
+        $aid = isset($row['appointment_id']) ? (int)$row['appointment_id'] : null;
+        $row['appointment_code'] = $aid ? ($apptCodeMap[$aid] ?? '—') : '—';
+    }
+    unset($row);
 
     return buildPageResult($rows, $total, $page, $offset, TRT_PER_PAGE);
 }
@@ -106,17 +146,19 @@ function getActiveTreatments(int $page, int $branchId): array
  * All invoices ordered by invoice_code.
  * Used by: sales-records.php
  */
-function getInvoiceRecords(int $page, int $branchId, string $paymentStatus): array
+// $order: validated 'order=…' clause; $extra: prebuilt PostgREST filters (list_filters.php)
+function getInvoiceRecords(int $page, int $branchId, string $paymentStatus, string $order = 'order=invoice_code.asc', array $extra = []): array
 {
     $offset = ($page - 1) * INV_PER_PAGE;
 
     $q = [
         'select=invoice_id,invoice_code,invoice_date,total_amount,amount_paid,'
-            . 'balance,payment_status,patient_id,branch_id,'
-            . 'patients(full_name),branches(branch_name),treatments(treatment_code)',
-        'order=invoice_code.asc',
+            . 'balance,payment_status,patient_id,branch_id,appointment_id,created_at,'
+            . 'patients(full_name,patient_code),branches(branch_name),treatments(treatment_code)',
+        $order,
         'limit='  . INV_PER_PAGE,
         'offset=' . $offset,
+        ...$extra,
     ];
 
     if ($branchId > 0)     $q[] = 'branch_id=eq.'      . $branchId;

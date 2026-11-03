@@ -439,3 +439,440 @@
     font-size: .7rem;
     margin-top: 1px;
 }
+
+/* ══ Start Treatment modal (treatments-active.php #workModal) ═══════════════════
+   Same look as the Check In Patient modal; the chart itself is the shared
+   odontogram (assets/css/odontogram.css). */
+#workModal {
+    --tw-blue: #2563eb;
+    --tw-blue-soft: #eff5ff;
+    --tw-navy: #0f2a5c;
+    --tw-text: #334155;
+    --tw-muted: #64748b;
+    --tw-border: #e2e8f0;
+    --tw-surface: #f8fafc;
+}
+#workModal .tw-dialog { max-width: 1180px; }
+#workModal .tw-modal { border: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 24px 60px rgba(15, 42, 92, 0.18); }
+
+/* Header */
+#workModal .tw-header { align-items: flex-start; gap: 12px; padding: 20px 24px 16px; background: #fff; border-bottom: 1px solid var(--tw-border); }
+#workModal .tw-header-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
+#workModal .tw-header-icon {
+    flex-shrink: 0; width: 42px; height: 42px; border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--tw-blue-soft); color: var(--tw-blue);
+}
+#workModal .tw-header-icon i { font-size: 20px; }
+#workModal .tw-header-text { min-width: 0; }
+#workModal .tw-title { margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--tw-navy); line-height: 1.3; }
+#workModal .tw-subtitle { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 6px 0 0; }
+#workModal .tw-meta {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 999px;
+    background: var(--tw-surface); border: 1px solid var(--tw-border);
+    font-size: 0.78rem; font-weight: 600; color: var(--tw-text);
+    max-width: 100%; overflow-wrap: anywhere;
+}
+#workModal .tw-meta i { font-size: 12px; color: var(--tw-muted); }
+#workModal .tw-meta-patient { background: var(--tw-blue-soft); border-color: #d6e4ff; color: var(--tw-blue); }
+#workModal .tw-meta-patient i { color: var(--tw-blue); }
+#workModal .tw-close { margin: 2px 0 0 auto; padding: 8px; border-radius: 8px; }
+
+/* Body + sections */
+#workModal .tw-body { padding: 20px 24px; color: var(--tw-text); }
+#workModal .tw-section + .tw-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--tw-border); }
+#workModal .tw-section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 12px; }
+#workModal .tw-section-head .tw-section-title { margin: 0; }
+#workModal .tw-section-title {
+    display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tw-muted);
+}
+#workModal .tw-section-title i { font-size: 14px; color: var(--tw-blue); }
+#workModal .tw-section-hint { font-size: 0.8rem; color: var(--tw-muted); }
+#workModal .tw-add-btn { margin-left: auto; }
+
+#workModal .tw-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+#workModal .tw-field { min-width: 0; }
+#workModal .tw-span-full { grid-column: 1 / -1; }
+#workModal .tw-label { display: block; margin-bottom: 6px; font-size: 0.8rem; font-weight: 600; color: var(--tw-navy); }
+#workModal .tw-req { color: #d92d20; font-weight: 700; }
+#workModal .tw-optional { font-weight: 400; color: var(--tw-muted); }
+#workModal .tw-input {
+    height: 42px; padding: 8px 12px;
+    border: 1px solid #cfd8e3; border-radius: 10px;
+    font-size: 0.88rem; color: var(--tw-navy); box-shadow: none;
+}
+#workModal .tw-input:focus { border-color: var(--tw-blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
+#workModal .tw-textarea { height: auto; min-height: 84px; resize: vertical; line-height: 1.5; }
+#workModal .tw-input-prefix { position: relative; }
+#workModal .tw-input-prefix .tw-input { padding-left: 34px; }
+#workModal .tw-prefix { position: absolute; top: 50%; left: 13px; transform: translateY(-50%); font-weight: 600; color: var(--tw-muted); pointer-events: none; }
+#workModal .tw-hint { margin-top: 5px; font-size: 0.76rem; color: var(--tw-muted); min-height: 1em; }
+/* Dentist dropdown (shared custom select) matches the fields */
+#workModal .modal-cs-trigger { height: 42px; }
+#workModal .modal-cs:not(.open) .modal-cs-trigger { border-radius: 10px; }
+
+/* Service chips */
+#workModal .tw-services {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    min-height: 42px; padding: 6px 10px;
+    background: var(--tw-surface); border: 1px solid var(--tw-border); border-radius: 10px;
+}
+#workModal .tw-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px 3px 4px; border-radius: 999px;
+    background: var(--tw-blue-soft); border: 1px solid #d6e4ff; color: #1d4ed8;
+    font-size: 0.78rem; font-weight: 600; white-space: nowrap;
+}
+#workModal .tw-chip-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--tw-blue); color: #fff; font-size: 0.64rem; font-weight: 700;
+}
+#workModal .tw-chip-empty { color: #94a3b8; font-size: 0.85rem; }
+
+/* Chart card */
+#workModal .tw-chart-card { border: 1px solid var(--tw-border); border-radius: 12px; overflow: hidden; background: #fff; }
+#workModal .tw-legend { padding: 10px 14px; border-bottom: 1px solid var(--tw-border); background: var(--tw-surface); gap: 0.4rem 0.9rem; }
+#workModal .tw-chart { padding: 14px 14px 10px; }
+#workModal .tw-chart-loading { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 28px 12px; font-size: 0.85rem; color: var(--tw-muted); }
+#workModal .odo-sides i { font-size: 11px; }
+
+#workModal .tw-tooth-info {
+    display: flex; align-items: flex-start; gap: 14px;
+    margin: 0 14px 12px; padding: 10px 12px;
+    border: 1px solid var(--tw-border); border-radius: 10px; background: var(--tw-surface);
+}
+#workModal .tw-tooth-info .odo-surface-svg { width: 64px; height: 64px; }
+#workModal .tw-ti-main { min-width: 0; flex: 1; }
+#workModal .tw-ti-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+#workModal .tw-ti-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 26px; height: 26px; padding: 0 6px; border-radius: 8px;
+    background: var(--tw-blue); color: #fff; font-size: 0.8rem; font-weight: 700;
+}
+#workModal .tw-ti-name { font-size: 0.86rem; font-weight: 700; color: var(--tw-navy); }
+#workModal .tw-ti-sel { font-size: 0.74rem; font-weight: 600; color: var(--tw-blue); }
+#workModal .tw-ti-surfaces { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; }
+#workModal .tw-ti-surface { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--tw-text); }
+#workModal .tw-ti-surface b { color: var(--tw-navy); }
+#workModal .tw-ti-muted { margin-top: 6px; font-size: 0.8rem; color: var(--tw-muted); }
+#workModal .tw-ti-note { margin-top: 6px; font-size: 0.8rem; color: var(--tw-text); font-style: italic; overflow-wrap: anywhere; }
+
+#workModal .tw-selection {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+    padding: 10px 14px; border-top: 1px solid var(--tw-border); background: var(--tw-surface);
+    font-size: 0.82rem; color: var(--tw-muted);
+}
+#workModal .tw-selection strong { color: var(--tw-navy); }
+#workModal .tw-count { color: var(--tw-muted); }
+#workModal .tw-link-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    border: 0; background: none; padding: 2px 6px; border-radius: 6px;
+    font-size: 0.8rem; font-weight: 600; color: #d92d20;
+}
+#workModal .tw-link-btn:hover { background: #fef3f2; }
+
+/* Materials table */
+#workModal .tw-table { border: 1px solid var(--tw-border); border-radius: 12px; }
+#workModal .tw-table thead th {
+    background: var(--tw-surface); border-bottom: 1px solid var(--tw-border);
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--tw-muted);
+    padding: 10px 12px;
+}
+#workModal .tw-table tbody td { padding: 8px 12px; vertical-align: middle; font-size: 0.85rem; }
+
+#workModal .tw-error {
+    margin-bottom: 16px; padding: 10px 14px; border-radius: 10px;
+    border: 1px solid #fecdca; background: #fef3f2; color: #b42318;
+    font-size: 0.84rem; font-weight: 500;
+}
+
+/* Stock shortage (plan materials vs. branch stock) */
+#workModal .tw-stock-alert .tw-stock-title { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+#workModal .tw-stock-alert ul { margin: 6px 0 0; padding-left: 20px; font-weight: 400; }
+#workModal .tw-stock-alert li { margin: 2px 0; }
+#workModal .tw-stock-alert .tw-stock-note { margin-top: 6px; font-size: 0.78rem; font-weight: 400; }
+
+/* Footer */
+#workModal .tw-footer {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 24px; background: var(--tw-surface); border-top: 1px solid var(--tw-border);
+}
+#workModal .tw-footer > * { margin: 0; }
+#workModal .tw-footnote { font-size: 0.78rem; color: var(--tw-muted); }
+#workModal .tw-actions { display: flex; gap: 0.5rem; }
+
+@media (max-width: 767.98px) {
+    #workModal .tw-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 575.98px) {
+    #workModal .tw-dialog { margin: 0.5rem; }
+    #workModal .tw-header, #workModal .tw-body { padding-left: 16px; padding-right: 16px; }
+    #workModal .tw-chart { padding: 12px 10px 8px; }
+    #workModal .tw-tooth-info { margin: 0 10px 10px; }
+    #workModal .tw-add-btn { margin-left: 0; }
+    #workModal .tw-footer { flex-direction: column-reverse; align-items: stretch; padding: 12px 16px; }
+    #workModal .tw-footnote { text-align: center; }
+    #workModal .tw-actions { display: grid; grid-template-columns: 1fr 1fr; }
+}
+/* ── Work modal: read-only stage, cost breakdown, clinical findings ── */
+#workModal .tw-readonly { background: var(--tw-surface); color: var(--tw-navy); font-weight: 600; cursor: default; }
+#workModal .tw-readonly:focus { box-shadow: none; border-color: var(--tw-border); }
+#workModal .tw-cost-breakdown {
+    margin-top: 8px; padding: 8px 12px;
+    border: 1px solid var(--tw-border); border-radius: 10px; background: var(--tw-surface);
+    font-size: 0.8rem; color: var(--tw-text);
+}
+#workModal .tw-cb-row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
+#workModal .tw-cb-row span:first-child { min-width: 0; overflow-wrap: anywhere; }
+#workModal .tw-cb-row span:last-child { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+#workModal .tw-cb-adj { color: #b45309; }
+#workModal .tw-cb-total { margin-top: 4px; padding-top: 6px; border-top: 1px dashed var(--tw-border); font-weight: 700; color: var(--tw-navy); }
+#workModal .tw-findings-list { list-style: none; margin: 8px 0 0; padding: 0; font-size: 0.8rem; color: var(--tw-text); }
+#workModal .tw-findings-list li {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 6px 10px; margin-top: 4px;
+    border: 1px solid var(--tw-border); border-radius: 8px; background: var(--tw-blue-soft);
+    overflow-wrap: anywhere;
+}
+
+
+/* ── Start Treatment: tooth-centered planner ─────────────────────── */
+#workModal .tw-planner { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, 1fr); gap: 14px; align-items: start; }
+#workModal .tw-chart-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#workModal .tw-chart-scroll .tw-chart { min-width: 560px; }
+#workModal .tw-planned-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #0ea5e9; box-shadow: 0 0 0 1px #0284c7; }
+
+#workModal .tw-tooth-panel {
+    position: sticky; top: 0;
+    min-width: 0; padding: 14px;
+    border: 1px solid var(--tw-border); border-radius: 12px; background: #fff;
+}
+#workModal .tw-tp-empty { padding: 26px 10px; text-align: center; font-size: 0.84rem; color: var(--tw-muted); }
+#workModal .tw-tp-empty > i { display: block; margin-bottom: 8px; font-size: 1.5rem; color: var(--tw-blue); }
+#workModal .tw-tp-empty .fw-semibold { color: var(--tw-navy); }
+#workModal .tw-tp-jump { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; margin-top: 12px; }
+#workModal .tw-tp-head { display: flex; align-items: center; gap: 10px; }
+#workModal .tw-tp-num {
+    display: inline-grid; place-items: center; flex-shrink: 0;
+    min-width: 40px; height: 40px; padding: 0 6px; border-radius: 10px;
+    background: var(--tw-blue); color: #fff; font-size: 1.05rem; font-weight: 800;
+}
+#workModal .tw-tp-title { min-width: 0; flex: 1; }
+#workModal .tw-tp-name { font-size: 0.9rem; font-weight: 700; color: var(--tw-navy); line-height: 1.25; }
+#workModal .tw-tp-cond { margin-top: 3px; font-size: 0.76rem; color: var(--tw-muted); }
+#workModal .tw-tp-close { align-self: flex-start; font-size: 0.7rem; }
+#workModal .tw-tp-current {
+    display: flex; gap: 10px; align-items: center;
+    margin: 12px 0 4px; padding: 8px 10px;
+    border-radius: 10px; background: var(--tw-surface); font-size: 0.78rem; color: var(--tw-text);
+}
+#workModal .tw-tp-current .odo-surface-svg { width: 58px; height: 58px; }
+#workModal .tw-tp-current-text { min-width: 0; display: grid; gap: 3px; }
+#workModal .tw-tp-label { margin: 14px 0 6px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--tw-muted); }
+
+/* Procedure cards (buttons, aria-pressed) */
+#workModal .tw-proc-grid { display: grid; gap: 8px; }
+#workModal .tw-proc-card {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto;
+    column-gap: 10px; align-items: center; width: 100%;
+    padding: 10px 12px; text-align: left;
+    border: 1.5px solid var(--tw-border); border-radius: 10px; background: #fff;
+    font: inherit; color: var(--tw-text); cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+#workModal .tw-proc-card:hover { border-color: #93c5fd; background: var(--tw-blue-soft); }
+#workModal .tw-proc-card:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); }
+#workModal .tw-proc-card.is-on { border-color: var(--tw-blue); background: var(--tw-blue-soft); box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12); }
+#workModal .tw-proc-check {
+    grid-row: 1 / 3; display: inline-grid; place-items: center;
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 1.5px solid #cbd5e1; color: var(--tw-muted); font-size: 0.8rem;
+}
+#workModal .tw-proc-card.is-on .tw-proc-check { border-color: var(--tw-blue); background: var(--tw-blue); color: #fff; }
+#workModal .tw-proc-name { font-size: 0.86rem; font-weight: 700; color: var(--tw-navy); overflow-wrap: anywhere; }
+#workModal .tw-proc-price { font-size: 0.84rem; font-weight: 700; color: var(--tw-navy); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#workModal .tw-proc-card .tw-proc-tag { grid-column: 2 / 4; justify-self: start; }
+.tw-proc-tag { font-size: 0.68rem; font-weight: 600; color: #64748b; }
+.tw-proc-tag.is-added { display: inline-block; padding: 1px 7px; border-radius: 999px; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+
+/* Inline pickers (searchable list — no dropdown) */
+#workModal .tw-picker { margin-top: 8px; border: 1px solid var(--tw-border); border-radius: 10px; background: #fff; overflow: hidden; }
+#workModal .tw-picker-search { border: 0; border-bottom: 1px solid var(--tw-border); border-radius: 0; box-shadow: none; }
+#workModal .tw-picker-list { max-height: 220px; overflow-y: auto; }
+#workModal .tw-picker-item {
+    display: flex; justify-content: space-between; gap: 10px; width: 100%;
+    padding: 8px 12px; border: 0; border-bottom: 1px solid #f1f5f9; background: #fff;
+    font: inherit; font-size: 0.82rem; color: var(--tw-text); text-align: left; cursor: pointer;
+}
+#workModal .tw-picker-item:hover, #workModal .tw-picker-item:focus-visible { outline: none; background: var(--tw-blue-soft); }
+#workModal .tw-picker-price { font-weight: 700; color: var(--tw-navy); white-space: nowrap; }
+#workModal .tw-picker-empty { padding: 12px; font-size: 0.8rem; color: var(--tw-muted); text-align: center; }
+#workModal .tw-general-picker { margin-bottom: 10px; }
+
+/* Surfaces for a planned procedure */
+#workModal .tw-surf-row { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+#workModal .tw-surf-row:last-of-type { border-bottom: none; }
+#workModal .tw-surf-row .odo-surface-svg { width: 72px; height: 72px; }
+#workModal .tw-surf-text { min-width: 0; font-size: 0.8rem; }
+#workModal .tw-surf-title { font-weight: 700; color: var(--tw-navy); }
+#workModal .tw-surf-value { color: var(--tw-text); }
+#workModal .tw-surf-hint { margin-top: 2px; font-size: 0.72rem; color: var(--tw-muted); }
+
+/* Optional clinical finding (separate from procedures) */
+#workModal .tw-finding { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--tw-border); }
+#workModal .tw-finding summary { cursor: pointer; font-size: 0.82rem; font-weight: 600; color: var(--tw-navy); }
+#workModal .tw-finding-hint { margin: 6px 0 8px; font-size: 0.74rem; color: var(--tw-muted); }
+#workModal .tw-cond-chips, #workModal .tw-surf-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+#workModal .tw-cond-chip, #workModal .tw-surf-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 9px; border: 1.5px solid var(--tw-border); border-radius: 999px; background: #fff;
+    font: inherit; font-size: 0.74rem; font-weight: 600; color: var(--tw-text); cursor: pointer;
+}
+#workModal .tw-cond-chip .odo-swatch { width: 10px; height: 10px; }
+#workModal .tw-cond-chip.is-on, #workModal .tw-surf-chip.is-on { border-color: var(--tw-blue); background: var(--tw-blue-soft); color: var(--tw-blue); }
+#workModal .tw-finding-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 8px; }
+#workModal .tw-finding-row .btn { justify-self: start; }
+
+/* Plan table */
+#workModal .tw-plan-table td, #workModal .tw-plan-table th { vertical-align: middle; font-size: 0.82rem; }
+#workModal .tw-plan-table .tw-num { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+#workModal .tw-tooth-chip {
+    display: inline-grid; place-items: center; min-width: 30px; height: 26px; padding: 0 6px;
+    border: 1.5px solid #bae6fd; border-radius: 8px; background: #f0f9ff;
+    font: inherit; font-size: 0.78rem; font-weight: 800; color: #0369a1; cursor: pointer;
+}
+#workModal .tw-tooth-chip:hover { border-color: #0284c7; }
+#workModal .tw-plan-note { margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: #fffbeb; border: 1px solid #fde68a; font-size: 0.8rem; color: #92400e; }
+#workModal .tw-plan-note i { margin-right: 4px; }
+
+@media (max-width: 991.98px) {
+    #workModal .tw-planner { grid-template-columns: minmax(0, 1fr); }
+    #workModal .tw-tooth-panel { position: static; }
+}
+
+/* ── Start Treatment: stepped layout + roomier spacing ──────────────
+   One section per step (twGoStep), fixed modal height so it doesn't
+   jump between steps, running total in the footer. */
+#workModal .tw-modal { height: min(880px, calc(100vh - 3.5rem)); }
+#workModal .tw-header { padding: 22px 32px 18px; }
+#workModal .tw-body { padding: 28px 32px 32px; }
+
+/* Step bar */
+#workModal .tw-stepbar { padding: 14px 32px; background: var(--tw-surface); border-bottom: 1px solid var(--tw-border); }
+#workModal .tw-steps { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
+#workModal .tw-steps li { display: flex; align-items: center; flex: 1; min-width: 0; }
+#workModal .tw-steps li + li::before {
+    content: ""; flex: 0 0 24px; height: 2px; margin-right: 8px;
+    border-radius: 2px; background: var(--tw-border);
+}
+#workModal .tw-step {
+    display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0;
+    padding: 8px 12px; border: 1.5px solid transparent; border-radius: 12px; background: none;
+    font: inherit; font-size: 0.9rem; font-weight: 600; color: var(--tw-muted); text-align: left; cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+}
+#workModal .tw-step:hover { background: #fff; color: var(--tw-navy); }
+#workModal .tw-step:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); }
+#workModal .tw-step-num {
+    flex-shrink: 0; display: inline-grid; place-items: center;
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 1.5px solid #cbd5e1; background: #fff; font-size: 0.82rem; font-weight: 700;
+}
+#workModal .tw-step-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#workModal .tw-step.is-active { background: #fff; border-color: #c7d7fe; color: var(--tw-navy); box-shadow: 0 2px 8px rgba(15, 42, 92, 0.06); }
+#workModal .tw-step.is-active .tw-step-num { border-color: var(--tw-blue); background: var(--tw-blue); color: #fff; }
+#workModal .tw-step.is-done { color: var(--tw-text); }
+#workModal .tw-step.is-done .tw-step-num { border-color: var(--tw-blue); color: var(--tw-blue); background: var(--tw-blue-soft); }
+
+/* Panes: only one is visible, so drop the stacked-section dividers */
+#workModal .tw-section.tw-pane { margin-top: 0; padding-top: 0; border-top: 0; }
+
+/* Larger, calmer type */
+#workModal .tw-section-title { font-size: 1rem; letter-spacing: 0; text-transform: none; color: var(--tw-navy); margin-bottom: 18px; }
+#workModal .tw-section-title i { font-size: 17px; }
+#workModal .tw-section-head { gap: 6px 14px; margin-bottom: 18px; }
+#workModal .tw-section-hint { font-size: 0.85rem; }
+#workModal .tw-grid { gap: 20px 24px; }
+#workModal .tw-label { margin-bottom: 8px; font-size: 0.86rem; }
+#workModal .tw-input, #workModal .modal-cs-trigger { height: 46px; }
+#workModal .tw-input { font-size: 0.92rem; }
+#workModal .tw-textarea { min-height: 140px; }
+#workModal .tw-hint { font-size: 0.8rem; }
+#workModal .tw-services { min-height: 46px; padding: 8px 12px; gap: 8px; }
+#workModal .tw-chip { padding: 4px 12px 4px 5px; font-size: 0.82rem; }
+
+/* Chart + tooth panel get more breathing room */
+#workModal .tw-planner { gap: 20px; }
+#workModal .tw-chart { padding: 18px 18px 14px; }
+#workModal .tw-tooth-panel { padding: 18px; }
+#workModal .tw-proc-grid { gap: 10px; }
+#workModal .tw-proc-card { padding: 12px 14px; }
+
+/* Tables */
+#workModal .tw-table thead th { padding: 12px 16px; font-size: 0.72rem; }
+#workModal .tw-table tbody td { padding: 12px 16px; font-size: 0.9rem; }
+#workModal .tw-plan-table td, #workModal .tw-plan-table th { font-size: 0.88rem; }
+#workModal .tw-cost-breakdown { padding: 10px 14px; font-size: 0.86rem; }
+
+/* Footer: running total + step buttons */
+#workModal .tw-footer { padding: 16px 32px; }
+#workModal .tw-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0; font-size: 0.88rem; color: var(--tw-muted); }
+#workModal .tw-summary i { margin-right: 6px; font-size: 14px; color: var(--tw-blue); }
+#workModal .tw-sum-count { display: inline-flex; align-items: center; font-weight: 600; color: var(--tw-text); }
+#workModal .tw-sum-total {
+    display: inline-flex; align-items: baseline; gap: 8px;
+    padding: 6px 14px; border-radius: 999px; background: var(--tw-blue-soft);
+    font-size: 1rem; font-weight: 800; color: var(--tw-navy); font-variant-numeric: tabular-nums;
+}
+#workModal .tw-sum-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--tw-muted); }
+#workModal .tw-sum-empty { display: inline-flex; align-items: center; }
+
+@media (max-width: 991.98px) {
+    #workModal .tw-steps li + li::before { flex-basis: 12px; margin-right: 4px; }
+    #workModal .tw-step { gap: 8px; padding: 8px; font-size: 0.84rem; }
+}
+@media (max-width: 767.98px) {
+    /* Numbers only; the active step keeps its label */
+    #workModal .tw-step:not(.is-active) .tw-step-label { display: none; }
+    #workModal .tw-steps li { flex: 0 0 auto; }
+    #workModal .tw-steps li:has(.is-active) { flex: 1; }
+}
+@media (max-width: 575.98px) {
+    #workModal .tw-modal { height: auto; max-height: calc(100vh - 1rem); }
+    #workModal .tw-stepbar { padding: 10px 16px; }
+    #workModal .tw-body { padding: 20px 16px 24px; }
+    #workModal .tw-footer { padding: 12px 16px; }
+    #workModal .tw-summary { justify-content: center; }
+    /* Visible buttons (Cancel/Back/Next or Finish) share one row */
+    #workModal .tw-actions { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+    #workModal .tw-actions .btn { padding-left: 8px; padding-right: 8px; }
+}
+
+/* Dropdown colors: shared staff design (assets/css/custom-select.css, .es-staff) */
+
+/* ── Finish confirmation: total cost row + chart updates ── */
+#finishConfirmModal .es-detail-table tfoot .fc-total-row th {
+    padding-top: 12px; padding-bottom: 12px;
+    border-top: 1px solid var(--ar-border, #e2e8f0); border-bottom: 0;
+    font-size: 1rem; font-weight: 700; color: var(--ar-text, #1e293b);
+}
+#finishConfirmModal .es-detail-table tfoot .fc-total-row #fc_cost { font-size: 1rem; font-weight: 800; color: #15803d; font-variant-numeric: tabular-nums; }
+#finishConfirmModal .fc-chart-row .modal-cs { flex: 0 0 210px; margin-left: auto; }
+#finishConfirmModal .fc-chart-hint { margin: 0.6rem 0; font-size: 0.8rem; color: var(--ar-muted, #64748b); }
+#finishConfirmModal .fc-chart { display: grid; gap: 6px; padding-bottom: 0.6rem; }
+#finishConfirmModal .fc-chart-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 10px; border: 1px solid var(--ar-border, #e2e8f0); border-radius: 10px;
+    font-size: 0.82rem; color: var(--ar-text, #1e293b);
+}
+#finishConfirmModal label.fc-chart-row { justify-content: flex-start; cursor: pointer; }
+#finishConfirmModal .fc-chart-row .form-check-input { flex-shrink: 0; margin: 0; }
+#finishConfirmModal .fc-chart-row .form-select { width: auto; min-width: 170px; }
+@media (max-width: 575.98px) {
+    #finishConfirmModal .fc-chart-row { flex-wrap: wrap; }
+    #finishConfirmModal .fc-chart-row .form-select { width: 100%; }
+    #finishConfirmModal .fc-chart-row .modal-cs { flex-basis: 100%; margin-left: 0; }
+}

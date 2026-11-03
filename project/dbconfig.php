@@ -14,9 +14,15 @@
 // Think of these like your clinic's address and key card.
 // SUPABASE_URL  = where your database lives on the internet
 // SUPABASE_KEY  = the password that proves your PHP is allowed in
+//
+// The real values live in config/secrets.php (git-ignored; see
+// config/secrets.example.php). Plain `require` (not _once) so the
+// returned array is still available if sms_helper.php loaded it first.
 // ------------------------------------------------------------------
-define('SUPABASE_URL', 'https://fgltarvzzreozvtjiefy.supabase.co');
-define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnbHRhcnZ6enJlb3p2dGppZWZ5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTQzMjY1MiwiZXhwIjoyMDg3MDA4NjUyfQ.Yii_9qfL_-EVz-vAm50vRF-DB72vcHhK-UXCLRYe9pk');
+$_secrets = require __DIR__ . '/config/secrets.php';
+define('SUPABASE_URL', $_secrets['supabase_url']);
+define('SUPABASE_KEY', $_secrets['supabase_key']);
+unset($_secrets);
 
 
 // ------------------------------------------------------------------
@@ -45,6 +51,10 @@ define('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
 //      'status' -> HTTP code (200 = OK, 400+ = error)
 //      'error'  -> error message string, or null if all good
 // ------------------------------------------------------------------
+// Persistent curl handle — reuses the same HTTPS connection
+// instead of opening a new one for every request
+$_supabase_ch = null;
+
 function supabase_request(
     string $table,
     string $method  = 'GET',
@@ -52,38 +62,47 @@ function supabase_request(
     string $query   = '',
     array  $headers = []
 ): array {
+    global $_supabase_ch;
 
-    // Build the full URL to the Supabase table endpoint
-    // e.g. https://xxx.supabase.co/rest/v1/appointments?branch_id=eq.1
+    // Create the handle once and reuse it for every call
+    if ($_supabase_ch === null) {
+        $_supabase_ch = curl_init();
+        curl_setopt_array($_supabase_ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            // Keep the connection alive between requests
+            CURLOPT_FORBID_REUSE   => false,
+            CURLOPT_FRESH_CONNECT  => false,
+            // Cache DNS so we don't re-resolve supabase.co every call
+            CURLOPT_DNS_CACHE_TIMEOUT => 300,
+        ]);
+    }
+
     $url = SUPABASE_URL . '/rest/v1/' . $table;
     if ($query) $url .= '?' . $query;
 
-    // These are like "envelope labels" on the request —
-    // they tell Supabase who we are and what format to use
+    // sb_secret_ keys are not JWTs, so they go in `apikey` only. To act as a
+    // signed-in user, pass 'Authorization: Bearer <user access token>' in $headers.
     $defaultHeaders = [
-        'apikey: '               . SUPABASE_KEY,
-        'Authorization: Bearer ' . SUPABASE_KEY,
+        'apikey: ' . SUPABASE_KEY,
         'Content-Type: application/json',
         'Accept: application/json',
+        // Tell the server to keep the connection open
+        'Connection: keep-alive',
     ];
 
-    // When inserting or updating, tell Supabase to return
-    // the saved row so we can confirm what was stored
     if (in_array($method, ['POST', 'PATCH'])) {
         $defaultHeaders[] = 'Prefer: return=representation';
     }
 
     $allHeaders = array_merge($defaultHeaders, $headers);
 
-    // curl is PHP's built-in way to make HTTP requests
-    // Think of it as PHP opening a browser tab to visit a URL
     $responseHeaders = [];
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER     => $allHeaders,
-        CURLOPT_CUSTOMREQUEST  => $method,
-        CURLOPT_TIMEOUT        => 15,
+    curl_setopt_array($_supabase_ch, [
+        CURLOPT_URL           => $url,
+        CURLOPT_HTTPHEADER    => $allHeaders,
+        CURLOPT_CUSTOMREQUEST => $method,
+        CURLOPT_POSTFIELDS    => !empty($data) ? json_encode($data) : null,
         CURLOPT_HEADERFUNCTION => function($curl, $header) use (&$responseHeaders) {
             $len   = strlen($header);
             $parts = explode(':', $header, 2);
@@ -94,29 +113,26 @@ function supabase_request(
         },
     ]);
 
-    // If we have data to send (POST or PATCH), attach it as JSON
-    if (!empty($data)) {
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    // Clear POST body for GET/DELETE requests
+    if (in_array($method, ['GET', 'DELETE'])) {
+        curl_setopt($_supabase_ch, CURLOPT_POSTFIELDS, null);
     }
 
-    // Send the request and wait for Supabase to reply
-    $response   = curl_exec($ch);
-    $statusCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError  = curl_error($ch);
-    // curl_close() removed — deprecated since PHP 8.5
-    // PHP cleans up the curl handle automatically now
+    $response   = curl_exec($_supabase_ch);
+    $statusCode = curl_getinfo($_supabase_ch, CURLINFO_HTTP_CODE);
+    $curlError  = curl_error($_supabase_ch);
 
-    // If curl itself failed (no internet, timeout, etc.)
     if ($curlError) {
         error_log('Supabase curl error: ' . $curlError);
+        // Reset handle on error so next call gets a fresh connection
+        curl_close($_supabase_ch);
+        $_supabase_ch = null;
         return ['data' => null, 'status' => 0, 'error' => 'Network error. Please try again.'];
     }
 
-    // Convert the JSON string response into a PHP array
     $decoded = json_decode($response, true);
+    $error   = null;
 
-    // 400+ status means something went wrong on Supabase's side
-    $error = null;
     if ($statusCode >= 400) {
         $error = $decoded['message'] ?? $decoded['error'] ?? 'Unknown error from Supabase.';
         error_log("Supabase error [{$statusCode}] on {$method} {$table}: {$error}");
@@ -129,12 +145,3 @@ function supabase_request(
         'headers' => $responseHeaders,
     ];
 }
-// ──────────────────────────────────────────────────────────────
-//  AUDIT LOGGING
-//  The old log_action() has been replaced with the universal
-//  logActivity() function in controllers/audit_controller.php
-//
-//  HOW TO LOG IN ANY API FILE:
-//    require_once __DIR__ . '/controllers/audit_controller.php';
-//    logActivity('patients', 'INSERT', $patientId, $fullName, 'Patient added');
-// ──────────────────────────────────────────────────────────────

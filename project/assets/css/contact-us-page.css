@@ -1,0 +1,226 @@
+/* ─────────────────────────────────────────────────────────────────────
+   EssenciaSmile — Contact Us  |  contact-us.css
+
+   This page reuses the design tokens (colors, fonts, radius, shadows)
+   defined in :root inside portal-login.css, plus a few shared classes
+   already used by the Terms page (.portal-pill, .modal-icon,
+   .terms-header, .terms-updated, .terms-back-row, .foot-link).
+   No rules inside portal-login.css are modified — everything page
+   specific lives here.
+   ───────────────────────────────────────────────────────────────────── */
+
+.info-page {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2rem;
+    padding: 3rem 2.5rem 4rem;
+    background: var(--bg);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   INFORMATION NAVIGATION (left side)
+   ══════════════════════════════════════════════════════════════════════ */
+.info-sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 2rem;
+}
+.info-sidebar-inner {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 1.5rem 1.25rem;
+}
+.info-sidebar-title {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--slate);
+    margin: .85rem 0 1rem;
+}
+.info-nav {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+}
+.info-nav-link {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    padding: .65rem .8rem;
+    border-radius: var(--radius);
+    font-size: .875rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-decoration: none;
+    transition: background .18s, color .18s;
+}
+.info-nav-link i {
+    width: 16px;
+    text-align: center;
+    color: var(--muted);
+    transition: color .18s;
+}
+.info-nav-link:hover { background: var(--blue-light); color: var(--blue); }
+.info-nav-link:hover i { color: var(--blue); }
+.info-nav-link.active { background: var(--blue-light); color: var(--blue); }
+.info-nav-link.active i { color: var(--blue); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   CONTACT CONTENT (right side) — mirrors .terms-card
+   ══════════════════════════════════════════════════════════════════════ */
+.info-content { flex: 1; min-width: 0; max-width: 900px; }
+
+.contact-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 2.75rem 3.25rem;
+    animation: fadeUp .35s ease both;
+}
+.contact-card > p.contact-welcome {
+    font-size: .93rem;
+    color: #46536a;
+    line-height: 1.7;
+    padding-bottom: 1.75rem;
+    border-bottom: 1.5px solid var(--border);
+    margin-bottom: 1.75rem;
+    max-width: 720px;
+}
+
+/* ── Quick contact row: phone / email / hours ── */
+.contact-quick-grid {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 300px 300px;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 2.25rem;
+}
+.contact-quick-item {
+    display: flex;
+    align-items: flex-start;
+    gap: .75rem;
+    padding: 1rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.cq-icon {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    background: var(--blue-light);
+    color: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .9rem;
+    flex-shrink: 0;
+}
+.cq-label {
+    display: block;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: .2rem;
+}
+.cq-value {
+    display: block;
+    font-size: .875rem;
+    font-weight: 600;
+    color: var(--slate);
+    line-height: 1.4;
+}
+
+/* ── Section title, matches .step-section-title look ── */
+.contact-section-title {
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--blue);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    margin-bottom: 1.1rem;
+    padding-bottom: .5rem;
+    border-bottom: 1.5px solid var(--blue-light);
+}
+
+/* ── Branch cards ── */
+.branch-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.1rem;
+}
+.branch-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.35rem 1.25rem;
+    transition: border-color .18s, box-shadow .18s, transform .18s;
+}
+.branch-card:hover {
+    border-color: var(--border-focus);
+    box-shadow: 0 6px 18px rgba(26,86,219,.08);
+    transform: translateY(-3px);
+}
+.branch-card h3 {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--slate);
+    margin-bottom: .75rem;
+}
+.branch-card p {
+    display: flex;
+    align-items: flex-start;
+    gap: .55rem;
+    font-size: .84rem;
+    color: #46536a;
+    line-height: 1.55;
+    margin-bottom: .5rem;
+}
+.branch-card p:last-child { margin-bottom: 0; }
+.branch-card p i {
+    color: var(--blue);
+    width: 14px;
+    margin-top: .2rem;
+    flex-shrink: 0;
+}
+/* ══════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1100px) {
+    .contact-quick-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    .branch-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+@media (max-width: 900px) {
+    .info-page { flex-direction: column; padding: 2rem 1.75rem 3rem; }
+    .info-sidebar { width: 100%; position: static; }
+    .info-nav { flex-direction: row; flex-wrap: wrap; }
+    .contact-card { padding: 2rem 1.75rem; }
+}
+@media (max-width: 640px) {
+    .contact-quick-grid {
+        grid-template-columns: 1fr;
+    }
+    .contact-quick-item {
+        width: 100%;
+    }
+    .branch-grid {
+        grid-template-columns: 1fr;
+    }
+}
+@media (max-width: 600px) {
+    .info-page { padding: 1.5rem 1rem 3rem; }
+    .contact-card { padding: 1.5rem 1.25rem; }
+}

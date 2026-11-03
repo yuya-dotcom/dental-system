@@ -42,19 +42,81 @@ function loadServiceMaterials(serviceId, serviceName) {
         });
 }
 
+// ── Services list: search + service type / item / materials-setup filters (client-side;
+//    the full list is already on the page) ──────────────────────
+function filterServiceList() {
+    const list = document.getElementById('serviceList');
+    if (!list) return;
+    const q     = (document.getElementById('smSearch').value || '').trim().toLowerCase();
+    const type  = document.getElementById('smType').value;
+    const item  = document.getElementById('smItem').value;
+    const mats  = document.getElementById('smMats').value;
+    const items = Array.from(list.querySelectorAll('.service-item'));
+
+    let shown = 0;
+    items.forEach(el => {
+        const n  = +el.dataset.mats || 0;
+        const ok = (!q || el.dataset.serviceName.toLowerCase().includes(q))
+                && (!type || el.dataset.type === type)
+                && (!item || (el.dataset.items || '').split(',').includes(item))
+                && (!mats || (mats === 'with' ? n > 0 : n === 0));
+        el.style.display = ok ? '' : 'none';
+        if (ok) shown++;
+    });
+
+    document.getElementById('serviceListEmpty').style.display = shown ? 'none' : '';
+    document.getElementById('smReset').classList.toggle('disabled', !q && !type && !item && !mats);
+}
+
+function resetServiceFilters() {
+    document.getElementById('smSearch').value = '';
+    document.getElementById('smType').value   = '';
+    document.getElementById('smItem').value   = '';
+    document.getElementById('smMats').value   = '';
+    filterServiceList();
+}
+
 // ── Render the materials table ───────────────────────────────
+// Called with the fetched rows, or with no argument to re-sort the rows already
+// loaded. Sorting comes from the clickable table headers (sortMaterials).
+let _loadedMaterials = [];
+let _matSort = { key: 'name', dir: 'asc' };
+
+function sortMaterials(key) {
+    const firstDir = key === 'name' || key === 'category' ? 'asc' : 'desc';
+    _matSort = _matSort.key === key
+        ? { key, dir: _matSort.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: firstDir };
+    renderMaterialsTable();
+}
 function renderMaterialsTable(materials) {
+    if (Array.isArray(materials)) _loadedMaterials = materials;
     const tbody    = document.getElementById('materialsTableBody');
     const noItems  = document.getElementById('materialsNoItems');
     tbody.innerHTML = '';
 
-    if (!materials || materials.length === 0) {
+    if (!_loadedMaterials.length) {
         noItems.style.display = '';
         return;
     }
     noItems.style.display = 'none';
 
-    materials.forEach(mat => {
+    const nameOf = m => (m.inventory && m.inventory.item_name) || '';
+    const textOf = { name: nameOf, category: m => (m.inventory && m.inventory.category) || '' }[_matSort.key];
+    const numOf  = { stock: m => parseInt((m.inventory && m.inventory.stock_quantity) ?? 0) || 0, qty: m => +m.quantity || 0 }[_matSort.key];
+    const byName = (a, b) => nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: 'base' });
+    const sign   = _matSort.dir === 'asc' ? 1 : -1;
+    const rows   = _loadedMaterials.slice().sort((a, b) =>
+        (textOf ? textOf(a).localeCompare(textOf(b), undefined, { sensitivity: 'base' }) : numOf(a) - numOf(b)) * sign || byName(a, b));
+
+    document.querySelectorAll('[data-mat-sort]').forEach(h => {
+        const on = h.dataset.matSort === _matSort.key;
+        h.classList.toggle('active', on);
+        h.querySelector('i').className = on ? (_matSort.dir === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down') : 'bi bi-arrow-down-up th-sort-idle';
+        h.parentElement.setAttribute('aria-sort', on ? (_matSort.dir === 'asc' ? 'ascending' : 'descending') : 'none');
+    });
+
+    rows.forEach(mat => {
         const inv   = mat.inventory || {};
         const stock = parseInt(inv.stock_quantity ?? 0);
         const stockBadge = stock === 0
@@ -142,6 +204,8 @@ function saveMaterial() {
         btn.innerHTML = '<i class="feather-save me-1"></i> Save';
         if (res.success) {
             bootstrap.Modal.getInstance(document.getElementById('addMaterialModal'))?.hide();
+            const svc = document.querySelector(`.service-item[data-service-id="${_activeServiceId}"]`);
+            if (svc) svc.dataset.mats = (+svc.dataset.mats || 0) + 1;
             Swal.fire({ icon: 'success', title: 'Material Added!', timer: 1500, showConfirmButton: false })
                 .then(() => loadServiceMaterials(_activeServiceId, _activeServiceName));
         } else {
@@ -179,7 +243,10 @@ function updateMaterialQty(materialId, newQty) {
         if (!res.success) {
             Swal.fire({ icon: 'error', title: 'Update Failed', text: res.message, timer: 2000, showConfirmButton: false });
             loadServiceMaterials(_activeServiceId, _activeServiceName); // reload to reset
+            return;
         }
+        const m = _loadedMaterials.find(x => x.material_id == materialId); // keep re-sorts in sync
+        if (m) m.quantity = newQty;
         // Success — no toast needed for inline edit, it's already visible
     })
     .catch(() => {
@@ -205,6 +272,9 @@ function deleteMaterial(materialId, itemName) {
             .then(res => {
                 if (res.success) {
                     document.getElementById(`mat_row_${materialId}`)?.remove();
+                    _loadedMaterials = _loadedMaterials.filter(x => x.material_id != materialId);
+                    const svc = document.querySelector(`.service-item[data-service-id="${_activeServiceId}"]`);
+                    if (svc) svc.dataset.mats = Math.max(0, (+svc.dataset.mats || 0) - 1);
                     // Show empty state if no rows left
                     if (document.getElementById('materialsTableBody').children.length === 0) {
                         document.getElementById('materialsNoItems').style.display = '';

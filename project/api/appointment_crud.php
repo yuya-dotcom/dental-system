@@ -13,6 +13,7 @@ session_start();
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../controllers/auth_controller.php';
 require_once __DIR__ . '/../controllers/audit_controller.php';
+require_once __DIR__ . '/../controllers/notification_helper.php';
 
 header('Content-Type: application/json');
 requireLogin();
@@ -61,6 +62,7 @@ function addAppointment(array $d): array
     if ($result['error']) {
         return ['success' => false, 'message' => $result['error']];
     }
+    if (!empty($result['data'][0])) notif_appointment($result['data'][0]);
 
     // Log to universal audit trail
     $patientName = getPatientNameForAudit((int)$d['patient_id']);
@@ -105,6 +107,7 @@ function editAppointment(array $d): array
         'updated_at'       => date('c'),
     ];
 
+    $before = notif_appt_snapshot((int)$d['appointment_id']);
     $result = supabase_request(
         'appointments', 'PATCH', $payload,
         'appointment_id=eq.' . (int)$d['appointment_id']
@@ -113,6 +116,7 @@ function editAppointment(array $d): array
     if ($result['error']) {
         return ['success' => false, 'message' => $result['error']];
     }
+    notif_appointment($result['data'][0] ?? (int)$d['appointment_id'], $before);
 
     // Log to universal audit trail
     $patientName = getPatientNameForAudit((int)$d['patient_id']);

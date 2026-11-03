@@ -41,36 +41,12 @@ if ($method === 'PATCH') {
         exit;
     }
 
-    // Fetch current stock first
-    $current = supabase_request('inventory', 'GET', [],
-        'item_id=eq.' . $id . '&select=item_id,stock_quantity&limit=1'
-    );
-
-    if (empty($current['data'][0])) {
-        echo json_encode(['success' => false, 'message' => 'Item not found.']);
-        exit;
-    }
-
-    $currentQty = (int)$current['data'][0]['stock_quantity'];
-    $newQty     = max(0, $currentQty - $deduct);
-
-    // Determine new status
-    $statusRes  = supabase_request('inventory', 'GET', [],
-        'item_id=eq.' . $id . '&select=min_stock,status&limit=1'
-    );
-    $minStock   = (int)($statusRes['data'][0]['min_stock'] ?? 0);
-    $newStatus  = $newQty === 0 ? 'out_of_stock' : ($newQty <= $minStock ? 'low_stock' : 'active');
-
-    $res = supabase_request('inventory', 'PATCH',
-        ['stock_quantity' => $newQty, 'status' => $newStatus, 'updated_at' => date('c')],
-        'item_id=eq.' . $id
-    );
-
-    if ($res['status'] >= 200 && $res['status'] < 300) {
-        echo json_encode(['success' => true, 'new_quantity' => $newQty]);
-    } else {
-        echo json_encode(['success' => false, 'message' => $res['error'] ?? 'Failed to update stock.']);
-    }
+    // Floor rule + compare-and-swap (controllers/stock_helper.php)
+    require_once __DIR__ . '/../controllers/stock_helper.php';
+    $r = stock_apply($id, -$deduct);
+    echo json_encode($r['ok']
+        ? ['success' => true, 'new_quantity' => $r['after']]
+        : ['success' => false, 'message' => $r['message']]);
     exit;
 }
 

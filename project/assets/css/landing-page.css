@@ -1,0 +1,1248 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap');
+
+:root {
+    /* Fonts */
+
+    --main-font: "Sora", sans-serif;
+    --essenciasmile-font: "Playfair Display", serif;
+
+    /* Colors */
+    --default-color: #444444;
+    --blue-color: #3687FF;
+    --green-color: #5AFF68;
+    --text-muted: #878787;
+}
+
+body {
+    margin: 0;
+    background-color: white;
+    color: var(--default-color);
+
+    font-size: 1rem;
+    font-family: var(--main-font);
+}
+.navigation-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 0 0 20px 20px;
+
+    position: sticky;
+    top: 0;
+    z-index: 10;
+
+    padding: 20px 0;
+    background-color: white;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+}
+.navigation-bar h3 {
+    margin: 0;
+    color: var(--blue-color);
+    font-weight: 800;
+    font-family: var(--essenciasmile-font);
+}
+.highlight-green {
+    color: var(--green-color);
+}
+.navigation-bar .nav-logo {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    text-decoration: none;
+}
+.navigation-bar .nav-logo img {
+    display: block;
+    height: 32px;
+    width: auto;
+}
+@media (max-width: 600px) {
+    .navigation-bar .nav-logo img { height: 26px; }
+}
+.navigation-bar ul {
+    display: flex;
+    list-style: none;
+    gap: 36px;
+
+    margin: 0;
+    padding: 0 70px;
+    font-size: .9rem;
+}
+.btn-create-account, .btn-book-appointment {
+    color: white;
+    font-size: 0.8rem;
+    font-weight: bold;
+    background: var(--blue-color);
+}
+.navigation-bar ul li a {
+    color: var(--default-color);
+    text-decoration: none;
+    position: relative;
+    transition: color 0.2s ease;
+}
+
+.navigation-bar ul li a:hover {
+    color: var(--blue-color);
+}
+.navigation-bar ul li a::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -4px;
+    width: 0;
+    height: 2px;
+    background: var(--blue-color);
+    transition: width 0.25s ease;
+}
+.btn-create-account,
+.btn-book-appointment,
+.btn-cta,
+.btn-explore-services {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.btn-create-account:hover,
+.btn-book-appointment:hover,
+.btn-cta:hover,
+.btn-explore-services:hover {
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(54, 135, 255, 0.35);
+    background: #2a75e8; /* slightly darker blue */
+}
+
+.navigation-bar ul li a:hover::after {
+    width: 100%;
+}
+/*  ===== Hero ===== */
+.landingpage-hero {
+    background-image: url('../images/hero-background-picture.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 89.1vh;
+
+    padding: 0 150px;
+}
+.highlight-blue {
+    color: var(--blue-color);
+}
+.landingpage-hero h1 {
+    font-weight: 800;
+    font-size: 3rem;
+    max-width: 500px;
+}
+.landingpage-hero p {
+    margin: 5px 0 20px;
+    max-width: 400px;
+}
+
+/* ===== Why Choose Us? ===== */
+.landingpage-whychooseus {
+    padding: 80px 150px;
+    text-align: center;
+}
+
+.whychooseus-heading h1 {
+    font-weight: 800;
+    font-size: 3rem;
+    margin: 0 auto;
+}
+.whychooseus-heading p {
+    max-width: 700px;
+    margin: 15px auto;
+    color: var(--text-muted);
+}
+.landingpage-whychooseus .row {
+    text-align: left;
+}
+.feature-card {
+    background: white;
+    width: 100%;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+.feature-icon, .service-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(89, 155, 255, 0.128); /* light tint of your blue */
+    color: var(--blue-color);
+    border-radius: 8px;
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+}
+.landingpage-whychooseus h5 {
+    font-weight: 800;
+}
+.landingpage-whychooseus p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+.feature-card {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1);
+}
+
+.feature-icon {
+    transition: transform 0.25s ease;
+}
+
+.feature-card:hover .feature-icon {
+    transform: scale(1.1) rotate(-4deg);
+}
+/* ===== About us ===== */
+.about-us {
+    background-color: #f3f3f4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 60px;
+    padding: 80px 150px;
+}
+.about-us-image {
+    flex: 1 1 50%;
+    max-width: 550px;
+}
+.about-us-image img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    /* keep the dentist and patient in frame when cropping the portrait photo */
+    object-position: 50% 55%;
+    border-radius: 16px;
+    display: block;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+.about-us-heading {
+    max-width: 500px;
+    text-align: right;
+}
+.about-us h1 {
+    font-weight: 800;
+    font-size: 3rem;
+    line-height: 1.3;
+}
+.about-us p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin: 15px 0 25px;
+}
+.about-us-badges {
+    display: flex;
+    justify-content: flex-end; /* aligns to the right, matching your heading/text */
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 20px;
+}
+.badge-pill {
+    border: 1px solid #d8d8d8;
+    border-radius: 10px;
+    padding: 6px 14px;
+    font-size: 0.6rem;
+    color: var(--default-color);
+    background: white;
+    white-space: nowrap;
+}
+/* ===== Our Locations ===== */
+.locations {
+    padding: 80px 150px;
+    text-align: center;
+}
+.locations-heading {
+    display: inline-block;
+    font-family: var(--main-font);
+    margin-bottom: 10px;
+}
+.locations-heading h1 {
+    font-weight: 800;
+    font-size: 3rem;
+    margin: 0 auto;
+}
+.locations-heading p {
+    max-width: 700px;
+    margin: 15px auto;
+    color: var(--text-muted);
+}
+.locations .row {
+    text-align: left;
+}
+.location-card {
+    background: white;
+    width: 100%;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.location-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1);
+}
+.location-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(89, 155, 255, 0.128);
+    color: var(--blue-color);
+    border-radius: 8px;
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+    transition: transform 0.25s ease;
+}
+.location-card:hover .location-icon {
+    transform: scale(1.1) rotate(-4deg);
+}
+.location-card h5 {
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+.location-address,
+.location-hours {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+}
+.location-address i,
+.location-hours i {
+    color: var(--blue-color);
+    margin-top: 3px;
+    flex-shrink: 0;
+}
+.btn-directions {
+    margin-top: auto;
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1.5px solid var(--blue-color);
+    background: transparent;
+    color: var(--blue-color);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+.btn-directions:hover {
+    background: var(--blue-color);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(54, 135, 255, 0.3);
+}
+
+/* ── Find the Nearest Branch callout ── */
+.locations-callout {
+    margin-top: 40px;
+    background: rgba(54, 135, 255, 0.08);
+    border-radius: 16px;
+    padding: 36px 48px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    text-align: left;
+}
+.locations-callout-icon {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: white;
+    color: var(--blue-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+.locations-callout-text {
+    flex: 1;
+}
+.locations-callout-text h4 {
+    font-weight: 800;
+    font-size: 1.4rem;
+    margin-bottom: 6px;
+}
+.locations-callout-text p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin: 0;
+}
+.locations-callout-visual {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    font-size: 2.2rem;
+    color: rgba(54, 135, 255, 0.25);
+}
+.locations-callout-visual i { margin-left: -10px; }
+.locations-callout-visual i:first-child { margin-left: 0; }
+.locations-callout-visual i:nth-child(2) {
+    transform: translateY(-10px) scale(1.25);
+    color: rgba(54, 135, 255, 0.45);
+}
+.locations-callout-visual i:nth-child(3) {
+    transform: translateY(8px) scale(0.9);
+}
+/* ===== Services ===== */
+.services {
+    padding: 80px 150px;
+    text-align: center;
+
+    background: radial-gradient(
+        circle at center,   /* position of the gradient's center */
+        #084135 0%,
+        #061F1A 100%
+    );
+}
+.services-heading h1{
+    font-weight: 800;
+    font-size: 3rem;
+    color: white;
+}
+.services-heading p {
+    color: var(--text-muted);
+}
+.service-card {
+    width: 100%;
+    background-color:rgba(236, 233, 225, 0.1);
+    border-radius: 10px;
+
+    color: white;
+    text-align: start;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+.service-card h5 {
+    font-weight: 800;
+}
+.service-card p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+.service-card {
+    transition: transform 0.25s ease, background-color 0.25s ease;
+}
+
+.service-card:hover {
+    transform: translateY(-6px);
+    background-color: rgba(236, 233, 225, 0.18); /* slightly brighter than default */
+}
+
+.service-icon {
+    transition: transform 0.25s ease;
+}
+
+.service-card:hover .service-icon {
+    transform: scale(1.1);
+}
+/* ===== How it works =====*/
+.how-it-works {
+    padding: 80px 100px;
+    text-align: center;
+}
+
+.how-it-works-heading h1 {
+    font-weight: 800;
+    font-size: 3rem;
+}
+
+.how-it-works-heading p {
+    color: var(--text-muted);
+    margin: 10px 0 50px;
+}
+
+.steps-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    position: relative; /* needed so the connecting line can anchor to this row */
+}
+
+/* The connecting line running behind all the icons */
+.steps-row::before {
+    content: "";
+    position: absolute;
+    top: 30px; /* roughly the vertical center of the icon boxes */
+    left: 60px;
+    right: 60px;
+    height: 1px;
+    background: #d9d9d9;
+    z-index: 0; /* sits behind the icons */
+}
+
+.step {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    z-index: 1; /* sits above the line */
+    padding: 0 10px;
+}
+
+.step-icon {
+    width: 60px;
+    height: 60px;
+    background: white;
+    border: 1px solid #e5e5e5;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--blue-color);
+    font-size: 1.3rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    margin-bottom: 16px;
+}
+
+.step h5 {
+    font-weight: 800;
+    font-size: 0.95rem;
+    margin-bottom: 8px;
+}
+
+.step p {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    max-width: 200px;
+}
+.step-icon {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.step:hover .step-icon {
+    transform: translateY(-6px) scale(1.08);
+    box-shadow: 0 8px 18px rgba(54, 135, 255, 0.2);
+}
+/* ===== Testimonials ===== */
+.testimonials {
+    padding: 80px 150px;
+    text-align: center;
+    background-color: #f2f0eb;
+}
+
+.testimonials-heading h1 {
+    font-weight: 800;
+    font-size: 2.5rem;
+}
+
+.testimonials-heading p {
+    color: var(--text-muted);
+    margin: 10px 0 0;
+}
+
+.testimonials .row {
+    text-align: left;
+}
+
+.testimonial-card {
+    width: 100%;
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+}
+
+.stars {
+    color: #f5a623;
+    font-size: 0.85rem;
+    margin-bottom: 14px;
+}
+
+.stars i {
+    margin-right: 2px;
+}
+
+.testimonial-card > p {
+    color: var(--default-color);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.testimonial-card hr {
+    border: none;
+    border-top: 1px solid #eee;
+    margin-top: auto; /* pins divider + author row to the card bottom */
+    margin-bottom: 20px;
+}
+
+.testimonial-author {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: #d9d9d9;
+    flex-shrink: 0;
+    object-fit: cover;
+    object-position: 50% 20%;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.testimonial-author h6 {
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.testimonial-author span {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+.testimonial-card {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.testimonial-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.08);
+}
+
+.stars i {
+    transition: transform 0.2s ease;
+}
+
+.testimonial-card:hover .stars i {
+    transform: scale(1.15);
+}
+
+/* stagger each star slightly for a playful ripple */
+.stars i:nth-child(1) { transition-delay: 0s; }
+.stars i:nth-child(2) { transition-delay: 0.03s; }
+.stars i:nth-child(3) { transition-delay: 0.06s; }
+.stars i:nth-child(4) { transition-delay: 0.09s; }
+.stars i:nth-child(5) { transition-delay: 0.12s; }
+
+/* ===== CTA ===== */
+.cta {
+    padding: 80px 150px;
+    text-align: center;
+
+    background: radial-gradient(
+        circle at center,
+        #084135 0%,
+        #061F1A 100%
+    );
+}
+
+.cta h1 {
+    font-weight: 800;
+    font-size: 2.5rem;
+    color: white;
+}
+
+.cta p {
+    color: var(--text-muted);
+    max-width: 500px;
+    margin: 10px auto 30px;
+}
+
+.btn-cta {
+    background: var(--blue-color);
+    color: white;
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-decoration: none;
+    border: none;
+}
+/* ===== Footer ===== */
+.footer {
+    background-color: #111111;
+    color: #b5b5b5;
+    padding: 60px 150px 20px;
+}
+
+.footer-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 60px;
+}
+
+.footer-brand {
+    max-width: 350px;
+}
+
+.footer-brand h3 {
+    color: white;
+    font-family: var(--essenciasmile-font);
+    font-weight: 700;
+    margin-bottom: 12px;
+}
+
+.footer-brand h3 i {
+    color: var(--blue-color);
+    margin-right: 6px;
+}
+
+.footer-brand p {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    margin-bottom: 16px;
+}
+
+.social-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.85rem;
+
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.social-icon:hover,
+.social-icon:focus-visible {
+    outline-color: var(--blue-color);
+    box-shadow: 0 0 0 4px rgba(54, 135, 255, 0.25), 0 6px 16px rgba(54, 135, 255, 0.4);
+    transform: translateY(-2px);
+}
+
+.footer-links h6,
+.footer-info h6,
+.footer-contact h6 {
+    color: white;
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+    margin-bottom: 16px;
+}
+
+.footer-links ul,
+.footer-info ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.footer-links ul li a,
+.footer-info ul li a {
+    color: #d9d9d9;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: inline-block;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+.footer-links ul li a:hover,
+.footer-info ul li a:hover {
+    color: var(--blue-color);
+    transform: translateX(4px);
+}
+
+.footer-contact p {
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+}
+
+.footer-contact p i {
+    color: var(--blue-color);
+    margin-right: 8px;
+    width: 16px;
+}
+
+.footer hr {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 40px 0 20px;
+}
+
+.footer-bottom {
+    text-align: center;
+}
+
+.footer-bottom p {
+    font-size: 0.8rem;
+    color: #777;
+    margin: 0;
+}
+html {
+    scroll-behavior: smooth;
+}
+.landingpage-hero,
+.landingpage-whychooseus,
+.about-us,
+.locations,
+.services,
+.how-it-works,
+.testimonials,
+.footer {
+    scroll-margin-top: 78px;
+}
+
+::-webkit-scrollbar      {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.right-panel::-webkit-scrollbar { width: 4px; }
+.right-panel::-webkit-scrollbar-thumb { background: #dde3ed; border-radius: 99px;
+}
+
+/* =============================================================
+   RESPONSIVE
+   ============================================================= */
+
+/* ── Desktop: hide mobile-only nav elements ──────────────────── */
+.navigation-bar ul li a i {
+    display: none;
+}
+.nav-mobile-cta {
+    display: none;
+}
+
+/* ── Nav toggle (hidden on desktop) ─────────────────────────── */
+.nav-toggle {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    color: var(--blue-color);
+    cursor: pointer;
+}
+
+/* ── Laptop / small desktop (≤1199px) ───────────────────────── */
+@media (max-width: 1199px) {
+    .landingpage-hero,
+    .landingpage-whychooseus,
+    .about-us,
+    .locations,
+    .services,
+    .testimonials,
+    .cta,
+    .footer {
+        padding-left: 80px;
+        padding-right: 80px;
+    }
+    .how-it-works {
+        padding-left: 60px;
+        padding-right: 60px;
+    }
+    .steps-row::before {
+        left: 40px;
+        right: 40px;
+    }
+}
+
+/* ── Tablet (≤991px) ─────────────────────────────────────────── */
+@media (max-width: 991px) {
+    .landingpage-hero,
+    .landingpage-whychooseus,
+    .about-us,
+    .locations,
+    .services,
+    .how-it-works,
+    .testimonials,
+    .cta,
+    .footer {
+        padding-left: 40px;
+        padding-right: 40px;
+    }
+
+    .landingpage-hero h1 {
+        font-size: 2.4rem;
+        max-width: 100%;
+    }
+    .landingpage-hero p {
+        max-width: 100%;
+    }
+    .whychooseus-heading h1,
+    .about-us h1,
+    .locations-heading h1,
+    .services-heading h1,
+    .how-it-works-heading h1 {
+        font-size: 2.2rem;
+    }
+
+    /* About us: stack image over text instead of side-by-side */
+    .about-us {
+        flex-direction: column;
+        text-align: center;
+    }
+    .about-us-image {
+        width: 100%;
+        max-width: 640px;
+    }
+    .about-us-image img {
+        aspect-ratio: 16 / 10;
+    }
+    .about-us-heading {
+        text-align: center;
+        max-width: 100%;
+    }
+    .about-us-badges {
+        justify-content: center;
+    }
+
+    /* Locations callout: stack instead of squeezing three columns */
+    .locations-callout {
+        flex-direction: column;
+        text-align: center;
+    }
+    .locations-callout-visual {
+        display: none;
+    }
+
+    /* Steps: wrap into two rows instead of one squeezed row */
+    .steps-row {
+        flex-wrap: wrap;
+        row-gap: 32px;
+    }
+    .steps-row::before {
+        display: none; /* connecting line doesn't make sense once wrapped */
+    }
+    .step {
+        flex: 0 0 33.333%;
+    }
+
+    /* Footer: 4 columns get tight at tablet width — wrap into two rows
+       instead of squeezing, before the full single-column stack below */
+    .footer-top {
+        flex-wrap: wrap;
+        row-gap: 32px;
+    }
+}
+
+/* ── Mobile nav (≤850px, before content otherwise breaks) ──── */
+@media (max-width: 850px) {
+    .navigation-bar {
+        padding: 14px 20px;
+        justify-content: space-between;
+    }
+
+    /* Hamburger → animated 3-bar icon */
+    .nav-toggle {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 5px;
+        width: 34px;
+        height: 34px;
+        padding: 0;
+    }
+    .nav-toggle-bar {
+        display: block;
+        width: 100%;
+        height: 2.5px;
+        background: var(--blue-color);
+        border-radius: 2px;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    .navigation-bar ul li a i {
+        display: inline-block; /* icons only show inside the mobile dropdown */
+    }
+    .nav-mobile-cta {
+        display: block; /* CTA list item only shows inside the mobile dropdown */
+    }
+
+    /* Morph into an X when menu is open */
+    .nav-toggle[aria-expanded="true"] .nav-toggle-bar:nth-child(1) {
+        transform: translateY(7.5px) rotate(45deg);
+    }
+    .nav-toggle[aria-expanded="true"] .nav-toggle-bar:nth-child(2) {
+        opacity: 0;
+    }
+    .nav-toggle[aria-expanded="true"] .nav-toggle-bar:nth-child(3) {
+        transform: translateY(-7.5px) rotate(-45deg);
+    }
+
+    /* Dropdown panel */
+    .navigation-bar ul {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        list-style: none;
+        margin: 0;
+        position: absolute;
+        top: calc(100% + 10px);
+        left: 16px;
+        right: 16px;
+        background: white;
+        padding: 14px;
+        border-radius: 18px;
+        box-shadow: 0 16px 32px rgba(0, 0, 0, 0.14);
+        border: 1px solid #f0f0f0;
+
+        /* Closed state: hidden, slid up slightly, faded out */
+        opacity: 0;
+        transform: translateY(-8px);
+        pointer-events: none;
+        visibility: hidden;
+        transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s;
+    }
+    .navigation-bar ul.nav-open {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+        visibility: visible;
+    }
+
+    .navigation-bar ul li {
+        text-align: left;
+        padding: 0;
+    }
+    .navigation-bar ul li a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: background 0.18s ease, color 0.18s ease, padding-left 0.18s ease;
+    }
+    .navigation-bar ul li a i {
+        width: 18px;
+        text-align: center;
+        color: var(--blue-color);
+        font-size: 0.9rem;
+    }
+    .navigation-bar ul li a:hover {
+        background: rgba(54, 135, 255, 0.08);
+        color: var(--blue-color);
+        padding-left: 18px;
+    }
+    .navigation-bar ul li a::after {
+        display: none; /* underline animation doesn't suit stacked mobile menu */
+    }
+
+    /* Divider before the CTA item */
+    .nav-mobile-cta {
+        margin-top: 6px;
+        padding-top: 10px !important;
+        border-top: 1px solid #f0f0f0;
+    }
+    .btn-create-account-mobile {
+        display: block;
+        text-align: center;
+        width: 100%;
+        padding: 12px;
+        background: var(--blue-color);
+        color: white !important;
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-decoration: none;
+        transition: background 0.2s ease, transform 0.15s ease;
+    }
+    .btn-create-account-mobile:hover {
+        background: #2a75e8;
+        transform: translateY(-1px);
+    }
+
+    /* Hide the desktop CTA button; mobile version lives inside the dropdown now */
+    .btn-create-account {
+        display: none;
+    }
+}
+
+/* ── Phone (≤767px) ──────────────────────────────────────────── */
+@media (max-width: 767px) {
+    .landingpage-hero,
+    .landingpage-whychooseus,
+    .about-us,
+    .locations,
+    .services,
+    .how-it-works,
+    .testimonials,
+    .cta {
+        padding-left: 24px;
+        padding-right: 24px;
+        padding-top: 50px;
+        padding-bottom: 50px;
+    }
+    .footer {
+        padding: 50px 24px 20px;
+    }
+
+    .landingpage-hero {
+        min-height: auto;
+        padding: 70px 24px;
+        align-items: center;
+        text-align: center;
+        position: relative;
+    }
+    .landingpage-hero::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.55);
+        backdrop-filter: blur(3px);
+        -webkit-backdrop-filter: blur(3px);
+        z-index: 0;
+    }
+
+    .landingpage-hero h1,
+    .landingpage-hero p,
+    .landingpage-hero .btn-book-appointment {
+        position: relative;
+        z-index: 1;
+    }
+    .landingpage-hero h1 {
+        font-size: 1.7rem;
+        max-width: 100%;
+    }
+    .landingpage-hero p {
+        max-width: 100%;
+    }
+    .landingpage-hero .btn-book-appointment {
+        align-self: center;
+    }
+
+    .whychooseus-heading h1,
+    .locations-heading h1,
+    .services-heading h1,
+    .how-it-works-heading h1 {
+        font-size: 1.7rem;
+    }
+    .about-us h1 {
+        font-size: 1.7rem;
+    }
+    .testimonials-heading h1 {
+        font-size: 1.6rem;
+    }
+    .cta h1 {
+        font-size: 1.6rem;
+    }
+
+    .locations-callout {
+        padding: 28px 24px;
+    }
+
+    /* Steps: one per row on phone */
+    .step {
+        flex: 0 0 100%;
+    }
+
+    /* Footer: stack columns */
+    .footer-top {
+        flex-direction: column;
+        gap: 32px;
+    }
+    .footer-brand {
+        max-width: 100%;
+    }
+}
+
+/* ── Small phone (≤400px) ───────────────────────────────────── */
+@media (max-width: 400px) {
+    .landingpage-hero {
+        padding: 60px 20px;
+    }
+    .landingpage-hero h1 {
+        font-size: 1.6rem;
+    }
+    .landingpage-hero p {
+        font-size: 0.85rem;
+        line-height: 1.5;
+    }
+    .navigation-bar h3 {
+        font-size: 1.1rem;
+    }
+    .btn-book-appointment,
+    .btn-cta {
+        font-size: 0.75rem;
+    }
+}
+
+/* =============================================================
+   BACK TO TOP BUTTON
+   ============================================================= */
+.back-to-top {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 40;
+
+    width: 46px;
+    height: 46px;
+    border: none;
+    border-radius: 50%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+
+    background: var(--blue-color);
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(54, 135, 255, 0.35);
+
+    /* Hidden until the user scrolls down */
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(12px);
+    transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s, background 0.2s ease, box-shadow 0.2s ease;
+}
+.back-to-top.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+.back-to-top:hover {
+    background: #2a75e8; /* same darker-blue hover used by the other buttons */
+    box-shadow: 0 8px 20px rgba(54, 135, 255, 0.45);
+    transform: translateY(-2px);
+}
+.back-to-top:focus-visible {
+    outline: 2px solid var(--blue-color);
+    outline-offset: 3px;
+}
+
+@media (max-width: 767px) {
+    .back-to-top {
+        right: 16px;
+        bottom: 16px;
+        width: 42px;
+        height: 42px;
+        font-size: 1rem;
+    }
+}

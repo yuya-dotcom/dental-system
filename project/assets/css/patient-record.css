@@ -1,69 +1,263 @@
-/* ─────────────────────────────────────
-   Patient Record — Custom Styles
-   ───────────────────────────────────── */
+/* =============================================================
+   assets/css/patient-record.css — Patient Record (patient-records.php)
+   Everything is scoped to .pr-page. The dental chart itself is styled
+   by the shared assets/css/odontogram.css; only its layout is here.
+   ============================================================= */
 
-/* Header avatar */
-.patient-avatar-circle {
-    width: 52px; height: 52px;
-    border-radius: 50%;
-    background: var(--bs-primary);
-    color: #fff;
+.pr-page {
+    --pr-blue: #01A8EC;
+    --pr-blue-dark: #0287bd;
+    --pr-blue-soft: #e8f7fd;
+    --pr-navy: #0f2a44;
+    --pr-text: #1e293b;
+    --pr-muted: #64748b;
+    --pr-border: #e6edf3;
+    --pr-soft: #f7fafc;
+    --pr-green: #15803d;
+    --pr-green-soft: #ecfdf3;
+    --pr-red: #b91c1c;
+    --pr-red-soft: #fef2f2;
+    --pr-amber: #b45309;
+    --pr-amber-soft: #fffbeb;
+    /* the shared odontogram reads these */
+    --primary: var(--pr-blue);
+    --primary-light: var(--pr-blue-soft);
+    --primary-dark: var(--pr-blue-dark);
+    --text-dark: var(--pr-navy);
+    --text-muted: var(--pr-muted);
+    --border: var(--pr-border);
+    font-family: 'Sora', Inter, system-ui, sans-serif;
+    color: var(--pr-text);
+}
+.pr-page .card { border: 1px solid var(--pr-border) !important; border-radius: 14px; box-shadow: 0 1px 2px rgba(15, 42, 68, .04) !important; }
+.pr-page .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pr-page .min-w-0 { min-width: 0; }
+
+/* ── Patient header ── */
+.pr-head { padding: 20px 22px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: start; }
+.pr-avatar {
+    width: 58px; height: 58px; border-radius: 16px;
+    background: var(--pr-blue-soft); color: var(--pr-blue-dark);
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.4rem; font-weight: 700;
+    font-size: 20px; font-weight: 600;
 }
+.pr-head-top { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.pr-name { margin: 0; font-size: 1.15rem; font-weight: 600; color: var(--pr-navy); line-height: 1.2; overflow-wrap: anywhere; }
+.pr-code {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 999px;
+    background: var(--pr-soft); border: 1px solid var(--pr-border);
+    font-size: .76rem; font-weight: 500; color: var(--pr-muted);
+}
+.pr-status { margin-left: auto; padding: 4px 12px; border-radius: 999px; font-size: .75rem; font-weight: 500; }
+.pr-meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 20px; margin: 0; }
+.pr-meta > div { min-width: 0; }
+.pr-meta dt {
+    font-size: .74rem; font-weight: 400; color: var(--pr-muted); margin-bottom: 2px; display: flex; align-items: center; gap: 5px;
+}
+.pr-meta dd { margin: 0; font-size: .86rem; font-weight: 500; color: var(--pr-navy); overflow-wrap: anywhere; }
+.pr-meta dd.is-empty { color: #94a3b8; font-weight: 400; }
 
-/* Tab bar */
-.patient-tabs .nav-link {
-    font-size: .8rem;
-    font-weight: 600;
-    padding: .5rem .9rem;
-    color: var(--bs-secondary);
-    border-bottom: 2px solid transparent;
-    border-top: none; border-left: none; border-right: none;
+/* ── Tabs ── */
+.pr-tabs-wrap { border-bottom: 1px solid var(--pr-border); padding: 0 12px; }
+.pr-tabs {
+    display: flex; flex-wrap: nowrap; gap: 2px;
+    overflow-x: auto; overflow-y: hidden; scrollbar-width: thin;
+    border-bottom: 0 !important; margin: 0 !important;
+    -webkit-overflow-scrolling: touch;
 }
-.patient-tabs .nav-link.active {
-    color: var(--bs-primary);
-    border-bottom-color: var(--bs-primary);
-    background: transparent;
+.pr-tabs .nav-item { flex: 0 0 auto; }
+.pr-tabs .nav-link {
+    height: 50px; display: inline-flex; align-items: center; gap: 7px;
+    padding: 0 14px; border: 0 !important; border-bottom: 2px solid transparent !important;
+    border-radius: 0; background: transparent !important;
+    font-size: .84rem; font-weight: 500; color: var(--pr-muted); white-space: nowrap;
 }
-.patient-tabs .nav-link:hover:not(.active) {
-    color: var(--bs-primary);
-    background: transparent;
-}
+.pr-tabs .nav-link i { font-size: 15px; line-height: 1; }
+.pr-tabs .nav-link:hover { color: var(--pr-navy); }
+.pr-tabs .nav-link.active { color: var(--pr-blue-dark); border-bottom-color: var(--pr-blue) !important; }
+.pr-tabs .nav-link:focus-visible { outline: 2px solid var(--pr-blue); outline-offset: -4px; }
+.pr-tab-body { padding: 22px; }
 
-/* Dental chart */
-.dental-chart-wrap {
-    overflow-x: auto;
-    padding: .5rem 0;
+/* ── Section headings / empty states / loading ── */
+.pr-section-title {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin: 0 0 12px; font-size: .7rem; font-weight: 600; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--pr-muted);
 }
-.tooth-btn {
-    width: 30px; height: 30px;
-    border-radius: 4px;
-    border: 1.5px solid #ced4da;
-    background: #fff;
-    font-size: 9px; font-weight: 700;
-    cursor: pointer;
+.pr-section-title .pr-count { font-weight: 500; color: var(--pr-navy); background: var(--pr-soft); border: 1px solid var(--pr-border); border-radius: 999px; padding: 1px 9px; letter-spacing: 0; }
+.pr-section-title .pr-hint { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.pr-section-title .pr-pill { text-transform: none; letter-spacing: 0; }
+.pr-section + .pr-section { margin-top: 26px; }
+.pr-ov-grid .pr-section + .pr-section { margin-top: 0; }
+.pr-empty {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px; border: 1px dashed var(--pr-border); border-radius: 12px;
+    background: var(--pr-soft); color: var(--pr-muted); font-size: .84rem;
+}
+.pr-empty i { color: var(--pr-blue); font-size: 16px; }
+.tab-loading { display: flex; align-items: center; gap: 8px; color: var(--pr-muted); padding: 24px 0; font-size: .875rem; }
+.tab-loading .spinner-border { width: 1.1rem; height: 1.1rem; color: var(--pr-blue) !important; }
+
+/* ── Overview ── */
+.pr-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+.pr-kpi {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 14px 16px; border: 1px solid var(--pr-border); border-radius: 12px; background: #fff;
+    text-decoration: none; color: inherit; text-align: left; width: 100%;
+    transition: border-color .15s, box-shadow .15s;
+}
+button.pr-kpi { font: inherit; }
+.pr-kpi:hover, .pr-kpi:focus-visible { border-color: var(--pr-blue); box-shadow: 0 0 0 3px var(--pr-blue-soft); outline: none; }
+.pr-kpi-icon {
+    width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    transition: all .15s;
-    color: #555;
-    padding: 0;
+    background: var(--pr-blue-soft); color: var(--pr-blue-dark); font-size: 16px;
 }
-.tooth-btn:hover      { border-color: var(--bs-primary); color: var(--bs-primary); background: #e8f0fe; }
-.tooth-active         { border-color: #dc3545 !important; background: #fff3f3 !important; color: #dc3545 !important; }
-.tooth-done           { border-color: #198754 !important; background: #f0fff4 !important; color: #198754 !important; }
-.tooth-divider        { width: 1px; background: #dee2e6; align-self: stretch; }
-.dental-midline       { height: 1px; background: #dee2e6; margin: 0 auto; width: 80%; }
+.pr-kpi.is-alert .pr-kpi-icon { background: var(--pr-red-soft); color: var(--pr-red); }
+.pr-kpi.is-ok .pr-kpi-icon { background: var(--pr-green-soft); color: var(--pr-green); }
+.pr-kpi-label { font-size: .76rem; font-weight: 500; color: var(--pr-muted); }
+.pr-kpi-value { font-size: 1.05rem; font-weight: 600; color: var(--pr-navy); line-height: 1.25; font-variant-numeric: tabular-nums; }
+.pr-kpi.is-alert .pr-kpi-value { color: var(--pr-red); }
+.pr-kpi-sub { font-size: .76rem; color: var(--pr-muted); overflow-wrap: anywhere; }
+.pr-ov-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+.pr-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--pr-border); border-radius: 12px; overflow: hidden; }
+.pr-list li { display: flex; align-items: center; gap: 12px; padding: 11px 14px; font-size: .84rem; }
+.pr-list li + li { border-top: 1px solid var(--pr-border); }
+.pr-list-date { flex: 0 0 52px; text-align: center; line-height: 1.1; }
+.pr-list-date b { display: block; font-size: 1rem; font-weight: 600; color: var(--pr-navy); }
+.pr-list-date small { font-size: .66rem; font-weight: 500; text-transform: uppercase; color: var(--pr-blue-dark); letter-spacing: .05em; }
+.pr-list-main { flex: 1; min-width: 0; }
+.pr-list-title { font-weight: 500; color: var(--pr-navy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-list-sub { font-size: .76rem; color: var(--pr-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-link-btn { border: 0; background: none; padding: 0; font: inherit; font-size: .76rem; font-weight: 500; color: var(--pr-blue-dark); letter-spacing: 0; text-transform: none; }
+.pr-link-btn:hover { text-decoration: underline; }
 
-/* Tooth legend dots */
-.tooth-legend         { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
-.tooth-active-legend  { background: #fff3f3; border: 1.5px solid #dc3545; }
-.tooth-done-legend    { background: #f0fff4; border: 1.5px solid #198754; }
-.tooth-normal-legend  { background: #fff;    border: 1.5px solid #ced4da; }
+/* ── Tables ── */
+.pr-table-wrap { border: 1px solid var(--pr-border); border-radius: 12px; overflow-x: auto; }
+.pr-table { margin: 0; font-size: .84rem; color: var(--pr-text); min-width: 640px; }
+.pr-table thead th {
+    background: var(--pr-soft); border-bottom: 1px solid var(--pr-border) !important;
+    font-size: .7rem; font-weight: 500; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--pr-muted); padding: 10px 14px; white-space: nowrap;
+}
+.pr-table td { padding: 11px 14px; vertical-align: middle; border-color: var(--pr-border); }
+.pr-table tbody tr:last-child td { border-bottom: 0; }
+.pr-table .text-end { text-align: right; }
+.pr-table .pr-strong { font-weight: 500; color: var(--pr-navy); white-space: nowrap; }
+.pr-table .pr-sub { display: block; font-size: .74rem; color: var(--pr-muted); }
+.pr-wrap { max-width: 280px; overflow-wrap: anywhere; }
+.pr-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 300px; }
+.pr-table tfoot td { background: var(--pr-soft); font-weight: 600; color: var(--pr-navy); border-top: 1px solid var(--pr-border); }
+.pr-balance-due { color: var(--pr-red); font-weight: 600; }
+.pr-balance-clear { color: var(--pr-muted); }
+.pr-icon-btn {
+    width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px; border: 1px solid var(--pr-border); background: #fff; color: var(--pr-muted);
+}
+.pr-icon-btn:hover { border-color: var(--pr-blue); color: var(--pr-blue-dark); }
+.pr-icon-btn.is-danger:hover { border-color: #fca5a5; color: var(--pr-red); background: var(--pr-red-soft); }
+.pr-actions { display: inline-flex; gap: 6px; }
 
-/* Clinical notes list */
-.note-list-item       { transition: background .1s; cursor: pointer; }
-.note-list-item:hover { background: rgba(var(--bs-primary-rgb), .05); }
-.note-active          { background: rgba(var(--bs-primary-rgb), .08) !important; border-left: 3px solid var(--bs-primary); }
+/* Status pills */
+.pr-pill {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+    border-radius: 999px; font-size: .72rem; font-weight: 500; white-space: nowrap;
+    background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;
+}
+.pr-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .8; }
+.pr-pill-blue { background: var(--pr-blue-soft); color: var(--pr-blue-dark); border-color: #bfe9fa; }
+.pr-pill-green { background: var(--pr-green-soft); color: var(--pr-green); border-color: #bbf7d0; }
+.pr-pill-amber { background: var(--pr-amber-soft); color: var(--pr-amber); border-color: #fde68a; }
+.pr-pill-red { background: var(--pr-red-soft); color: var(--pr-red); border-color: #fecaca; }
+.pr-pill-sm { padding: 1px 7px; font-size: .66rem; margin-left: 6px; }
+.pr-pill-sm::before { display: none; }
 
-/* Cursor */
-.cursor-pointer { cursor: pointer; }
+/* ── Forms (clinical notes, waivers) ── */
+.pr-form { border: 1px solid var(--pr-border); border-radius: 12px; background: var(--pr-soft); padding: 16px 18px; margin-bottom: 22px; }
+.pr-form .form-label { font-size: .8rem; font-weight: 500; color: var(--pr-navy); margin-bottom: 5px; }
+.pr-form .form-control, .pr-form .form-select { border-color: #d8e2ea; border-radius: 9px; font-size: .86rem; }
+.pr-form .form-control:focus, .pr-form .form-select:focus { border-color: var(--pr-blue); box-shadow: 0 0 0 3px var(--pr-blue-soft); }
+.pr-form textarea.form-control { min-height: 96px; resize: vertical; }
+.pr-form-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.pr-hint { font-size: .74rem; color: var(--pr-muted); font-weight: 400; }
+.pr-page .btn-primary { background: var(--pr-blue); border-color: var(--pr-blue); }
+.pr-page .btn-primary:hover, .pr-page .btn-primary:focus { background: var(--pr-blue-dark); border-color: var(--pr-blue-dark); }
+.pr-page .btn-primary:disabled { background: #9fdcf5; border-color: #9fdcf5; }
+
+/* Clinical note cards */
+.pr-note { border: 1px solid var(--pr-border); border-radius: 12px; padding: 14px 16px; background: #fff; }
+.pr-note + .pr-note { margin-top: 10px; }
+.pr-note-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.pr-note-date { font-weight: 600; color: var(--pr-navy); font-size: .86rem; }
+.pr-note-by { font-size: .76rem; color: var(--pr-muted); }
+.pr-note-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .86rem; line-height: 1.55; }
+
+/* ── Dental chart tab (layout only; chart parts come from odontogram.css) ── */
+.pr-odo-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.pr-odo-stat { border: 1px solid var(--pr-border); border-radius: 12px; padding: 10px 14px; background: #fff; }
+.pr-odo-stat span { display: block; font-size: .76rem; font-weight: 500; color: var(--pr-muted); }
+.pr-odo-stat b { font-size: 1.05rem; font-weight: 600; color: var(--pr-navy); font-variant-numeric: tabular-nums; }
+.pr-odo-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+.pr-odo-card { border: 1px solid var(--pr-border); border-radius: 14px; background: #fff; min-width: 0; }
+.pr-odo-card > .odo-legend { padding: 12px 16px; border-bottom: 1px solid var(--pr-border); }
+.pr-odo-body { padding: 16px; overflow-x: auto; }
+.pr-odo-body .odo-chart { min-width: 560px; }
+.pr-odo-save {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    padding: 12px 16px; border-top: 1px solid var(--pr-border); background: var(--pr-soft); border-radius: 0 0 14px 14px;
+}
+.pr-odo-save .form-select { width: auto; min-width: 170px; font-size: .82rem; border-radius: 9px; }
+#pr_chartPending { font-size: .8rem; color: var(--pr-muted); font-weight: 500; }
+#pr_chartPending.is-dirty { color: var(--pr-amber); }
+.pr-odo-panel.odo-panel {
+    border: 1px solid var(--pr-border); border-radius: 14px; background: #fff;
+    padding: 16px; position: sticky; top: 90px; max-height: calc(100vh - 110px); overflow-y: auto;
+}
+.pr-odo-conds { display: flex; flex-wrap: wrap; gap: 6px; }
+.pr-odo-cond {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px;
+    border: 1px solid var(--pr-border); border-radius: 999px; background: #fff;
+    font-size: .76rem; font-weight: 500; color: var(--pr-text); cursor: pointer;
+}
+.pr-odo-cond:hover { border-color: var(--pr-blue); }
+.pr-odo-cond.is-active { border-color: var(--pr-blue); background: var(--pr-blue-soft); color: var(--pr-blue-dark); box-shadow: inset 0 0 0 1px var(--pr-blue); }
+.pr-odo-surf-edit { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--pr-border); border-radius: 10px; background: var(--pr-soft); }
+.pr-odo-hint { margin: 10px 0 0; font-size: .76rem; color: var(--pr-muted); }
+.pr-odo-pending {
+    display: flex; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 10px;
+    border-radius: 8px; background: var(--pr-amber-soft); color: var(--pr-amber); font-size: .76rem; font-weight: 500;
+}
+/* Shared odontogram text, softened for this page only */
+.pr-page .odo-sides, .pr-page .odo-arch-label, .pr-page .odo-half-label,
+.pr-page .odo-p-label, .pr-page .odo-panel-empty-title { font-weight: 600; }
+.pr-page .odo-num, .pr-page .odo-badge { font-weight: 500; }
+.pr-page .odo-p-num, .pr-page .odo-p-skey { font-weight: 600; }
+.pr-page .odo-p-title { font-weight: 600; font-size: .95rem; }
+.pr-page .odo-p-label { letter-spacing: .04em; }
+.pr-odo-pending-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #0ea5e9; box-shadow: 0 0 0 1px #0284c7; }
+
+/* ── Responsive ── */
+@media (max-width: 1199.98px) {
+    .pr-odo-layout { grid-template-columns: minmax(0, 1fr); }
+    .pr-odo-panel.odo-panel { position: static; max-height: none; }
+}
+@media (max-width: 991.98px) {
+    .pr-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pr-ov-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 575.98px) {
+    .pr-head { grid-template-columns: minmax(0, 1fr); padding: 16px; gap: 12px; }
+    .pr-avatar { width: 46px; height: 46px; font-size: 18px; border-radius: 13px; }
+    .pr-status { margin-left: 0; }
+    .pr-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pr-tab-body { padding: 16px 14px; }
+    .pr-kpis { gap: 8px; }
+    .pr-kpi { padding: 12px; }
+    .pr-kpi-icon { display: none; }
+    .pr-odo-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pr-odo-body { padding: 12px 10px; }
+    .pr-odo-body .odo-chart { min-width: 0; }   /* odontogram splits each arch into halves here */
+    .pr-odo-save .form-select { flex: 1; }
+    .pr-form-foot .btn { width: 100%; }
+}

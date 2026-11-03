@@ -1,0 +1,4 @@
+# OAuth client secrets must never be downloadable (address data stays public).
+<FilesMatch "^client_secret.*\.json$">
+    Require all denied
+</FilesMatch>

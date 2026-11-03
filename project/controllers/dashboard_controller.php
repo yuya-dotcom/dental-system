@@ -5,6 +5,7 @@
 // =============================================================
 
 require_once __DIR__ . '/../dbconfig.php';
+require_once __DIR__ . '/appointment_services_helper.php';
 
 /**
  * Returns all dashboard stats in one call.
@@ -73,13 +74,13 @@ function getDashboardStats(): array
 
     // ── Today's appointments (list for table) ─────────────────
     $todayList = supabase_request('appointments', 'GET', [], implode('&', [
-        'select=appointment_code,appointment_time,status,payment_status,'
+        'select=appointment_id,patient_id,appointment_code,appointment_time,status,payment_status,'
             . 'patients(full_name),services(service_name),branches(branch_name)',
         'appointment_date=eq.' . $today,
         'order=appointment_time.asc',
         'limit=8',
     ]));
-    $todayAppointments = is_array($todayList['data']) ? $todayList['data'] : [];
+    $todayAppointments = attachAppointmentServiceNames(is_array($todayList['data']) ? $todayList['data'] : []);
 
     return [
         // Appointments

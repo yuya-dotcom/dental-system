@@ -49,13 +49,18 @@ require_once __DIR__ . '/../dbconfig.php';
  * @param mixed  $entity_id   The primary key of the affected record
  * @param string $entity_name Human-readable name of the affected record
  * @param string $description Optional detail about what changed
+ * @param ?int    $branch_id   Optional: the record's branch (default: the user's session branch)
+ * @param ?string $branch_name Optional: name for $branch_id
  */
 function logActivity(
     string $module,
     string $action,
     $entity_id,
     string $entity_name,
-    string $description = ''
+    string $description = '',
+    ?int $branch_id = null,
+    ?string $branch_name = null,
+    ?array $actor = null      // Optional: ['username' => ..., 'role' => ...] for non-staff actors (patient portal)
 ): void {
     // Ensure session is running — safe to call even if already started
     if (session_status() === PHP_SESSION_NONE) {
@@ -71,8 +76,21 @@ function logActivity(
     $branchId   = $_SESSION['branch_id']   ?? null;
     $branchName = $_SESSION['branch_name'] ?? null;
 
+    // Patients have no staff user row: record who they are, never a staff id
+    if ($actor) {
+        $userId   = null;
+        $username = (string)($actor['username'] ?? 'Patient');
+        $role     = (string)($actor['role'] ?? 'patient');
+    }
+
     // Owners span all branches — their branch_id in users table
     // may be NULL. We display 'All Branches' for them.
+    // A record-specific branch (e.g. the invoice's branch) wins over the session's
+    if ($branch_id) {
+        $branchId   = $branch_id;
+        $branchName = $branch_name;
+    }
+
     if ($role === 'owner' && empty($branchName)) {
         $branchName = 'All Branches';
     }
@@ -96,7 +114,11 @@ function logActivity(
     // We intentionally do NOT check the result — a failed log
     // must never block the actual user operation.
     try {
-        supabase_request('audit_logs', 'POST', $payload);
+        // supabase_request reports failures in 'status' (it doesn't throw)
+        $r = supabase_request('audit_logs', 'POST', $payload);
+        if (($r['status'] ?? 0) < 200 || ($r['status'] ?? 0) >= 300) {
+            error_log('[AuditController] audit_logs insert failed (' . ($r['status'] ?? 0) . '): ' . ($r['error'] ?? 'unknown'));
+        }
     } catch (\Throwable $e) {
         // Log to server error log but do not surface to user
         error_log('[AuditController] logActivity failed: ' . $e->getMessage());
@@ -142,4 +164,45 @@ function getAppointmentInfoForAudit(int $appointmentId): array
         'patient_name' => $row['patients']['full_name'] ?? 'Unknown Patient',
         'old_status'   => $row['status']                ?? 'unknown',
     ];
+}
+// ── Billing ──────────────────────────────────────────────────
+// Module 'billing' (billing-records.php). Descriptions carry the before → after
+// amounts; failed writes are logged with a "FAILED —" prefix (the audit_logs
+// table has no separate outcome / old-new columns).
+
+/**
+ * Invoice snapshot for billing audit entries (code, patient, branch, amounts).
+ * Returns [] when the invoice can't be read — logging still works.
+ */
+function getInvoiceInfoForAudit(int $invoiceId): array
+{
+    if ($invoiceId < 1) return [];
+    $r = supabase_request('invoices', 'GET', [],
+        'invoice_id=eq.' . $invoiceId .
+        '&select=invoice_id,invoice_code,total_amount,amount_paid,balance,payment_status,branch_id,' .
+        'patients(full_name),branches(branch_name)&limit=1');
+    return $r['data'][0] ?? [];
+}
+
+/** "₱1,300.00" for audit descriptions. */
+function auditPeso($n): string
+{
+    return '₱' . number_format((float)$n, 2);
+}
+
+/**
+ * Log a billing event against an invoice. $info comes from
+ * getInvoiceInfoForAudit() (read it BEFORE a delete).
+ */
+function logBillingActivity(string $action, int $invoiceId, array $info, string $description): void
+{
+    $code    = $info['invoice_code'] ?? ('Invoice #' . $invoiceId);
+    $patient = $info['patients']['full_name'] ?? '';
+    logActivity(
+        'billing', $action, $invoiceId,
+        $patient !== '' ? $code . ' · ' . $patient : $code,
+        $description,
+        !empty($info['branch_id']) ? (int)$info['branch_id'] : null,
+        $info['branches']['branch_name'] ?? null
+    );
 }

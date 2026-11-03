@@ -14,6 +14,7 @@ require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
 require_once __DIR__ . '/controllers/inventory_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
+require_once __DIR__ . '/controllers/list_filters.php';
 
 $filterBranch   = isset($_GET['branch'])   ? (int)$_GET['branch']   : 0;
 $filterCategory = isset($_GET['category']) ? trim($_GET['category']) : '';
@@ -22,13 +23,36 @@ $page           = max(1, (int)($_GET['page'] ?? 1));
 
 $branches   = getAllBranches();
 $categories = getInventoryCategories();
-$data         = getInventoryRecords($page, $filterBranch, $filterCategory, $filterStatus);
+// Sort / search (validated in list_filters.php)
+$sortOptions  = [
+    'name_asc'    => ['Name (A–Z)',              'item_name.asc,item_id.asc'],
+    'name_desc'   => ['Name (Z–A)',              'item_name.desc,item_id.desc'],
+    'code_asc'    => ['Code (A–Z)',              'item_code.asc,item_id.asc'],
+    'code_desc'   => ['Code (Z–A)',              'item_code.desc,item_id.desc'],
+    'category_asc'  => ['Category (A–Z)',        'category.asc.nullslast,item_name.asc'],
+    'category_desc' => ['Category (Z–A)',        'category.desc.nullslast,item_name.asc'],
+    'branch_asc'  => ['Branch (A–Z)',            'branches(branch_name).asc.nullslast,item_name.asc'],
+    'branch_desc' => ['Branch (Z–A)',            'branches(branch_name).desc.nullslast,item_name.asc'],
+    'qty_desc'    => ['Stock (High to Low)',     'stock_quantity.desc,item_name.asc'],
+    'qty_asc'     => ['Stock (Low to High)',     'stock_quantity.asc,item_name.asc'],
+    'min_desc'    => ['Min Stock (High to Low)', 'min_stock.desc.nullslast,item_name.asc'],
+    'min_asc'     => ['Min Stock (Low to High)', 'min_stock.asc.nullslast,item_name.asc'],
+    'status_asc'  => ['Status (A–Z)',            'status.asc,item_name.asc'],
+    'status_desc' => ['Status (Z–A)',            'status.desc,item_name.asc'],
+];
+[$sortKey, $sortOrder] = listSort($sortOptions, 'name_asc');
+$search       = listSearch();
+$filtersOn    = listActiveCount([$filterBranch, $filterCategory, $filterStatus, $search, $sortKey !== 'name_asc']);
+
+$data         = getInventoryRecords($page, $filterBranch, $filterCategory, $filterStatus, $sortOrder,
+                                    listSearchFilter($search, ['item_name', 'item_code']));
 $items        = $data['rows'];
 $totalRecords = $data['totalRecords'];
 $totalPages   = $data['totalPages'];
 $from         = $data['from'];
 $to           = $data['to'];
-$baseUrl = 'inventory-records.php?branch=' . $filterBranch . '&category=' . urlencode($filterCategory) . '&status=' . urlencode($filterStatus);
+$baseUrl = listUrl('inventory-records.php', ['branch' => $filterBranch, 'category' => $filterCategory, 'status' => $filterStatus, 'q' => $search, 'sort' => $sortKey === 'name_asc' ? '' : $sortKey]);
+$sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'category' => $filterCategory, 'status' => $filterStatus, 'q' => $search]);
 
 ?>
 <!DOCTYPE html>
@@ -42,6 +66,7 @@ $baseUrl = 'inventory-records.php?branch=' . $filterBranch . '&category=' . urle
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
     <link rel="stylesheet" href="assets/css/custom.css">
+    <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -59,27 +84,6 @@ $baseUrl = 'inventory-records.php?branch=' . $filterBranch . '&category=' . urle
                 <div class="page-header-right ms-auto">
                     <div class="page-header-right-items">
                         <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-                            <select id="filterCategory" class="form-select form-select-sm hdr-control" onchange="applyFilters()" style="max-width:160px;">
-                                <option value="">All Categories </option>
-                                <?php foreach ($categories as $cat): ?>
-                                <option value="<?= htmlspecialchars($cat) ?>" <?= $filterCategory===$cat?'selected':'' ?>><?= htmlspecialchars($cat) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <select id="filterStatus" class="form-select form-select-sm hdr-control" onchange="applyFilters()" style="max-width:150px;">
-                                <option value="">All Statuses</option>
-                                <option value="in_stock"    <?= $filterStatus==='in_stock'    ?'selected':'' ?>>In Stock</option>
-                                <option value="low_stock"   <?= $filterStatus==='low_stock'   ?'selected':'' ?>>Low Stock</option>
-                                <option value="out_of_stock"<?= $filterStatus==='out_of_stock'?'selected':'' ?>>Out of Stock</option>
-                                <option value="inactive"    <?= $filterStatus==='inactive'    ?'selected':'' ?>>Inactive</option>
-                            </select>
-                            <?php if (isOwner()): ?>
-                            <select id="filterBranch" class="form-select form-select-sm hdr-control" onchange="applyFilters()" style="max-width:180px;">
-                                <option value="0">All Branches</option>
-                                <?php foreach ($branches as $b): ?>
-                                <option value="<?= $b['branch_id'] ?>" <?= (int)$b['branch_id']===$filterBranch?'selected':'' ?>><?= htmlspecialchars($b['branch_name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <?php endif; ?>
                             <?php if (!isDentist()): ?>
                             <button class="btn btn-primary btn-sm hdr-btn" onclick="openAddItemModal()">
                                 <i class="feather-plus me-1"></i> Add Item
@@ -103,17 +107,44 @@ $baseUrl = 'inventory-records.php?branch=' . $filterBranch . '&category=' . urle
                                 <div data-bs-toggle="tooltip" title="Maximize/Minimize"><a href="javascript:void(0);" class="avatar-text avatar-xs bg-success" data-bs-toggle="expand"></a></div>
                             </div></div>
                         </div>
+                        <div class="list-toolbar">
+                            <?= listSearchControl($search, 'Item name or code') ?>
+                            <div class="list-field"><label class="list-label" for="filterCategory">Category</label>                            <select id="filterCategory" class="js-custom-select" data-cs-filter data-cs-search onchange="applyFilters()">
+                                <option value="">All Categories </option>
+                                <?php foreach ($categories as $cat): ?>
+                                <option value="<?= htmlspecialchars($cat) ?>" <?= $filterCategory===$cat?'selected':'' ?>><?= htmlspecialchars($cat) ?></option>
+                                <?php endforeach; ?>
+                            </select></div>
+                            <div class="list-field"><label class="list-label" for="filterStatus">Stock Status</label>
+                            <select id="filterStatus" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                <option value="">All Statuses</option>
+                                <option value="in_stock"    <?= $filterStatus==='in_stock'    ?'selected':'' ?>>In Stock</option>
+                                <option value="low_stock"   <?= $filterStatus==='low_stock'   ?'selected':'' ?>>Low Stock</option>
+                                <option value="out_of_stock"<?= $filterStatus==='out_of_stock'?'selected':'' ?>>Out of Stock</option>
+                                <option value="inactive"    <?= $filterStatus==='inactive'    ?'selected':'' ?>>Inactive</option>
+                            </select></div>
+                            <?php if (isOwner()): ?>
+                            <div class="list-field"><label class="list-label" for="filterBranch">Branch</label>
+                            <select id="filterBranch" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                <option value="0">All Branches</option>
+                                <?php foreach ($branches as $b): ?>
+                                <option value="<?= $b['branch_id'] ?>" <?= (int)$b['branch_id']===$filterBranch?'selected':'' ?>><?= htmlspecialchars($b['branch_name']) ?></option>
+                                <?php endforeach; ?>
+                            </select></div>
+                            <?php endif; ?>
+                            <?= listResetControl('inventory-records.php', $filtersOn) ?>
+                        </div>
                         <div class="card-body custom-card-action p-0">
                             <div class="table-responsive" style="overflow:visible;">
                                 <table class="table table-hover mb-0">
                                     <thead><tr>
-                                        <th>Item Code</th><th>Item Name</th><th>Category</th>
-                                        <th>Branch</th><th>Stock</th><th>Min Stock</th>
-                                        <th>Status</th><th class="text-end">Action</th>
+                                        <?= listTh('Item Code', 'code_asc', 'code_desc', $sortKey, $sortBase) ?><?= listTh('Item Name', 'name_asc', 'name_desc', $sortKey, $sortBase) ?><?= listTh('Category', 'category_asc', 'category_desc', $sortKey, $sortBase) ?>
+                                        <?= listTh('Branch', 'branch_asc', 'branch_desc', $sortKey, $sortBase) ?><?= listTh('Stock', 'qty_desc', 'qty_asc', $sortKey, $sortBase) ?><?= listTh('Min Stock', 'min_desc', 'min_asc', $sortKey, $sortBase) ?>
+                                        <?= listTh('Status', 'status_asc', 'status_desc', $sortKey, $sortBase) ?><th class="text-end">Action</th>
                                     </tr></thead>
                                     <tbody>
                                     <?php if (empty($items)): ?>
-                                        <tr><td colspan="8" class="text-center py-4 text-muted"><i class="feather-package me-2"></i>No inventory items found.</td></tr>
+                                        <?= listEmptyRow(8, $filtersOn > 0, 'No inventory items found.', 'feather-package', 'inventory-records.php') ?>
                                     <?php else: ?>
                                         <?php foreach ($items as $item): ?>
                                         <?php
@@ -192,7 +223,7 @@ $baseUrl = 'inventory-records.php?branch=' . $filterBranch . '&category=' . urle
                         <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
                             <p class="text-muted small mb-0">
                                 Showing <?= $from ?>–<?= $to ?> of <?= $totalRecords ?> item(s)
-                                <?php if ($filterBranch || $filterCategory || $filterStatus): ?>
+                                <?php if ($filtersOn): ?>
                                     &nbsp;·&nbsp;<a href="inventory-records.php" class="text-danger"><i class="feather-x-circle me-1"></i>Clear filters</a>
                                 <?php endif; ?>
                             </p>
@@ -391,6 +422,7 @@ $baseUrl = 'inventory-records.php?branch=' . $filterBranch . '&category=' . urle
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="assets/js/admin.js"></script>
+    <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/inventory.js"></script>
     <script>
     function applyFilters() {

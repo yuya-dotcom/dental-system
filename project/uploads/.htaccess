@@ -1,0 +1,8 @@
+# Uploaded files are data, never code: block script execution here.
+# Files still download normally (links in the app keep working).
+<FilesMatch "\.(php\d?|phtml|phar|pht|cgi|pl|py|sh|asp|aspx|jsp)$">
+    Require all denied
+</FilesMatch>
+Options -ExecCGI -Indexes
+RemoveHandler .php .phtml .phar .pht
+RemoveType .php .phtml .phar .pht
