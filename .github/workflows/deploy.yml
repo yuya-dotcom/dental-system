@@ -28,7 +28,7 @@ jobs:
           server-dir: /essenciasmile.online/htdocs/
 
           # Preview only; do not modify the live website.
-          dry-run: true
+          dry-run: false
 
           # Preserve defaults and exclude private or unnecessary files.
           exclude: |
