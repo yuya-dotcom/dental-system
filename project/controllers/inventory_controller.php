@@ -22,6 +22,20 @@ const MOV_PER_PAGE = 10;
 function getInventoryRecords(int $page, int $branchId, string $category, string $status, string $order = 'order=item_name.asc', array $extra = []): array
 {
     $offset = ($page - 1) * INV_PER_PAGE;
+    $q = inventoryRecordsQuery($page, $branchId, $category, $status, $order, $extra);
+
+    // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
+    $result = (function_exists('admin_get') ? admin_get('inventory', implode('&', $q), ['Prefer: count=exact']) : supabase_request('inventory', 'GET', [], implode('&', $q), ['Prefer: count=exact']));
+    $rows   = is_array($result['data']) ? $result['data'] : [];
+    $total  = resolveCount($result, 'inventory', $q);
+
+    return buildPageResult($rows, $total, $page, $offset, INV_PER_PAGE);
+}
+
+/** The PostgREST filter parts for getInventoryRecords() (also used to prefetch it). */
+function inventoryRecordsQuery(int $page, int $branchId, string $category, string $status, string $order = 'order=item_name.asc', array $extra = []): array
+{
+    $offset = ($page - 1) * INV_PER_PAGE;
 
     $q = [
         'select=item_id,item_code,item_name,category,stock_quantity,min_stock,status,created_at,branches(branch_name)',
@@ -35,17 +49,16 @@ function getInventoryRecords(int $page, int $branchId, string $category, string 
     if ($category)     $q[] = 'category=eq.'  . urlencode($category);
     if ($status)       $q[] = 'status=eq.'    . urlencode($status);
 
-    $result = supabase_request('inventory', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
-    $rows   = is_array($result['data']) ? $result['data'] : [];
-    $total  = resolveCount($result, 'inventory', $q);
-
-    return buildPageResult($rows, $total, $page, $offset, INV_PER_PAGE);
+    return $q;
 }
+
+const INV_CATEGORIES_QUERY = 'select=category&order=category.asc';
 
 /** Fetch distinct categories for filter dropdown */
 function getInventoryCategories(): array
 {
-    $result = supabase_request('inventory', 'GET', [], 'select=category&order=category.asc');
+    // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
+    $result = (function_exists('admin_get') ? admin_get('inventory', INV_CATEGORIES_QUERY, []) : supabase_request('inventory', 'GET', [], INV_CATEGORIES_QUERY, []));
     if (!is_array($result['data'])) return [];
     $cats = array_unique(array_column($result['data'], 'category'));
     sort($cats);
@@ -57,6 +70,20 @@ function getInventoryCategories(): array
 // ─────────────────────────────────────────────────────────────
 
 function getStockMovements(int $page, int $branchId, string $itemId): array
+{
+    $offset = ($page - 1) * MOV_PER_PAGE;
+    $q = stockMovementsQuery($page, $branchId, $itemId);
+
+    // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
+    $result = (function_exists('admin_get') ? admin_get('inventory_movements', implode('&', $q), ['Prefer: count=exact']) : supabase_request('inventory_movements', 'GET', [], implode('&', $q), ['Prefer: count=exact']));
+    $rows   = is_array($result['data']) ? $result['data'] : [];
+    $total  = resolveCount($result, 'inventory_movements', $q);
+
+    return buildPageResult($rows, $total, $page, $offset, MOV_PER_PAGE);
+}
+
+/** The PostgREST filter parts for getStockMovements() (also used to prefetch it). */
+function stockMovementsQuery(int $page, int $branchId, string $itemId): array
 {
     $offset = ($page - 1) * MOV_PER_PAGE;
 
@@ -71,11 +98,7 @@ function getStockMovements(int $page, int $branchId, string $itemId): array
     if ($branchId > 0) $q[] = 'branch_id=eq.' . $branchId;
     if ($itemId)       $q[] = 'item_id=eq.'   . (int)$itemId;
 
-    $result = supabase_request('inventory_movements', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
-    $rows   = is_array($result['data']) ? $result['data'] : [];
-    $total  = resolveCount($result, 'inventory_movements', $q);
-
-    return buildPageResult($rows, $total, $page, $offset, MOV_PER_PAGE);
+    return $q;
 }
 
 // ─────────────────────────────────────────────────────────────

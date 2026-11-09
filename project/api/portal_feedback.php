@@ -37,16 +37,14 @@ function fbFail(string $message, string $code = 'validation', int $http = 422): 
 }
 
 $accountId = (int)$_SESSION['portal_account_id'];
-$patientId = feedbackPatientId($accountId);
+// Session-cached patient lookup + parallel status queries (controllers/portal_loaders.php)
+require_once __DIR__ . '/../controllers/portal_loaders.php';
+$patientId = portal_run_one(pl_patient_id($accountId));
 
 // ── STATUS: which of my appointments already have feedback ──────
+// Same rules as feedbackSubmittedMap(); also served by portal_auth 'bootstrap'.
 if ($action === 'status') {
-    if (!$patientId) fbOut(['success' => true, 'submitted' => (object)[]]);
-    $apts = supabase_request('appointments', 'GET', [],
-        'patient_id=eq.' . $patientId . '&select=appointment_id');
-    $map = feedbackSubmittedMap(array_column($apts['data'] ?? [], 'appointment_id'));
-    if ($map === null) fbOut(['success' => false, 'code' => 'unavailable', 'message' => 'Feedback is not available right now.']);
-    fbOut(['success' => true, 'submitted' => (object)$map]);
+    fbOut(portal_run_one(pl_feedback_status($accountId)));
 }
 
 if (!$patientId) fbFail('Your account is not linked to a patient record yet.', 'not_found', 404);

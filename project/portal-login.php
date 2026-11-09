@@ -30,8 +30,7 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EssenciaSmile | Patient Portal</title>
     <link rel="shortcut icon" type="image/x-icon" href="assets/images/essencia-logo.ico">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="assets/fonts/sora/sora-300-800.css" rel="stylesheet"><!-- Sora, self-hosted (was Google Fonts) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
     <link rel="stylesheet" href="assets/css/portal-login.css?v=7">
@@ -303,7 +302,12 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
 
         function initProvinces() {
             if (!PH_DATA) {
-                document.getElementById('provinceValue').textContent = 'Address data unavailable';
+                const label = document.getElementById('provinceValue');
+                label.textContent = 'Loading addresses…';
+                loadPhData().then(d => {
+                    if (d) { label.textContent = 'Select province'; initProvinces(); }
+                    else label.textContent = 'Address data unavailable';
+                });
                 return;
             }
             const ul = document.getElementById('provinceList');
@@ -820,7 +824,7 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/es-swal.js?v=2"></script>
     <script src="assets/js/nationalities.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
@@ -1049,30 +1053,21 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
         // Place cluster.json at: assets/json/cluster.json
         // Download: https://github.com/arkeensalvador/ph-address-dropdown/blob/main/cluster.json
 
-        let PH_DATA = (function() {
-            try {
-                return <?php
-                        // Try multiple common paths to find cluster.json
-                        $attempts = [
-                            __DIR__ . '/assets/json/cluster.json',
-                            dirname(__DIR__) . '/assets/json/cluster.json',
-                            $_SERVER['DOCUMENT_ROOT'] . '/assets/json/cluster.json',
-                            realpath(dirname($_SERVER['SCRIPT_FILENAME'])) . '/assets/json/cluster.json',
-                        ];
-                        $found = null;
-                        foreach ($attempts as $p) {
-                            if (file_exists($p)) {
-                                $found = $p;
-                                break;
-                            }
-                        }
-                        echo $found ? file_get_contents($found) : 'null';
-                        ?>;
-            } catch (e) {
-                return null;
+        // Loaded as a static file (1.4 MB, cached by the browser) instead of being
+        // inlined into the login page. Fetched after the page has loaded; the
+        // registration step that needs it waits for it (see initProvinces).
+        let PH_DATA = null;
+        let _phDataPromise = null;
+        function loadPhData() {
+            if (!_phDataPromise) {
+                _phDataPromise = fetch('assets/json/cluster.json')
+                    .then(r => r.ok ? r.json() : null)
+                    .then(d => (PH_DATA = d))
+                    .catch(() => (_phDataPromise = null, null));   // allow a retry later
             }
-        })();
-        console.log('[PH Address]', PH_DATA ? 'cluster.json loaded ✓ (' + Object.keys(PH_DATA).length + ' regions)' : 'cluster.json NOT found — place it at: assets/json/cluster.json inside your project root');
+            return _phDataPromise;
+        }
+        window.addEventListener('load', () => setTimeout(loadPhData, 0));
 
         // ZIP lookup: barangay name (lowercase) → ZIP code
         const ZIP_MAP = {

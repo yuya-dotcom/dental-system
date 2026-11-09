@@ -6,6 +6,8 @@
 define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/controllers/treatment_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/list_filters.php';
@@ -14,7 +16,6 @@ $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : getSessionBranch
 if (!isOwner() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
 $page = max(1, (int)($_GET['page'] ?? 1));
 
-$branches   = getAllBranches();
 
 // Sort (table headers) / search / treatment date / status (validated in list_filters.php)
 $sortOptions  = [
@@ -35,6 +36,9 @@ if ($filterStatus)  $extra[] = 'status=eq.' . $filterStatus;
 array_push($extra, ...listDateRange('treatment_date', $dateFrom, $dateTo));
 $filtersOn     = listActiveCount([isOwner() ? $filterBranch : 0, $search, $filterStatus, $dateFrom, $dateTo, $sortKey !== 'oldest']);
 
+// One parallel wave: checked-in appointments (step 1 of the list) + branch dropdown + navbar bell
+admin_prefetch(['appts' => admin_q('appointments', implode('&', activeTreatmentsApptQuery($filterBranch)))]);
+$branches   = getAllBranches();
 $data       = getActiveTreatments($page, $filterBranch, $sortOrder, $extra);
 $treatments = $data['rows'];
 $totalRecords = $data['totalRecords'];
@@ -113,7 +117,7 @@ foreach ($treatments as $t) {
     <link rel="stylesheet" href="assets/css/odontogram.css?v=3">
     <link rel="stylesheet" href="assets/css/treatments.css?v=7">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&display=swap">
+    <link rel="stylesheet" href="assets/fonts/sora/sora-400-700.css"><!-- Sora, self-hosted (was Google Fonts) -->
     <link rel="stylesheet" href="assets/css/es-swal.css?v=4">
     <style>
         /* ── Add Material blur effect ── */
@@ -821,7 +825,7 @@ foreach ($treatments as $t) {
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/es-swal.js?v=2"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>

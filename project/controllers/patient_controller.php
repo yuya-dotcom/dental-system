@@ -99,6 +99,24 @@ function getPatientRecords(int $page, int $branchId, string $status, string $ord
 {
     $perPage = PAT_PER_PAGE;
     $offset  = ($page - 1) * $perPage;
+    $q = patientRecordsQuery($page, $branchId, $status, $order, $extra);
+
+    // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
+    // 'Prefer: count=exact' tells Supabase to include
+    // Content-Range header with the total count
+    $result = (function_exists('admin_get') ? admin_get('patients', implode('&', $q), ['Prefer: count=exact']) : supabase_request('patients', 'GET', [], implode('&', $q), ['Prefer: count=exact']));
+
+    $rows  = is_array($result['data']) ? $result['data'] : [];
+    $total = patResolveCount($result);
+
+    return patBuildPageResult($rows, $total, $page, $offset, $perPage);
+}
+
+/** The PostgREST filter parts for getPatientRecords() (also used to prefetch it). */
+function patientRecordsQuery(int $page, int $branchId, string $status, string $order = 'order=created_at.asc', array $extra = []): array
+{
+    $perPage = PAT_PER_PAGE;
+    $offset  = ($page - 1) * $perPage;
 
     $q = [
         'select=patient_id,patient_code,full_name,contact_number,gender,birthdate,last_visit,status,branch_id,created_at,branches(branch_name)',
@@ -111,20 +129,7 @@ function getPatientRecords(int $page, int $branchId, string $status, string $ord
     if ($branchId > 0) $q[] = 'branch_id=eq.' . $branchId;
     if ($status)       $q[] = 'status=eq.'    . urlencode($status);
 
-    // 'Prefer: count=exact' tells Supabase to include
-    // Content-Range header with the total count
-    $result = supabase_request(
-        'patients',
-        'GET',
-        [],
-        implode('&', $q),
-        ['Prefer: count=exact']
-    );
-
-    $rows  = is_array($result['data']) ? $result['data'] : [];
-    $total = patResolveCount($result);
-
-    return patBuildPageResult($rows, $total, $page, $offset, $perPage);
+    return $q;
 }
 
 /**

@@ -32,16 +32,10 @@ const BR_DEFAULT_OPERATING_DAYS = [1, 2, 3, 4, 5, 6];
 function getBranchRecords(int $page, string $order = 'order=branch_name.asc', array $extra = []): array
 {
     $offset = ($page - 1) * BR_PER_PAGE;
+    $q = branchRecordsQuery($page, $order, $extra);
 
-    $q = [
-        'select=branch_id,branch_code,branch_name,address,contact_number,open_time,close_time,operating_days,status,created_at',
-        $order,
-        'limit='  . BR_PER_PAGE,
-        'offset=' . $offset,
-        ...$extra,
-    ];
-
-    $result = supabase_request('branches', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
+    // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
+    $result = (function_exists('admin_get') ? admin_get('branches', implode('&', $q), ['Prefer: count=exact']) : supabase_request('branches', 'GET', [], implode('&', $q), ['Prefer: count=exact']));
     if ($result['error']) {
         // operating_days not added yet (SQL file not run) — load without it, Mon–Sat is shown
         $q[0]   = 'select=branch_id,branch_code,branch_name,address,contact_number,open_time,close_time,status,created_at';
@@ -53,6 +47,22 @@ function getBranchRecords(int $page, string $order = 'order=branch_name.asc', ar
     return buildPageResult($rows, $total, $page, $offset, BR_PER_PAGE);
 }
 
+/** The PostgREST filter parts for getBranchRecords() (also used to prefetch it). */
+function branchRecordsQuery(int $page, string $order = 'order=branch_name.asc', array $extra = []): array
+{
+    $offset = ($page - 1) * BR_PER_PAGE;
+
+    $q = [
+        'select=branch_id,branch_code,branch_name,address,contact_number,open_time,close_time,operating_days,status,created_at',
+        $order,
+        'limit='  . BR_PER_PAGE,
+        'offset=' . $offset,
+        ...$extra,
+    ];
+
+    return $q;
+}
+
 /**
  * Fetch all branches for dropdown population.
  * Used by: api/get_branches.php + any PHP page that needs branch options.
@@ -60,10 +70,13 @@ function getBranchRecords(int $page, string $order = 'order=branch_name.asc', ar
  */
 function getAllBranches(): array
 {
-    $result = supabase_request('branches', 'GET', [], implode('&', [
-        'select=branch_id,branch_name',
-        'order=branch_name.asc',
-    ]));
+    // admin_get(): reuses the result when the page already fetched it in
+    // parallel with admin_prefetch() (controllers/admin_batch.php). Not
+    // required here on purpose: portal/API callers keep plain supabase_request().
+    $query  = 'select=branch_id,branch_name&order=branch_name.asc';
+    $result = function_exists('admin_get')
+        ? admin_get('branches', $query)
+        : supabase_request('branches', 'GET', [], $query);
 
     if ($result['error'] || !is_array($result['data'])) {
         return [];

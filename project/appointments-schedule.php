@@ -2,13 +2,14 @@
 define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/controllers/appointment_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/dbconfig.php';
 
 $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : getSessionBranch();
 if (!isOwner() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
-$branches     = getAllBranches();
 $filterStatus = in_array($_GET['status'] ?? '', ['pending', 'confirmed', 'checked_in'], true) ? $_GET['status'] : '';
 
 // Sort / search / date range (validated in list_filters.php).
@@ -29,8 +30,14 @@ $dateTo       = listDate('to')   ?: listDate('date');
 $filterDate   = '';
 $page         = max(1, (int)($_GET['page'] ?? 1));
 
-$patientsRes  = supabase_request('patients', 'GET', [], 'select=patient_id,full_name&order=full_name.asc&limit=500');
-$dentistsRes  = supabase_request('dentists', 'GET', [], 'select=dentist_id,full_name&order=full_name.asc&limit=200');
+// Wave 1 (parallel): dropdown data + branch dropdown + navbar bell. Unaffected by the
+// no_show update below; the appointment list itself is read after that update.
+$_patQ = 'select=patient_id,full_name&order=full_name.asc&limit=500';
+$_denQ = 'select=dentist_id,full_name&order=full_name.asc&limit=200';
+admin_prefetch(['pat' => admin_q('patients', $_patQ), 'den' => admin_q('dentists', $_denQ)]);
+$branches     = getAllBranches();
+$patientsRes  = admin_get('patients', $_patQ);
+$dentistsRes  = admin_get('dentists', $_denQ);
 $patientsList = is_array($patientsRes['data']) ? $patientsRes['data'] : [];
 $dentistsList = is_array($dentistsRes['data']) ? $dentistsRes['data'] : [];
 
@@ -1126,10 +1133,10 @@ function schStatusDisplay(string $s): string
 
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/vendors/js/daterangepicker.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
+    <script src="assets/vendors/js/fullcalendar-6.1.20.index.global.min.js"></script><!-- self-hosted, byte-identical to jsDelivr fullcalendar@6.1.20 -->
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/es-swal.js?v=2"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>

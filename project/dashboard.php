@@ -11,8 +11,9 @@ define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
 require_once __DIR__ . '/controllers/dashboard_controller.php';
+admin_release_session();   // read-only page: don't hold the session lock while querying
 
-$stats = getDashboardStats();
+$stats = getDashboardStats();   // one parallel wave (controllers/admin_batch.php)
 
 $aptCompletionRate = $stats['total_appointments'] > 0
     ? round(($stats['completed_appointments'] / $stats['total_appointments']) * 100)

@@ -2,6 +2,8 @@
 define('REQUIRED_ROLES', ['owner']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/list_filters.php';
 
@@ -27,7 +29,19 @@ $filterStatus = in_array($_GET['status'] ?? '', ['active', 'inactive'], true) ? 
 $dayNames     = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 0 => 'Sunday'];
 $filterDay    = (isset($_GET['day']) && $_GET['day'] !== '' && isset($dayNames[(int)$_GET['day']])) ? (string)(int)$_GET['day'] : '';
 // Location: the branch city (branch names are the city names used in the addresses)
-$locRes       = supabase_request('branches', 'GET', [], 'select=branch_name&order=branch_name.asc');
+// Wave 1 (parallel): location options + navbar bell
+$_locQ        = 'select=branch_name&order=branch_name.asc';
+$_wave        = ['loc' => admin_q('branches', $_locQ)];
+if (($_GET['location'] ?? '') === '') {
+    // No location filter requested → the list query doesn't depend on wave 1's options,
+    // so fetch it in the same wave (same filters the code below builds)
+    $_ex = listSearchFilter($search, ['branch_name', 'branch_code', 'address', 'contact_number']);
+    if ($filterStatus) $_ex[] = 'status=eq.' . $filterStatus;
+    if ($filterDay !== '') $_ex[] = 'operating_days=cs.' . rawurlencode('{' . $filterDay . '}');
+    $_wave['list'] = admin_q('branches', implode('&', branchRecordsQuery($page, $sortOrder, $_ex)), ['Prefer: count=exact']);
+}
+admin_prefetch($_wave, ['navbar']);
+$locRes       = admin_get('branches', $_locQ);
 $locations    = array_values(array_unique(array_filter(array_column(is_array($locRes['data']) ? $locRes['data'] : [], 'branch_name'))));
 $filterLoc    = in_array($_GET['location'] ?? '', $locations, true) ? $_GET['location'] : '';
 $extra        = listSearchFilter($search, ['branch_name', 'branch_code', 'address', 'contact_number']);
@@ -265,7 +279,7 @@ $sortBase = listUrl('branches-records.php', ['q' => $search, 'status' => $filter
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/branches.js"></script>

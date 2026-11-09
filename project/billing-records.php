@@ -2,6 +2,8 @@
 define('REQUIRED_ROLES', ['owner', 'admin']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/controllers/treatment_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/list_filters.php';
@@ -10,7 +12,6 @@ $filterBranch  = isset($_GET['branch'])  ? (int)$_GET['branch']  : 0;
 $filterPayment = in_array($_GET['payment'] ?? '', ['paid', 'partial', 'unpaid'], true) ? $_GET['payment'] : '';
 $page          = max(1, (int)($_GET['page'] ?? 1));
 
-$branches     = getAllBranches();
 
 // Sort (table headers) / search / invoice date (validated in list_filters.php)
 $sortOptions  = [
@@ -38,6 +39,9 @@ $extra         = listSearchFilter($search, ['invoice_code']);
 array_push($extra, ...listDateRange('invoice_date', $dateFrom, $dateTo));
 $filtersOn     = listActiveCount([isOwner() ? $filterBranch : 0, $filterPayment, $search, $dateFrom, $dateTo, $sortKey !== 'code_asc']);
 
+// One parallel wave: the list + branch dropdown + navbar bell (controllers/admin_batch.php)
+admin_prefetch(['list' => admin_q('invoices', implode('&', invoiceRecordsQuery($page, $filterBranch, $filterPayment, $sortOrder, $extra)), ['Prefer: count=exact'])]);
+$branches     = getAllBranches();
 $data         = getInvoiceRecords($page, $filterBranch, $filterPayment, $sortOrder, $extra);
 $invoices     = $data['rows'];
 $totalRecords = $data['totalRecords'];
@@ -305,7 +309,7 @@ $sortBase = listUrl('billing-records.php', ['branch' => $filterBranch, 'payment'
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/es-swal.js?v=2"></script>

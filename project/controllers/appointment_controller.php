@@ -33,6 +33,20 @@ const APT_PER_PAGE = 10;
 function getAppointmentSchedule(int $page, int $branchId, string $status, string $date, string $order = 'order=appointment_date.asc,appointment_time.asc', array $extra = []): array
 {
     $offset = ($page - 1) * APT_PER_PAGE;
+    $q = appointmentScheduleQuery($page, $branchId, $status, $date, $order, $extra);
+
+    // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
+    $result = (function_exists('admin_get') ? admin_get('appointments', implode('&', $q), ['Prefer: count=exact']) : supabase_request('appointments', 'GET', [], implode('&', $q), ['Prefer: count=exact']));
+    $rows   = is_array($result['data']) ? $result['data'] : [];
+    $total  = resolveCount($result, 'appointments', $q);
+
+    return buildPageResult($rows, $total, $page, $offset, APT_PER_PAGE);
+}
+
+/** The PostgREST filter parts for getAppointmentSchedule() (also used to prefetch it). */
+function appointmentScheduleQuery(int $page, int $branchId, string $status, string $date, string $order = 'order=appointment_date.asc,appointment_time.asc', array $extra = []): array
+{
+    $offset = ($page - 1) * APT_PER_PAGE;
 
     $q = [
         'select=appointment_id,appointment_code,appointment_date,appointment_time,'
@@ -61,11 +75,7 @@ function getAppointmentSchedule(int $page, int $branchId, string $status, string
         $q[] = 'appointment_date=eq.' . urlencode($date);
     }
 
-    $result = supabase_request('appointments', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
-    $rows   = is_array($result['data']) ? $result['data'] : [];
-    $total  = resolveCount($result, 'appointments', $q);
-
-    return buildPageResult($rows, $total, $page, $offset, APT_PER_PAGE);
+    return $q;
 }
 
 /**
@@ -74,6 +84,20 @@ function getAppointmentSchedule(int $page, int $branchId, string $status, string
  */
 // $order: validated 'order=…' clause; $extra: prebuilt PostgREST filters (list_filters.php)
 function getAppointmentRecords(int $page, int $branchId, string $status, string $order = 'order=appointment_date.asc,appointment_time.asc', array $extra = []): array
+{
+    $offset = ($page - 1) * APT_PER_PAGE;
+    $q = appointmentRecordsQuery($page, $branchId, $status, $order, $extra);
+
+    // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
+    $result = (function_exists('admin_get') ? admin_get('appointments', implode('&', $q), ['Prefer: count=exact']) : supabase_request('appointments', 'GET', [], implode('&', $q), ['Prefer: count=exact']));
+    $rows   = is_array($result['data']) ? $result['data'] : [];
+    $total  = resolveCount($result, 'appointments', $q);
+
+    return buildPageResult($rows, $total, $page, $offset, APT_PER_PAGE);
+}
+
+/** The PostgREST filter parts for getAppointmentRecords() (also used to prefetch it). */
+function appointmentRecordsQuery(int $page, int $branchId, string $status, string $order = 'order=appointment_date.asc,appointment_time.asc', array $extra = []): array
 {
     $offset = ($page - 1) * APT_PER_PAGE;
 
@@ -90,11 +114,7 @@ function getAppointmentRecords(int $page, int $branchId, string $status, string 
     if ($branchId > 0) $q[] = 'branch_id=eq.' . $branchId;
     if ($status)       $q[] = 'status=eq.'    . urlencode($status);
 
-    $result = supabase_request('appointments', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
-    $rows   = is_array($result['data']) ? $result['data'] : [];
-    $total  = resolveCount($result, 'appointments', $q);
-
-    return buildPageResult($rows, $total, $page, $offset, APT_PER_PAGE);
+    return $q;
 }
 
 /**

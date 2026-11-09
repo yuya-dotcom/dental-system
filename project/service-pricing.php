@@ -10,6 +10,8 @@
 define('REQUIRED_ROLES', ['owner']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/dbconfig.php';
 require_once __DIR__ . '/controllers/auth_controller.php';
 
@@ -28,7 +30,9 @@ if ($filterStatus !== '') $filters .= '&status=eq.' . urlencode($filterStatus);
 if ($filterType   !== '') $filters .= '&service_type=eq.' . urlencode($filterType);
 
 // Fetch all matching (for count) then paginate
-$allRes       = supabase_request('services', 'GET', [], $filters . '&limit=1000');
+// One parallel wave: services + navbar bell (controllers/admin_batch.php)
+admin_prefetch(['all' => admin_q('services', $filters . '&limit=1000')], ['navbar']);
+$allRes       = admin_get('services', $filters . '&limit=1000');
 $allServices  = is_array($allRes['data']) ? $allRes['data'] : [];
 
 // Client-side search filter (Supabase REST ilike would also work)
@@ -375,7 +379,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
     <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script>
     // ── Filter helper ────────────────────────────────────────

@@ -2,22 +2,26 @@
 define('REQUIRED_ROLES', ['owner', 'admin']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/dbconfig.php';
 
+// One parallel wave: services + inventory items + material links + navbar bell
+$_svcQ = 'select=service_id,service_name,service_type,base_price,status&status=neq.inactive&order=service_name.asc';
+$_invQ = 'select=item_id,item_code,item_name,category,stock_quantity&status=neq.inactive&order=item_name.asc';
+$_smQ  = 'select=service_id,item_id';
+admin_prefetch(['svc' => admin_q('services', $_svcQ), 'inv' => admin_q('inventory', $_invQ), 'sm' => admin_q('service_materials', $_smQ)], ['navbar']);
+
 // ── Fetch all services ───────────────────────────────────────
-$svcRes   = supabase_request('services', 'GET', [],
-    'select=service_id,service_name,service_type,base_price,status&status=neq.inactive&order=service_name.asc'
-);
+$svcRes   = admin_get('services', $_svcQ);
 $services = is_array($svcRes['data']) ? $svcRes['data'] : [];
 
 // ── Fetch all inventory items (for the add-material dropdown) ─
-$invRes = supabase_request('inventory', 'GET', [],
-    'select=item_id,item_code,item_name,category,stock_quantity&status=neq.inactive&order=item_name.asc'
-);
+$invRes = admin_get('inventory', $_invQ);
 $inventoryItems = is_array($invRes['data']) ? $invRes['data'] : [];
 
 // ── Materials configured per service (for the list filters) ──
-$smRes     = supabase_request('service_materials', 'GET', [], 'select=service_id,item_id');
+$smRes     = admin_get('service_materials', $_smQ);
 $smRows    = is_array($smRes['data']) ? $smRes['data'] : [];
 $matCounts = array_count_values(array_map('intval', array_column($smRows, 'service_id')));
 $svcItems  = []; // service_id => [item_id, ...]  (Material / Item filter)
@@ -281,7 +285,7 @@ sort($svcTypes);
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/service-materials.js"></script>

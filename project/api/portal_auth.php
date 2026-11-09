@@ -20,12 +20,25 @@ require_once __DIR__ . '/../portal-session-guard.php';
 require_once __DIR__ . '/../controllers/name_helper.php';   // name + address capitalisation
 require_once __DIR__ . '/../controllers/notification_helper.php';
 require_once __DIR__ . '/../controllers/appointment_services_helper.php';
+require_once __DIR__ . '/../controllers/portal_loaders.php';   // parallel read loaders
 
 $input  = json_decode(file_get_contents('php://input'), true);
 $action = $input['action'] ?? '';
 
-// Parent / guardian columns on patient_profiles (database/2026-10-17_patient_guardian_fields.sql)
-const GUARDIAN_COLS = 'guardian_name,guardian_relation,guardian_phone,guardian_address';
+// Parent / guardian columns: GUARDIAN_COLS (controllers/portal_loaders.php)
+
+/**
+ * Called at login (session already open): drops values cached for whoever was
+ * signed in before in this browser session, so a new login never inherits the
+ * previous account's verification state, gender, patient link or dashboard.
+ */
+function portal_clear_account_cache(): void
+{
+    foreach (['portal_contact_ok', 'portal_gender', 'portal_patient_id', 'portal_patient_id_for'] as $k) unset($_SESSION[$k]);
+    foreach (array_keys($_SESSION) as $k) {
+        if (str_starts_with((string)$k, 'dash_cache_')) unset($_SESSION[$k]);
+    }
+}
 
 // ── REGISTER ──────────────────────────────────────────────────────────────────
 if ($action === 'register') {
@@ -197,6 +210,7 @@ if ($action === 'google_auth') {
     if (!empty($existing['data'])) {
         $acc = $existing['data'][0];
         session_start();
+        portal_clear_account_cache();
         $_SESSION['portal_account_id']       = $acc['account_id'];
         $_SESSION['portal_name']             = $acc['first_name'];
         $_SESSION['portal_profile_complete'] = $acc['is_profile_complete'];
@@ -250,6 +264,7 @@ if ($action === 'google_auth') {
         }
 
         session_start();
+        portal_clear_account_cache();
         $_SESSION['portal_account_id']       = $accountId;
         $_SESSION['portal_name']             = $firstName;
         $_SESSION['portal_profile_complete'] = false;
@@ -301,6 +316,7 @@ if ($action === 'login') {
     }
 
     session_start();
+    portal_clear_account_cache();
     $_SESSION['portal_account_id']       = $acc['account_id'];
     $_SESSION['portal_name']             = $acc['first_name'];
     $_SESSION['portal_profile_complete'] = $acc['is_profile_complete'];
@@ -370,33 +386,34 @@ if ($action === 'forgot_password') {
 portal_require_login_api();
 $accountId = $_SESSION['portal_account_id'];
 
-// ── HELPER: compute is_profile_complete ──────────────────────────────────────
-function computeProfileComplete(array $account, bool $hasQuestionnaire): bool
-{
-    $hasBasic   = !empty($account['first_name'])
-        && !empty($account['last_name'])
-        && !empty($account['birthdate'])
-        && !empty($account['gender']);
+// computeProfileComplete() lives in controllers/portal_loaders.php
 
-    $hasContact = !empty(trim($account['address'] ?? ''))
-        && !empty(trim($account['city']    ?? ''));
-
-    return $hasBasic && $hasContact && $hasQuestionnaire;
+// ── BOOTSTRAP — everything the dashboard shows on first load, in ONE request ─
+// The loaders run concurrently: their queries share one HTTP/2 connection and
+// go out in a few parallel waves instead of ~11 separate API calls (each with
+// its own TLS handshake). The payload per key is identical to the single action.
+if ($action === 'bootstrap') {
+    $aid = (int)$accountId;
+    getPatientId($aid);   // resolve + cache once, instead of once per loader
+    echo json_encode(['success' => true] + portal_run([
+        'dashboard_summary'   => pl_dashboard_summary($aid, $dashCache),
+        'get_profile'         => pl_profile($aid),
+        'get_treatments'      => pl_treatments($aid),
+        'get_billing'         => pl_billing($aid),
+        'get_dental_chart'    => pl_dental_chart($aid),
+        'get_files'           => pl_files($aid),
+        'get_waivers'         => pl_waivers($aid),
+        'contact_status'      => pl_contact_status($aid),
+        'check_questionnaire' => pl_check_questionnaire($aid),
+        'appointments'        => pl_appointments($aid),
+        'feedback_status'     => pl_feedback_status($aid),
+    ]));
+    exit;
 }
 
 // ── CHECK QUESTIONNAIRE STATUS ────────────────────────────────────────────────
 if ($action === 'check_questionnaire') {
-    $mqRes = supabase_request(
-        'medical_questionnaire',
-        'GET',
-        [],
-        'account_id=eq.' . (int)$accountId . '&select=questionnaire_id&limit=1'
-    );
-    $hasQuestionnaire = !empty($mqRes['data']);
-    echo json_encode([
-        'success'           => true,
-        'has_questionnaire' => $hasQuestionnaire,
-    ]);
+    echo json_encode(portal_run_one(pl_check_questionnaire((int)$accountId)));
     exit;
 }
 
@@ -505,177 +522,23 @@ if ($action === 'submit_questionnaire') {
     exit;
 }
 
-// ── DASHBOARD SUMMARY ─────────────────────────────────────────────────────────
+// ── DASHBOARD SUMMARY (60 s per-session cache) ────────────────────────────────
 if ($action === 'dashboard_summary') {
-
-    if (
-        isset($dashCache) &&
-        is_array($dashCache) &&
-        (time() - ($dashCache['ts'] ?? 0)) < 60
-    ) {
-        echo json_encode($dashCache['data']);
-        exit;
-    }
-
-    $result = supabase_request(
-        'rpc/get_dashboard_summary',
-        'POST',
-        ['p_account_id' => (int)$accountId]
-    );
-
-    $response = $result['data'] ?? ['success' => false, 'message' => 'Failed to load dashboard.'];
-
-    session_start();
-    $_SESSION['dash_cache_' . $accountId] = ['ts' => time(), 'data' => $response];
-    session_write_close();
-
-    echo json_encode($response);
+    echo json_encode(portal_run_one(pl_dashboard_summary((int)$accountId, $dashCache)));
     exit;
 }
 
 // ── CONTACT VERIFICATION STATUS ───────────────────────────────────────────────
 // Polled by the dashboard so a verification done elsewhere (email link in
-// another tab, phone OTP) shows up without a page reload. Always read fresh:
-// portal_contact_status() hides the per-method flags once the session is cached.
+// another tab, phone OTP) shows up without a page reload. Always read fresh.
 if ($action === 'contact_status') {
-    $res = supabase_request(
-        'patient_accounts',
-        'GET',
-        [],
-        'account_id=eq.' . (int)$accountId . '&select=is_verified,phone_verified&limit=1'
-    );
-    if (($res['status'] ?? 0) === 0 || $res['status'] >= 400 || empty($res['data'])) {
-        echo json_encode(['success' => false]);
-        exit;
-    }
-    $email = !empty($res['data'][0]['is_verified']);
-    $phone = !empty($res['data'][0]['phone_verified']);
-    if ($email || $phone) {
-        $wasActive = session_status() === PHP_SESSION_ACTIVE;
-        if (!$wasActive) session_start();
-        $_SESSION['portal_contact_ok'] = true;
-        if (!$wasActive) session_write_close();
-    }
-    echo json_encode(['success' => true, 'email' => $email, 'phone' => $phone]);
+    echo json_encode(portal_run_one(pl_contact_status((int)$accountId)));
     exit;
 }
 
 // ── GET PROFILE ───────────────────────────────────────────────────────────────
 if ($action === 'get_profile') {
-
-    $accResult = supabase_request(
-    'patient_accounts',
-    'GET',
-    [],
-    'account_id=eq.' . $accountId .
-        '&select=account_id,email,first_name,last_name,middle_name,suffix,' .
-        'birthdate,contact_number,is_profile_complete,is_verified,phone_verified,patient_id&limit=1'
-);
-
-    if (empty($accResult['data'])) {
-        echo json_encode(['success' => false, 'message' => 'Account not found.']);
-        exit;
-    }
-
-    $account   = $accResult['data'][0];
-    $patientId = $account['patient_id'] ?? null;
-
-    $patientRow = [];
-    if ($patientId) {
-        $pRes = supabase_request(
-            'patients',
-            'GET',
-            [],
-            'patient_id=eq.' . $patientId .
-                '&select=gender,contact_number,birthdate&limit=1'
-        );
-        $patientRow = $pRes['data'][0] ?? [];
-    }
-
-    if (empty($account['contact_number']) && !empty($patientRow['contact_number']))
-        $account['contact_number'] = $patientRow['contact_number'];
-    if (empty($account['birthdate']) && !empty($patientRow['birthdate']))
-        $account['birthdate'] = $patientRow['birthdate'];
-    $account['gender'] = $patientRow['gender'] ?? '';
-
-    $profileRow = [];
-    if ($patientId) {
-        $prRes = supabase_request(
-            'patient_profiles',
-            'GET',
-            [],
-            'patient_id=eq.' . $patientId .
-                '&select=' . implode(',', [
-                    'civil_status',
-                    'nationality',
-                    'home_phone',
-                    'address',
-                    'barangay',
-                    'city',
-                    'province',
-                    'zip',
-                    'chief_complaint',
-                    'referral_source',
-                    'referred_by',
-                    'prev_dentist',
-                    'last_dental_visit',
-                    'dental_notes',
-                    'allergies',
-                    'other_allergies',
-                    'allergy_reaction',
-                    'conditions',
-                    'other_conditions',
-                ]) .
-                ',' . GUARDIAN_COLS . '&limit=1'
-        );
-        // Guardian columns come from database/2026-10-17_patient_guardian_fields.sql;
-        // until that migration is applied, load the profile without them.
-        if (($prRes['status'] ?? 0) >= 400) {
-            $prRes = supabase_request(
-                'patient_profiles',
-                'GET',
-                [],
-                'patient_id=eq.' . $patientId . '&select=*&limit=1'
-            );
-        }
-        $profileRow = $prRes['data'][0] ?? [];
-    }
-
-    $mqRes = supabase_request(
-        'medical_questionnaire',
-        'GET',
-        [],
-        'account_id=eq.' . $accountId . '&select=questionnaire_id&limit=1'
-    );
-    $hasQuestionnaire = !empty($mqRes['data']);
-
-    $accForCheck = array_merge($account, $profileRow);
-    $isComplete  = computeProfileComplete($accForCheck, $hasQuestionnaire);
-    $account['is_profile_complete'] = $isComplete;
-
-    $storedComplete = (bool)($accResult['data'][0]['is_profile_complete'] ?? false);
-    if ($isComplete !== $storedComplete) {
-        supabase_request(
-            'patient_accounts',
-            'PATCH',
-            ['is_profile_complete' => $isComplete],
-            'account_id=eq.' . $accountId
-        );
-        session_start();
-        unset($_SESSION['dash_cache_' . $accountId]);
-        $_SESSION['portal_profile_complete'] = $isComplete;
-        session_write_close();
-    }
-
-    echo json_encode([
-        'success'  => true,
-        'account'  => $account,
-        'profile'  => $profileRow,
-        // Sessions from before portal_auth_method existed: legacy password logins
-        // get it set at the top of this file, so a missing value means Google
-        'auth_method' => $_SESSION['portal_auth_method'] ?? 'google',
-        'has_questionnaire' => $hasQuestionnaire,   // for the My Profile completion checklist
-    ]);
+    echo json_encode(portal_run_one(pl_profile((int)$accountId)));
     exit;
 }
 
@@ -885,9 +748,12 @@ if (($accSave['status'] ?? 0) === 0 || $accSave['status'] >= 400) {
         }
     }
 
-    unset($_SESSION['dash_cache_' . $accountId]);
-    $_SESSION['portal_profile_complete'] = $isProfileComplete;
-    $_SESSION['portal_name']             = $firstName;
+    // The session was released by portal_require_login_api(), so reopen it to make
+    // these stick (before, the cleared dashboard cache came back for up to 60 s)
+    portal_session_set([
+        'portal_profile_complete' => $isProfileComplete,
+        'portal_name'             => $firstName,
+    ], ['dash_cache_' . $accountId]);
 
     echo json_encode(['success' => true, 'is_profile_complete' => $isProfileComplete]);
     exit;
@@ -1005,397 +871,43 @@ if ($action === 'cancel_appointment') {
         notif_appointment($cancelRes['data'][0], ['status' => 'pending'] + $cancelRes['data'][0]);
     }
 
+    // The upcoming / completed counts changed: drop the 60 s dashboard cache
+    portal_session_set([], ['dash_cache_' . $accountId]);
+
     echo json_encode(['success' => true]);
     exit;
 }
 
-// ── GET TREATMENTS ────────────────────────────────────────────────────────────
-// appointment_id links each treatment to its check-in medical record.
-// Extra fields (treatment_id, stage, cost, notes, branch, appointment, invoice)
-// feed the "View Treatment History" modal. They are fetched with separate,
-// optional queries so a failure there never breaks the treatment list.
+// ── GET TREATMENTS / DENTAL CHART / BILLING ───────────────────────────────────
+// Loaders live in controllers/portal_loaders.php (same queries, run in parallel waves).
+// Billing and treatment extras feed the View Details / Treatment History modals;
+// the dental chart is read-only here (written by the admin api/dental_chart.php).
 if ($action === 'get_treatments') {
-    $patientId = getPatientId($accountId);
-    if (!$patientId) {
-        echo json_encode(['success' => true, 'treatments' => []]);
-        exit;
-    }
-
-    $result = supabase_request(
-        'treatments',
-        'GET',
-        [],
-        'patient_id=eq.' . $patientId .
-            '&select=treatment_id,treatment_code,treatment_date,tooth_number,status,appointment_id,' .
-            'branch_id,current_stage,cost,procedure_notes,' .
-            'services(service_name),dentists(full_name)' .
-            '&order=treatment_date.desc'
-    );
-    $rows = $result['data'] ?? [];
-
-    // ── Linked appointments (code, date, time) ──
-    $aptIds = array_values(array_unique(array_filter(array_map(fn($r) => (int)($r['appointment_id'] ?? 0), $rows))));
-    $aptMap = [];
-    if ($aptIds) {
-        $aRes = supabase_request(
-            'appointments',
-            'GET',
-            [],
-            'appointment_id=in.(' . implode(',', $aptIds) . ')' .
-                '&patient_id=eq.' . $patientId .
-                '&select=appointment_id,appointment_code,appointment_date,appointment_time'
-        );
-        foreach (($aRes['data'] ?? []) as $ap) $aptMap[(int)$ap['appointment_id']] = $ap;
-    }
-
-    // ── Branches ──
-    $branchIds = array_values(array_unique(array_filter(array_map(fn($r) => (int)($r['branch_id'] ?? 0), $rows))));
-    $branchMap = [];
-    if ($branchIds) {
-        $bRes = supabase_request(
-            'branches',
-            'GET',
-            [],
-            'branch_id=in.(' . implode(',', $branchIds) . ')&select=branch_id,branch_name,address'
-        );
-        foreach (($bRes['data'] ?? []) as $br) $branchMap[(int)$br['branch_id']] = $br;
-    }
-
-    // ── Invoices (latest per treatment) ──
-    $trtIds = array_values(array_filter(array_map(fn($r) => (int)($r['treatment_id'] ?? 0), $rows)));
-    $invMap = [];
-    if ($trtIds) {
-        $iRes = supabase_request(
-            'invoices',
-            'GET',
-            [],
-            'treatment_id=in.(' . implode(',', $trtIds) . ')' .
-                '&patient_id=eq.' . $patientId .
-                '&select=treatment_id,invoice_code,invoice_date,total_amount,amount_paid,balance,payment_status' .
-                '&order=invoice_date.desc'
-        );
-        foreach (($iRes['data'] ?? []) as $inv) {
-            $tid = (int)($inv['treatment_id'] ?? 0);
-            if ($tid && !isset($invMap[$tid])) $invMap[$tid] = $inv;
-        }
-    }
-
-    $treatments = [];
-    foreach ($rows as $row) {
-        $aid = (int)($row['appointment_id'] ?? 0);
-        $bid = (int)($row['branch_id'] ?? 0);
-        $tid = (int)($row['treatment_id'] ?? 0);
-        $apt = $aptMap[$aid]    ?? null;
-        $br  = $branchMap[$bid] ?? null;
-
-        $treatments[] = [
-            'treatment_code'   => $row['treatment_code'],
-            'treatment_date'   => $row['treatment_date'],
-            'tooth_number'     => $row['tooth_number'],
-            'status'           => $row['status'],
-            'appointment_id'   => $row['appointment_id'] ?? null,
-            'service_name'     => $row['services']['service_name'] ?? '—',
-            'dentist_name'     => $row['dentists']['full_name']    ?? '—',
-            // ── details for the View Treatment History modal ──
-            'treatment_id'     => $tid ?: null,
-            'current_stage'    => $row['current_stage']   ?? null,
-            'cost'             => $row['cost']            ?? null,
-            'procedure_notes'  => $row['procedure_notes'] ?? null,
-            'branch_name'      => $br['branch_name']      ?? null,
-            'branch_address'   => $br['address']          ?? null,
-            'appointment_code' => $apt['appointment_code'] ?? null,
-            'appointment_date' => $apt['appointment_date'] ?? null,
-            'appointment_time' => $apt['appointment_time'] ?? null,
-            'invoice'          => $invMap[$tid]           ?? null,
-        ];
-    }
-    echo json_encode(['success' => true, 'treatments' => $treatments]);
+    echo json_encode(portal_run_one(pl_treatments((int)$accountId)));
     exit;
 }
 
-// ── GET DENTAL CHART ──────────────────────────────────────────────────────────
-// Read-only chart for the logged-in patient (Patient Portal → Dental Chart).
-//   chart[]   — one row per tooth (newest row wins if duplicates exist), with
-//               chart_id, tooth_number, condition, notes, updated_at and
-//               surfaces { B|M|O|L|D: { condition, notes } }
-//   history[] — dental_chart_history entries, newest first
-// Values are written by the admin API (api/dental_chart.php).
 if ($action === 'get_dental_chart') {
-    $patientId = getPatientId($accountId);
-    if (!$patientId) {
-        echo json_encode(['success' => true, 'chart' => [], 'history' => []]);
-        exit;
-    }
-
-    $result = supabase_request(
-        'dental_chart',
-        'GET',
-        [],
-        'patient_id=eq.' . $patientId .
-            '&select=chart_id,tooth_number,condition,notes,updated_at' .
-            '&order=updated_at.desc'
-    );
-
-    // Keep only the newest row per tooth
-    $chart = [];
-    foreach (($result['data'] ?? []) as $row) {
-        $tooth = trim((string)($row['tooth_number'] ?? ''));
-        if ($tooth === '' || isset($chart[$tooth])) continue;
-        $row['tooth_number'] = $tooth;
-        $row['surfaces']     = new stdClass();   // JSON {} even when empty
-        $chart[$tooth]       = $row;
-    }
-
-    // ── Surfaces for those rows (one batched request) ──
-    $chartIds = array_values(array_filter(array_map(fn($r) => (int)($r['chart_id'] ?? 0), $chart)));
-    if ($chartIds) {
-        $sRes = supabase_request(
-            'dental_chart_surfaces',
-            'GET',
-            [],
-            'chart_id=in.(' . implode(',', $chartIds) . ')&select=chart_id,surface,condition,notes'
-        );
-        $byChart = [];
-        foreach (($sRes['data'] ?? []) as $s) {
-            $byChart[(int)$s['chart_id']][strtoupper(trim($s['surface']))] = [
-                'condition' => $s['condition'],
-                'notes'     => $s['notes'],
-            ];
-        }
-        foreach ($chart as $tooth => $row) {
-            $cid = (int)$row['chart_id'];
-            if (!empty($byChart[$cid])) $chart[$tooth]['surfaces'] = $byChart[$cid];
-        }
-    }
-
-    // ── Condition history ──
-    $hRes = supabase_request(
-        'dental_chart_history',
-        'GET',
-        [],
-        'patient_id=eq.' . $patientId .
-            '&select=tooth_number,surface,old_condition,new_condition,notes,changed_at,source' .
-            '&order=changed_at.desc&limit=500'
-    );
-
-    echo json_encode([
-        'success' => true,
-        'chart'   => array_values($chart),
-        'history' => $hRes['data'] ?? [],
-    ]);
+    echo json_encode(portal_run_one(pl_dental_chart((int)$accountId)));
     exit;
 }
 
-// ── GET BILLING  ───────────────────────────────────────────────────────────
-// Extra fields (branch, visit, services, dentist, payments) feed the Billing
-// "View Details" modal, so it opens instantly from the preloaded list. They are
-// fetched with separate, optional batch queries — a failure there never breaks
-// the invoice list itself.
 if ($action === 'get_billing') {
-    $patientId = getPatientId($accountId);
-    if (!$patientId) {
-        echo json_encode(['success' => true, 'invoices' => []]);
-        exit;
-    }
-
-    $result = supabase_request(
-        'invoices',
-        'GET',
-        [],
-        'patient_id=eq.' . $patientId .
-            '&select=invoice_id,invoice_code,invoice_date,total_amount,amount_paid,balance,' .
-            'payment_status,treatment_id,appointment_id,branch_id,treatments(treatment_code)' .
-            '&order=invoice_date.desc'
-    );
-    $rows = is_array($result['data'] ?? null) ? $result['data'] : [];
-
-    $ids = function (string $key) use ($rows): array {
-        return array_values(array_unique(array_filter(array_map(fn($r) => (int)($r[$key] ?? 0), $rows))));
-    };
-
-    // ── Branches ──
-    $branchMap = [];
-    if ($bIds = $ids('branch_id')) {
-        $bRes = supabase_request(
-            'branches',
-            'GET',
-            [],
-            'branch_id=in.(' . implode(',', $bIds) . ')&select=branch_id,branch_name,address,contact_number'
-        );
-        foreach (($bRes['data'] ?? []) as $br) $branchMap[(int)$br['branch_id']] = $br;
-    }
-
-    // ── Treatments (service, tooth, dentist, notes) ──
-    $trtMap = [];
-    if ($tIds = $ids('treatment_id')) {
-        $tRes = supabase_request(
-            'treatments',
-            'GET',
-            [],
-            'treatment_id=in.(' . implode(',', $tIds) . ')' .
-                '&patient_id=eq.' . $patientId .
-                '&select=treatment_id,treatment_code,treatment_date,tooth_number,procedure_notes,' .
-                'services(service_name),dentists(full_name)'
-        );
-        foreach (($tRes['data'] ?? []) as $t) $trtMap[(int)$t['treatment_id']] = $t;
-    }
-
-    // ── Visits (appointment code, date, time) ──
-    $aptMap = [];
-    if ($aIds = $ids('appointment_id')) {
-        $aRes = supabase_request(
-            'appointments',
-            'GET',
-            [],
-            'appointment_id=in.(' . implode(',', $aIds) . ')' .
-                '&patient_id=eq.' . $patientId .
-                '&select=appointment_id,appointment_code,appointment_date,appointment_time,service_id'
-        );
-        foreach (($aRes['data'] ?? []) as $ap) $aptMap[(int)$ap['appointment_id']] = $ap;
-    }
-
-    // ── Booked services, for invoices without a treatment ──
-    $svcMap = [];
-    $needSvc = array_values(array_unique(array_filter(array_map(
-        fn($r) => empty($trtMap[(int)($r['treatment_id'] ?? 0)]) ? (int)($r['appointment_id'] ?? 0) : 0,
-        $rows
-    ))));
-    if ($needSvc) {
-        $sRes = supabase_request(
-            'appointment_services',
-            'GET',
-            [],
-            'appointment_id=in.(' . implode(',', $needSvc) . ')' .
-                '&select=appointment_id,sort_order,services(service_name)&order=sort_order.asc'
-        );
-        foreach (($sRes['data'] ?? []) as $sv) {
-            $name = $sv['services']['service_name'] ?? '';
-            if ($name !== '') $svcMap[(int)$sv['appointment_id']][] = $name;
-        }
-        // Older bookings keep a single service on the appointment itself
-        $single = [];
-        foreach ($needSvc as $aid) {
-            $sid = (int)($aptMap[$aid]['service_id'] ?? 0);
-            if (empty($svcMap[$aid]) && $sid) $single[$aid] = $sid;
-        }
-        if ($single) {
-            $s2 = supabase_request(
-                'services',
-                'GET',
-                [],
-                'service_id=in.(' . implode(',', array_unique($single)) . ')&select=service_id,service_name'
-            );
-            $names = [];
-            foreach (($s2['data'] ?? []) as $sv) $names[(int)$sv['service_id']] = $sv['service_name'];
-            foreach ($single as $aid => $sid) {
-                if (!empty($names[$sid])) $svcMap[$aid] = [$names[$sid]];
-            }
-        }
-    }
-
-    // ── Payments ──
-    $payMap = [];
-    if ($iIds = $ids('invoice_id')) {
-        $pRes = supabase_request(
-            'payments',
-            'GET',
-            [],
-            'invoice_id=in.(' . implode(',', $iIds) . ')' .
-                '&select=invoice_id,payment_id,payment_date,amount,payment_method,recorded_by,notes' .
-                '&order=payment_date.asc,payment_id.asc'
-        );
-        foreach (($pRes['data'] ?? []) as $p) {
-            $payMap[(int)$p['invoice_id']][] = [
-                'payment_date'   => $p['payment_date']   ?? null,
-                'amount'         => $p['amount']         ?? 0,
-                'payment_method' => $p['payment_method'] ?? null,
-                'recorded_by'    => $p['recorded_by']    ?? null,
-                'notes'          => $p['notes']          ?? null,
-            ];
-        }
-    }
-
-    $invoices = [];
-    foreach ($rows as $row) {
-        $iid = (int)$row['invoice_id'];
-        $trt = $trtMap[(int)($row['treatment_id'] ?? 0)]   ?? null;
-        $apt = $aptMap[(int)($row['appointment_id'] ?? 0)] ?? null;
-        $br  = $branchMap[(int)($row['branch_id'] ?? 0)]   ?? null;
-
-        $services = [];
-        if (!empty($trt['services']['service_name'])) $services[] = $trt['services']['service_name'];
-        elseif ($apt) $services = $svcMap[(int)$apt['appointment_id']] ?? [];
-
-        $invoices[] = [
-            'invoice_id'     => $row['invoice_id'],
-            'invoice_code'   => $row['invoice_code'],
-            'invoice_date'   => $row['invoice_date'],
-            'total_amount'   => $row['total_amount'],
-            'amount_paid'    => $row['amount_paid'],
-            'payment_status' => $row['payment_status'],
-            'treatment_code' => $row['treatments']['treatment_code'] ?? '—',
-            // ── details for the View Details modal ──
-            'balance'          => $row['balance'] ?? null,
-            'branch_name'      => $br['branch_name']    ?? null,
-            'branch_address'   => $br['address']        ?? null,
-            'branch_contact'   => $br['contact_number'] ?? null,
-            'appointment_code' => $apt['appointment_code'] ?? null,
-            'appointment_date' => $apt['appointment_date'] ?? null,
-            'appointment_time' => $apt['appointment_time'] ?? null,
-            'service_names'    => $services,
-            'treatment_date'   => $trt['treatment_date']  ?? null,
-            'tooth_number'     => $trt['tooth_number']    ?? null,
-            'dentist_name'     => $trt['dentists']['full_name'] ?? null,
-            'procedure_notes'  => $trt['procedure_notes'] ?? null,
-            'payments'         => $payMap[$iid] ?? [],
-        ];
-    }
-    echo json_encode(['success' => true, 'invoices' => $invoices]);
+    echo json_encode(portal_run_one(pl_billing((int)$accountId)));
     exit;
 }
 
 // ── GET FILES ─────────────────────────────────────────────────────────────────
 if ($action === 'get_files') {
-    $patientId = getPatientId($accountId);
-    if (!$patientId) {
-        echo json_encode(['success' => true, 'files' => []]);
-        exit;
-    }
-
-    $result = supabase_request(
-        'patient_files',
-        'GET',
-        [],
-        'patient_id=eq.' . $patientId .
-            '&select=file_id,file_type,file_name,file_path,uploaded_by,uploaded_at' .
-            '&order=uploaded_at.desc'
-    );
-
-    echo json_encode(['success' => true, 'files' => $result['data'] ?? []]);
+    echo json_encode(portal_run_one(pl_files((int)$accountId)));
     exit;
 }
 
 // ── GET WAIVERS ───────────────────────────────────────────────────────────────
 // Waivers are uploaded by the clinic (admin → Patient Record → Waivers tab)
-// and signed here by the patient. Patient lookup uses getPatientId() like every
-// other action (the old code read a "portal_accounts" table that does not exist,
-// so the list was always empty and signing always failed).
+// and signed here by the patient.
 if ($action === 'get_waivers') {
-    $patientId = getPatientId($accountId);
-    if (!$patientId) {
-        echo json_encode(['success' => true, 'waivers' => []]);
-        exit;
-    }
-
-    $res = supabase_request(
-        'waivers',
-        'GET',
-        [],
-        'patient_id=eq.' . $patientId .
-            '&order=waiver_id.desc' .
-            '&select=waiver_id,waiver_type,file_path,status,signed_at,signed_by'
-    );
-    echo json_encode(['success' => true, 'waivers' => is_array($res['data'] ?? null) ? $res['data'] : []]);
+    echo json_encode(portal_run_one(pl_waivers((int)$accountId)));
     exit;
 }
 
@@ -1536,15 +1048,8 @@ if ($action === 'get_medical_record') {
 echo json_encode(['success' => false, 'message' => 'Invalid action.']);
 
 
-// ── Helper: resolve patient_id from account_id ───────────────────────────────
+// ── Helper: resolve patient_id from account_id (session-cached, see pl_patient_id) ──
 function getPatientId(int $accountId): ?int
 {
-    $res = supabase_request(
-        'patient_accounts',
-        'GET',
-        [],
-        'account_id=eq.' . $accountId . '&select=patient_id&limit=1'
-    );
-    $id = $res['data'][0]['patient_id'] ?? null;
-    return $id ? (int)$id : null;
+    return portal_run_one(pl_patient_id($accountId));
 }

@@ -4,6 +4,8 @@
 define('REQUIRED_ROLES', ['owner']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/dbconfig.php';
 require_once __DIR__ . '/controllers/list_filters.php';
@@ -43,7 +45,9 @@ if ($filterStatus) $q[] = 'status=eq.' . urlencode($filterStatus);
 if ($filterBranch) $q[] = 'branch_id=eq.' . $filterBranch;
 array_push($q, ...listSearchFilter($search, ['full_name', 'email', 'username', 'user_code']));
 
-$result       = supabase_request('users', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
+// One parallel wave: list + branch dropdown + navbar bell (controllers/admin_batch.php)
+admin_prefetch(['list' => admin_q('users', implode('&', $q), ['Prefer: count=exact'])]);
+$result       = admin_get('users', implode('&', $q), ['Prefer: count=exact']);
 $users        = is_array($result['data']) ? $result['data'] : [];
 $cr           = $result['headers']['content-range'] ?? '';
 $totalRecords = ($cr && str_contains($cr, '/')) ? (int)explode('/', $cr)[1] : count($users);
@@ -438,7 +442,7 @@ function roleBadge(string $role): string {
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/accounts.js"></script>

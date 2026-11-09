@@ -8,6 +8,20 @@ let isProfileComplete = false;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const _cache = {};
+const _cacheTime = {}; // key → when it was fetched (ms)
+// Sections that show cached data first re-check the server in the background,
+// at most once per this window. Anything the patient changes clears the cache
+// (clearCache), so their own edits always show up immediately.
+const REVALIDATE_MS = 30 * 1000;
+
+function cacheSet(key, data) {
+  _cache[key] = data;
+  _cacheTime[key] = Date.now();
+}
+
+function cacheIsFresh(key) {
+  return !!_cache[key] && Date.now() - (_cacheTime[key] || 0) < REVALIDATE_MS;
+}
 
 async function php(path, body) {
   const key = JSON.stringify(body);
@@ -19,13 +33,15 @@ async function php(path, body) {
     body: JSON.stringify(body),
   }).then((r) => r.json());
 
-  _cache[key] = data;
+  cacheSet(key, data);
   return data;
 }
 
 function clearCache(...actions) {
   actions.forEach((action) => {
-    delete _cache[JSON.stringify({ action })];
+    const key = JSON.stringify({ action });
+    delete _cache[key];
+    delete _cacheTime[key];
   });
 }
 
@@ -65,9 +81,10 @@ function payBadge(s) {
 }
 
 // ── Medical Questionnaire — first-login modal ─────────────────────────────────
-async function checkAndShowQuestionnaire() {
+async function checkAndShowQuestionnaire(prefetched) {
   try {
-    const data = await fetch(API, {
+    // prefetched: the bootstrap's answer (same request, same payload)
+    const data = prefetched && prefetched.success ? prefetched : await fetch(API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "check_questionnaire" }),
@@ -447,7 +464,7 @@ async function confirmCancel() {
       customClass: ES_SWAL_TONE("danger"),
     });
     clearCache("dashboard_summary");
-    loadAppointments();
+    window.loadPortalAppointments?.({ force: true }); // the cancelled row must update now
     loadDashboard();
   } else {
     Swal.fire({
@@ -465,11 +482,24 @@ async function confirmCancel() {
 // ── TREATMENTS ────────────────────────────────────────────────────────────────
 async function loadTreatments() {
   const tbody = document.getElementById("treatTableBody");
-  tbody.innerHTML =
-    '<tr><td colspan="5" class="text-center py-4">Loading…</td></tr>';
-  // Feedback state is fetched fresh every time (not cached) so it's right after a refresh or in another tab
-  const [data] = await Promise.all([php(API, { action: "get_treatments" }), fbLoadStatus()]);
-  const list = data.treatments || [];
+  const key = JSON.stringify({ action: "get_treatments" });
+  if (!_cache[key]) {
+    tbody.innerHTML =
+      '<tr><td colspan="5" class="text-center py-4">Loading…</td></tr>';
+  }
+  // Feedback state is re-checked every time (it can change in another tab), but the
+  // table no longer waits for it: it draws with the last known state (preloaded),
+  // and redraws only if the fresh state differs. The server enforces the rule anyway.
+  const before = JSON.stringify(_fbSubmitted);
+  fbLoadStatus().then(() => {
+    if (JSON.stringify(_fbSubmitted) !== before && window._portalTreatments) renderTreatments(window._portalTreatments);
+  });
+  const data = await php(API, { action: "get_treatments" });
+  renderTreatments(data.treatments || []);
+}
+
+function renderTreatments(list) {
+  const tbody = document.getElementById("treatTableBody");
   window._portalTreatments = list; // used by the Action menu (View Treatment History)
   if (!list.length) {
     tbody.innerHTML =
@@ -736,6 +766,7 @@ async function loadBilling() {
 
   if (cached) {
     renderBilling(cached);
+    if (cacheIsFresh(key)) return; // just loaded — no need to ask again yet
   } else {
     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4">Loading…</td></tr>';
   }
@@ -747,10 +778,9 @@ async function loadBilling() {
       body: key,
     }).then((r) => r.json());
 
-    if (!cached || JSON.stringify(fresh) !== JSON.stringify(cached)) {
-      _cache[key] = fresh;
-      renderBilling(fresh);
-    }
+    const changed = !cached || JSON.stringify(fresh) !== JSON.stringify(cached);
+    cacheSet(key, fresh);
+    if (changed) renderBilling(fresh);
   } catch (err) {
     console.error("Billing refresh failed:", err);
     // Keep showing the cached copy; only show an error if there was nothing to show.
@@ -1041,7 +1071,10 @@ async function signWaiver(waiverId, waiverType) {
 async function loadProfile() {
   const key = JSON.stringify({ action: "get_profile" });
   const cached = _cache[key];
-  if (cached && cached.success) applyProfileData(cached);
+  if (cached && cached.success) {
+    applyProfileData(cached);
+    if (cacheIsFresh(key)) return; // just loaded — no need to ask again yet
+  }
 
   let fresh;
   try {
@@ -1055,7 +1088,7 @@ async function loadProfile() {
   }
   if (!fresh || !fresh.success) return;
   const changed = !cached || JSON.stringify(fresh) !== JSON.stringify(cached);
-  _cache[key] = fresh;
+  cacheSet(key, fresh);
   if (changed && !isProfileEditing()) applyProfileData(fresh);
 }
 
@@ -1636,12 +1669,13 @@ let _contactPollTimer = null;
 let _contactChecking = false;
 let _contactKnown = false; // first result only initialises, it never announces
 
-async function checkContactStatus() {
+async function checkContactStatus(prefetched) {
   if (_contactChecking) return;
   _contactChecking = true;
   try {
-    // Straight fetch: php() would cache the answer
-    const res = await fetch(API, {
+    // Straight fetch: php() would cache the answer. prefetched = the bootstrap's
+    // fresh contact_status (used once, for the silent baseline).
+    const res = prefetched || await fetch(API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "contact_status" }),
@@ -1703,16 +1737,42 @@ document.addEventListener("visibilitychange", async () => {
 document.getElementById("contactGateModal")?.addEventListener("shown.bs.modal", watchContactStatus);
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+// One 'bootstrap' request returns every section's data (the server runs the
+// queries in parallel). Each part is stored under the same cache key as its
+// single action, so the section loaders below work unchanged. If bootstrap
+// fails, fall back to the individual calls.
+const BOOT_SECTIONS = ["dashboard_summary", "get_profile", "get_treatments", "get_billing",
+  "get_dental_chart", "get_files", "get_waivers"];
+window.portalBootData = null; // read by the appointments script in portal-dashboard.php
+
 async function preloadAll() {
-  await Promise.all([
-    php(API, { action: "dashboard_summary" }),
-    php(API, { action: "get_profile" }),
-    php(API, { action: "get_treatments" }),
-    php(API, { action: "get_billing" }),
-    php(API, { action: "get_dental_chart" }),
-    php(API, { action: "get_files" }),
-    php(API, { action: "get_waivers" }),
-  ]);
+  let boot = null;
+  try {
+    boot = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "bootstrap" }),
+    }).then((r) => r.json());
+  } catch (e) {
+    boot = null;
+  }
+
+  if (boot && boot.success) {
+    window.portalBootData = boot;
+    // Silent baseline first: learning the verification state clears the profile /
+    // summary caches (applyContactStatus), and the copies below come from the same
+    // request, so they already match it. (Runs synchronously with a prefetched value.)
+    if (boot.contact_status?.success) checkContactStatus(boot.contact_status);
+    else checkContactStatus();
+    BOOT_SECTIONS.forEach((a) => {
+      if (boot[a] && boot[a].success !== false) cacheSet(JSON.stringify({ action: a }), boot[a]);
+    });
+    if (boot.feedback_status?.success) _fbSubmitted = boot.feedback_status.submitted || {};
+  } else {
+    checkContactStatus(); // silent baseline; later changes are announced
+  }
+  // Anything bootstrap could not provide is fetched on its own
+  await Promise.all(BOOT_SECTIONS.map((a) => php(API, { action: a })));
 
   // get_profile recomputes is_profile_complete live from the DB.
   // Use it to patch the dashboard_summary cache so loadDashboard()
@@ -1726,11 +1786,12 @@ async function preloadAll() {
   loadDashboard();
 
   // Check if first login — show questionnaire if not yet answered
-  checkAndShowQuestionnaire();
+  checkAndShowQuestionnaire(boot && boot.check_questionnaire);
 }
 
-preloadAll();
-checkContactStatus(); // silent baseline; later changes are announced
+// Awaited by the appointments script in portal-dashboard.php (it uses the
+// bootstrap's appointment list instead of a separate request)
+window.portalBoot = preloadAll();
 // ── Deep link: portal-dashboard.php#appointments opens that section ──────────
 // Used by the booking confirmation's "View My Appointments" button.
 window.addEventListener("load", () => {

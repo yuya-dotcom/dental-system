@@ -24,7 +24,9 @@
 
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../config/app.php';
-require_once __DIR__ . '/mailer.php';
+// controllers/mailer.php (PHPMailer + Composer autoloader, ~50–70 ms per request
+// without OPcache) is loaded only when an email is actually sent — see
+// sendPasswordResetEmail(). Every staff page includes this file.
 
 use PHPMailer\PHPMailer\Exception;
 
@@ -34,6 +36,9 @@ use PHPMailer\PHPMailer\Exception;
 // ─────────────────────────────────────────────────────────────
 function bootSession(): void
 {
+    // A page that released the session lock (admin_release_session() in
+    // controllers/admin_batch.php) keeps reading $_SESSION — don't re-lock it.
+    if (!empty($GLOBALS['__admin_session_released'])) return;
     if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
         session_start();
     }
@@ -317,6 +322,8 @@ function sendPasswordResetEmail(string $email, string $fullName, string $resetLi
         </div>
     </body>
     </html>";
+
+    require_once __DIR__ . '/mailer.php';   // loaded lazily (see top of file)
 
     try {
         $mail = createMailer();

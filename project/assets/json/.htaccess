@@ -2,3 +2,11 @@
 <FilesMatch "^client_secret.*\.json$">
     Require all denied
 </FilesMatch>
+
+# PH address data (Patient Portal profile + registration): static, rarely changes.
+# Let browsers keep it for a week instead of re-downloading 1.4 MB.
+<IfModule mod_headers.c>
+    <Files "cluster.json">
+        Header set Cache-Control "public, max-age=604800"
+    </Files>
+</IfModule>

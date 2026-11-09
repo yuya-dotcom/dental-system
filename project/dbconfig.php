@@ -55,6 +55,34 @@ unset($_secrets);
 // instead of opening a new one for every request
 $_supabase_ch = null;
 
+// ------------------------------------------------------------------
+//  TLS PERFORMANCE (Windows / XAMPP only)
+//  PHP's curl on Windows uses OpenSSL 3.0, which spends ~0.5 s parsing
+//  the PEM CA bundle (php.ini curl.cainfo) for EVERY new connection.
+//  The Windows certificate store gives the same full verification
+//  (peer + host name) in ~0.04 s. Linux hosts are left unchanged.
+//  If a certificate check ever fails with the Windows store (e.g. a root
+//  missing from it), the request is retried once with the CA bundle —
+//  safe even for writes, because a failed handshake sends nothing —
+//  and the bundle is used for the rest of this PHP request.
+// ------------------------------------------------------------------
+function supabase_tls_options(): array
+{
+    if (PHP_OS_FAMILY === 'Windows' && defined('CURLSSLOPT_NATIVE_CA') && empty($GLOBALS['_supabase_tls_bundle'])) {
+        return [CURLOPT_CAINFO => null, CURLOPT_SSL_OPTIONS => CURLSSLOPT_NATIVE_CA];
+    }
+    return [];
+}
+
+/** True when a certificate-verification error should be retried with the CA bundle. */
+function supabase_tls_fallback(int $curlErrno): bool
+{
+    if (!in_array($curlErrno, [60, 77], true) || !supabase_tls_options()) return false;   // 60 = peer verification, 77 = CA certs
+    $GLOBALS['_supabase_tls_bundle'] = true;
+    error_log('Supabase TLS: Windows certificate store failed verification; using the CA bundle for this request.');
+    return true;
+}
+
 function supabase_request(
     string $table,
     string $method  = 'GET',
@@ -75,7 +103,7 @@ function supabase_request(
             CURLOPT_FRESH_CONNECT  => false,
             // Cache DNS so we don't re-resolve supabase.co every call
             CURLOPT_DNS_CACHE_TIMEOUT => 300,
-        ]);
+        ] + supabase_tls_options());
     }
 
     $url = SUPABASE_URL . '/rest/v1/' . $table;
@@ -121,12 +149,15 @@ function supabase_request(
     $response   = curl_exec($_supabase_ch);
     $statusCode = curl_getinfo($_supabase_ch, CURLINFO_HTTP_CODE);
     $curlError  = curl_error($_supabase_ch);
+    $curlErrno  = curl_errno($_supabase_ch);
 
     if ($curlError) {
         error_log('Supabase curl error: ' . $curlError);
         // Reset handle on error so next call gets a fresh connection
         curl_close($_supabase_ch);
         $_supabase_ch = null;
+        // Certificate check failed with the Windows store → retry once with the CA bundle
+        if (supabase_tls_fallback($curlErrno)) return supabase_request($table, $method, $data, $query, $headers);
         return ['data' => null, 'status' => 0, 'error' => 'Network error. Please try again.'];
     }
 

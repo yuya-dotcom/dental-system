@@ -12,6 +12,8 @@
 define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/controllers/inventory_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/list_filters.php';
@@ -21,8 +23,6 @@ $filterCategory = isset($_GET['category']) ? trim($_GET['category']) : '';
 $filterStatus   = isset($_GET['status'])   ? trim($_GET['status'])   : '';
 $page           = max(1, (int)($_GET['page'] ?? 1));
 
-$branches   = getAllBranches();
-$categories = getInventoryCategories();
 // Sort / search (validated in list_filters.php)
 $sortOptions  = [
     'name_asc'    => ['Name (A–Z)',              'item_name.asc,item_id.asc'],
@@ -44,8 +44,15 @@ $sortOptions  = [
 $search       = listSearch();
 $filtersOn    = listActiveCount([$filterBranch, $filterCategory, $filterStatus, $search, $sortKey !== 'name_asc']);
 
-$data         = getInventoryRecords($page, $filterBranch, $filterCategory, $filterStatus, $sortOrder,
-                                    listSearchFilter($search, ['item_name', 'item_code']));
+// One parallel wave: list + categories + branch dropdown + navbar bell (controllers/admin_batch.php)
+$_invExtra   = listSearchFilter($search, ['item_name', 'item_code']);
+admin_prefetch([
+    'list'       => admin_q('inventory', implode('&', inventoryRecordsQuery($page, $filterBranch, $filterCategory, $filterStatus, $sortOrder, $_invExtra)), ['Prefer: count=exact']),
+    'categories' => admin_q('inventory', INV_CATEGORIES_QUERY),
+]);
+$branches   = getAllBranches();
+$categories = getInventoryCategories();
+$data         = getInventoryRecords($page, $filterBranch, $filterCategory, $filterStatus, $sortOrder, $_invExtra);
 $items        = $data['rows'];
 $totalRecords = $data['totalRecords'];
 $totalPages   = $data['totalPages'];
@@ -420,7 +427,7 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/inventory.js"></script>

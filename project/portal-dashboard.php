@@ -6,32 +6,39 @@ portal_require_login();
 
 $API_PATH = 'api/portal_auth.php';
 
-// Registration rule: a verified email OR phone (checked in the DB, enforced by the APIs too)
-$contactStatus = portal_contact_status((int)$_SESSION['portal_account_id']);
+$portalAccountId = (int)$_SESSION['portal_account_id'];
 
-// Fetch gender for the questionnaire modal's "women only" block
-// We read it lazily — if session already has it, use it; else quick DB call
+// Registration rule: a verified email OR phone (checked in the DB, enforced by the APIs too)
+// and the gender for the questionnaire modal's "women only" block. Both are cached in the
+// session; when either is missing, ONE query reads the verification flags, the linked
+// patient_id and that patient's gender (previously up to three sequential requests).
 $portalGender = $_SESSION['portal_gender'] ?? '';
-if (!$portalGender) {
+if (!empty($_SESSION['portal_contact_ok']) && $portalGender) {
+    $contactStatus = ['ok' => true, 'email' => null, 'phone' => null];   // same as portal_contact_status()
+} else {
     require_once __DIR__ . '/dbconfig.php';
     $accRes = supabase_request(
         'patient_accounts',
         'GET',
         [],
-        'account_id=eq.' . (int)$_SESSION['portal_account_id'] . '&select=patient_id&limit=1'
+        'account_id=eq.' . $portalAccountId . '&select=is_verified,phone_verified,patient_id,patients(gender)&limit=1'
     );
-    $pid = $accRes['data'][0]['patient_id'] ?? null;
-    if ($pid) {
-        $pRes = supabase_request(
-            'patients',
-            'GET',
-            [],
-            'patient_id=eq.' . $pid . '&select=gender&limit=1'
-        );
-        $portalGender = $pRes['data'][0]['gender'] ?? '';
-    }
+    $accRow = $accRes['data'][0] ?? [];
+    $email  = !empty($accRow['is_verified']);
+    $phone  = !empty($accRow['phone_verified']);
+    $contactStatus = ['ok' => $email || $phone, 'email' => $email, 'phone' => $phone];
+
+    $portalGender = $accRow['patients']['gender'] ?? '';
     $_SESSION['portal_gender'] = $portalGender;
+    if ($contactStatus['ok']) $_SESSION['portal_contact_ok'] = true;
+    if (!empty($accRow['patient_id'])) {
+        $_SESSION['portal_patient_id']     = (int)$accRow['patient_id'];
+        $_SESSION['portal_patient_id_for'] = $portalAccountId;
+    }
 }
+// The page only reads the session from here on: release the lock so the
+// dashboard's API calls (fired while this page is still downloading) never wait on it
+session_write_close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1918,9 +1925,10 @@ if (!$portalGender) {
         </div>
     </div>
 
-    <script src="assets/vendors/js/vendors.min.js"></script>
+    <!-- assets/vendors/js/vendors.min.js (580 KB: jQuery, Moment, PerfectScrollbar, Pace)
+         is not loaded here — nothing in the portal uses it. -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/es-swal.js?v=2"></script>
     <script src="assets/js/odontogram.js?v=1"></script>
     <script src="assets/js/nationalities.js"></script>
@@ -2044,30 +2052,22 @@ if (!$portalGender) {
 
     <script>
         // ── PH ADDRESS DATA (for Edit Profile → Contact Info dropdowns) ──
-        let PH_DATA = (function() {
-            try {
-                return <?php
-                        $attempts = [
-                            __DIR__ . '/assets/json/cluster.json',
-                            dirname(__DIR__) . '/assets/json/cluster.json',
-                            $_SERVER['DOCUMENT_ROOT'] . '/assets/json/cluster.json',
-                            realpath(dirname($_SERVER['SCRIPT_FILENAME'])) . '/assets/json/cluster.json',
-                        ];
-                        $found = null;
-                        foreach ($attempts as $p) {
-                            if (file_exists($p)) {
-                                $found = $p;
-                                break;
-                            }
-                        }
-                        echo $found ? file_get_contents($found) : 'null';
-                        ?>;
-            } catch (e) {
-                return null;
+        // Loaded as a static file (1.4 MB, cached by the browser) instead of being
+        // inlined into every page view. loadPhData() is called when the page has
+        // finished loading, or earlier if the profile address needs it.
+        let PH_DATA = null;
+        let _phDataPromise = null;
+        function loadPhData() {
+            if (!_phDataPromise) {
+                _phDataPromise = fetch('assets/json/cluster.json')
+                    .then(r => r.ok ? r.json() : null)
+                    .then(d => (PH_DATA = d))
+                    .catch(() => (_phDataPromise = null, null));   // allow a retry later
             }
-        })();
+            return _phDataPromise;
+        }
     </script>
-    <script src="assets/js/portal-dashboard.js?v=19"></script>
+    <script src="assets/js/portal-dashboard.js?v=20"></script>
 
     <script>
         async function startPhoneVerification() {
@@ -3087,11 +3087,44 @@ if (!$portalGender) {
             }
 
             /* ── Load from our new endpoint ───────────────────────── */
-            async function loadPortalAppointments() {
-                try {
-                    const res = await fetch('api/portal_get_appointments.php');
-                    const data = await res.json();
-                    if (!data.success) throw new Error(data.message);
+            // The first list comes with the dashboard's bootstrap request. After that
+            // the table stays on screen and is re-checked in the background at most
+            // once per REVALIDATE_MS (portal-dashboard.js); a cancellation forces it.
+            let _apptFetchedAt = 0;
+            let _apptInflight = null;
+            const _apptBootReady = Promise.resolve(window.portalBoot).catch(function() {}).then(function() {
+                const b = window.portalBootData && window.portalBootData.appointments;
+                if (b && b.success) {
+                    applyPortalAppointments(b);
+                    _apptFetchedAt = Date.now();
+                }
+            });
+
+            async function loadPortalAppointments(opts) {
+                const force = !!(opts && opts.force);
+                if (!force) {
+                    await _apptBootReady;
+                    if (Date.now() - _apptFetchedAt < REVALIDATE_MS) return;
+                }
+                if (_apptInflight) return _apptInflight;
+                _apptInflight = (async function() {
+                    try {
+                        const res = await fetch('api/portal_get_appointments.php', { cache: 'no-store' });
+                        const data = await res.json();
+                        if (!data.success) throw new Error(data.message);
+                        applyPortalAppointments(data);
+                        _apptFetchedAt = Date.now();
+                    } catch (e) {
+                        console.warn('portal_get_appointments error:', e);
+                    } finally {
+                        _apptInflight = null;
+                    }
+                })();
+                return _apptInflight;
+            }
+
+            function applyPortalAppointments(data) {
+                {
                     _allAppts = data.appointments || [];
                     _portalPatient = data.patient || null;
                     renderApptTable(_allAppts);
@@ -3108,9 +3141,6 @@ if (!$portalGender) {
                     if (compEl) compEl.textContent = _allAppts.filter(function(a) {
                         return a.status === 'completed';
                     }).length;
-
-                } catch (e) {
-                    console.warn('portal_get_appointments error:', e);
                 }
             }
 
@@ -3626,22 +3656,18 @@ if (!$portalGender) {
                     _origConfirmCancel.apply(this, arguments);
                 }
                 // Reload after short delay to reflect cancellation
-                setTimeout(loadPortalAppointments, 1800);
+                setTimeout(function() { loadPortalAppointments({ force: true }); }, 1800);
             };
 
             // Single renderer for the table — portal-dashboard.js's loadAppointments() calls this
             window.loadPortalAppointments = loadPortalAppointments;
 
-            /* ── Boot: run after portal-dashboard.js has initialised ─ */
-            // We use a small delay to ensure portal-dashboard.js's own
-            // DOMContentLoaded / load handlers have already fired.
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', function() {
-                    setTimeout(loadPortalAppointments, 150);
-                });
-            } else {
-                setTimeout(loadPortalAppointments, 150);
-            }
+            /* ── Boot ─────────────────────────────────────────────── */
+            // The list arrives with the bootstrap request (_apptBootReady above);
+            // only if bootstrap had no list is it fetched on its own.
+            _apptBootReady.then(function() {
+                if (!_apptFetchedAt) loadPortalAppointments({ force: true });
+            });
 
             // Also re-run whenever the Appointments page tab is shown
             const _origShowPage = window.showPage;
@@ -3812,7 +3838,16 @@ if (!$portalGender) {
             // 8. Show the saved province / city / barangay when the profile loads.
             //    Matches cluster.json names ignoring capitalisation, and fills the
             //    city and barangay lists so they can be changed straight away.
+            let _pfRestoreSeq = 0;
             window.restorePfAddress = function(province, city, barangay) {
+                // Address data not here yet: show the saved values now, and redo the
+                // lookup once it loads (only if no newer restore happened meanwhile)
+                const seq = ++_pfRestoreSeq;
+                if (!PH_DATA) {
+                    loadPhData().then(d => {
+                        if (d && seq === _pfRestoreSeq) window.restorePfAddress(province, city, barangay);
+                    });
+                }
                 initPfProvinces();
                 const prov = String(province || '').trim();
                 const cty = String(city || '').trim();
@@ -3858,12 +3893,8 @@ if (!$portalGender) {
                 }
             });
 
-            // Run on load
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', initPfProvinces);
-            } else {
-                initPfProvinces();
-            }
+            // Run once the address data has loaded (see loadPhData — fetched after page load)
+            window.addEventListener('load', () => loadPhData().then(initPfProvinces));
 
         })();
     </script>

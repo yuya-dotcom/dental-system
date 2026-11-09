@@ -2,6 +2,8 @@
 define('REQUIRED_ROLES', ['owner']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/controllers/dentist_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/list_filters.php';
@@ -10,7 +12,6 @@ $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : getSessionBranch
 if (!isOwner() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
 $filterStatus = isset($_GET['status']) ? trim($_GET['status']) : '';
 $page         = max(1, (int)($_GET['page'] ?? 1));
-$branches     = getAllBranches();
 
 // Sort / search / specialization (validated in list_filters.php)
 $sortOptions  = [
@@ -25,7 +26,18 @@ $sortOptions  = [
 ];
 [$sortKey, $sortOrder] = listSort($sortOptions, 'name_asc');
 $search       = listSearch();
-$specRes      = supabase_request('dentists', 'GET', [], 'select=specialization&specialization=not.is.null&order=specialization.asc');
+// Wave 1 (parallel): specialization options + branch dropdown + navbar bell
+$_specQ       = 'select=specialization&specialization=not.is.null&order=specialization.asc';
+$_wave        = ['spec' => admin_q('dentists', $_specQ)];
+if (($_GET['spec'] ?? '') === '') {
+    // No specialization filter requested → the list query doesn't depend on wave 1's
+    // options, so fetch it in the same wave (same query the code below builds)
+    $_wave['list'] = admin_q('dentists', implode('&', dentistRecordsQuery($page, $filterBranch, $filterStatus, $sortOrder,
+        listSearchFilter($search, ['full_name', 'specialization', 'contact_number']))), ['Prefer: count=exact']);
+}
+admin_prefetch($_wave);
+$branches     = getAllBranches();
+$specRes      = admin_get('dentists', $_specQ);
 $specs        = array_values(array_unique(array_filter(array_map('trim', array_column(is_array($specRes['data']) ? $specRes['data'] : [], 'specialization')))));
 $filterSpec   = in_array($_GET['spec'] ?? '', $specs, true) ? $_GET['spec'] : '';
 $extra        = listSearchFilter($search, ['full_name', 'specialization', 'contact_number']);
@@ -266,7 +278,7 @@ $sortBase = listUrl('dentist-records.php', ['branch' => $filterBranch, 'status' 
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/dentists.js"></script>

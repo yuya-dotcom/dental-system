@@ -34,12 +34,18 @@ const SERVICE_DESC_MAX = 500;
  *   needs_migration = true when services.duration_minutes does not exist yet
  *   (the SQL file has not been run); durations then show the 30-minute default.
  */
+// Queries of getServiceRecords() / getMaterialInventoryItems(), shared with the page prefetch
+const SERVICE_RECORDS_QUERY         = 'select=service_id,service_name,service_type,base_price,description,status,created_at,duration_minutes,chart_outcome&order=service_name.asc&limit=1000';
+const SERVICE_MATERIAL_COUNTS_QUERY = 'select=service_id&limit=10000';
+const MATERIAL_ITEMS_QUERY          = 'select=item_id,item_code,item_name,category,stock_quantity&status=neq.inactive&order=item_name.asc';
+
 function getServiceRecords(): array
 {
     $cols  = 'service_id,service_name,service_type,base_price,description,status,created_at';
     $order = '&order=service_name.asc&limit=1000';
 
-    $res = supabase_request('services', 'GET', [], 'select=' . $cols . ',duration_minutes,chart_outcome' . $order);
+    // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
+    $res = (function_exists('admin_get') ? admin_get('services', SERVICE_RECORDS_QUERY, []) : supabase_request('services', 'GET', [], SERVICE_RECORDS_QUERY, []));
     $needsMigration = false;
     if ($res['error']) {
         // Most likely the duration column is missing — load without it
@@ -50,7 +56,7 @@ function getServiceRecords(): array
 
     // Material counts in one request, tallied here
     $counts = [];
-    $mat = supabase_request('service_materials', 'GET', [], 'select=service_id&limit=10000');
+    $mat = (function_exists('admin_get') ? admin_get('service_materials', SERVICE_MATERIAL_COUNTS_QUERY, []) : supabase_request('service_materials', 'GET', [], SERVICE_MATERIAL_COUNTS_QUERY, []));
     foreach (is_array($mat['data']) ? $mat['data'] : [] as $m) {
         $sid = (int)($m['service_id'] ?? 0);
         $counts[$sid] = ($counts[$sid] ?? 0) + 1;
@@ -84,9 +90,8 @@ function getServiceById(int $serviceId): ?array
 /** Inventory items for the Add Material dropdown. */
 function getMaterialInventoryItems(): array
 {
-    $res = supabase_request('inventory', 'GET', [],
-        'select=item_id,item_code,item_name,category,stock_quantity&status=neq.inactive&order=item_name.asc'
-    );
+    // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
+    $res = (function_exists('admin_get') ? admin_get('inventory', MATERIAL_ITEMS_QUERY, []) : supabase_request('inventory', 'GET', [], MATERIAL_ITEMS_QUERY, []));
     return is_array($res['data']) ? $res['data'] : [];
 }
 

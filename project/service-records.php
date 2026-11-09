@@ -12,9 +12,17 @@
 define('REQUIRED_ROLES', ['owner', 'admin']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/controllers/service_controller.php';
 
 $canOwner  = isOwner();
+// One parallel wave: services + material counts + inventory items + navbar bell
+admin_prefetch([
+    'svc' => admin_q('services', SERVICE_RECORDS_QUERY),
+    'mat' => admin_q('service_materials', SERVICE_MATERIAL_COUNTS_QUERY),
+    'inv' => admin_q('inventory', MATERIAL_ITEMS_QUERY),
+], ['navbar']);
 $svcData   = getServiceRecords();
 $inventory = getMaterialInventoryItems();
 
@@ -349,7 +357,7 @@ $pageData = [
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/es-swal.js?v=2"></script>

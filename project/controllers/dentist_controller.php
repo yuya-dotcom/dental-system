@@ -17,6 +17,20 @@ const DENT_PER_PAGE = 10;
 function getDentistRecords(int $page, int $branchId, string $status, string $order = 'order=full_name.asc', array $extra = []): array
 {
     $offset = ($page - 1) * DENT_PER_PAGE;
+    $q = dentistRecordsQuery($page, $branchId, $status, $order, $extra);
+
+    // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
+    $result = (function_exists('admin_get') ? admin_get('dentists', implode('&', $q), ['Prefer: count=exact']) : supabase_request('dentists', 'GET', [], implode('&', $q), ['Prefer: count=exact']));
+    $rows   = is_array($result['data']) ? $result['data'] : [];
+    $total  = resolveCount($result, 'dentists', $q);
+
+    return buildPageResult($rows, $total, $page, $offset, DENT_PER_PAGE);
+}
+
+/** The PostgREST filter parts for getDentistRecords() (also used to prefetch it). */
+function dentistRecordsQuery(int $page, int $branchId, string $status, string $order = 'order=full_name.asc', array $extra = []): array
+{
+    $offset = ($page - 1) * DENT_PER_PAGE;
 
     $q = [
         'select=dentist_id,full_name,specialization,contact_number,status,branch_id,created_at,branches(branch_name)',
@@ -29,11 +43,7 @@ function getDentistRecords(int $page, int $branchId, string $status, string $ord
     if ($status)       $q[] = 'status=eq.'    . urlencode($status);
     array_push($q, ...$extra);
 
-    $result = supabase_request('dentists', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
-    $rows   = is_array($result['data']) ? $result['data'] : [];
-    $total  = resolveCount($result, 'dentists', $q);
-
-    return buildPageResult($rows, $total, $page, $offset, DENT_PER_PAGE);
+    return $q;
 }
 
 // ─────────────────────────────────────────────────────────────

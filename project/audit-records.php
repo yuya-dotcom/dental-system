@@ -13,6 +13,8 @@
 
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/dbconfig.php';
 require_once __DIR__ . '/controllers/list_filters.php';
 
@@ -69,7 +71,9 @@ $filtersOn  = listActiveCount([$filterModule, $filterAction, $search, $dateFrom,
 $pageUrl    = listUrl('audit-records.php', ['module' => $filterModule, 'action' => $filterAction, 'q' => $search, 'from' => $dateFrom, 'to' => $dateTo, 'sort' => $sortKey === 'newest' ? '' : $sortKey]);
 $sortBase = listUrl('audit-records.php', ['module' => $filterModule, 'action' => $filterAction, 'q' => $search, 'from' => $dateFrom, 'to' => $dateTo]);
 
-$result     = supabase_request('audit_logs', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
+// One parallel wave: list + navbar bell (controllers/admin_batch.php)
+admin_prefetch(['list' => admin_q('audit_logs', implode('&', $q), ['Prefer: count=exact'])], ['navbar']);
+$result     = admin_get('audit_logs', implode('&', $q), ['Prefer: count=exact']);
 $logs       = is_array($result['data']) ? $result['data'] : [];
 $total      = (int)(explode('/', ($result['headers']['content-range'] ?? '0/0'))[1] ?? 0);
 $totalPages = max(1, (int)ceil($total / LOGS_PER_PAGE));

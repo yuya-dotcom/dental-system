@@ -263,6 +263,9 @@ foreach ($serviceIds as $sid) {
     if (!empty($byId[$sid])) $svcNames[] = $byId[$sid];   // keep booking order
 }
 
+// The dashboard's upcoming count changed: drop its 60 s cache (session is still open here)
+unset($_SESSION['dash_cache_' . (int)$accountId]);
+
 // ── Done ──────────────────────────────────────────────────────
 echo json_encode([
     'success'          => true,

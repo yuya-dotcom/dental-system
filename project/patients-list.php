@@ -9,10 +9,11 @@ require_once __DIR__ . '/controllers/secure_controller.php';
 require_once __DIR__ . '/controllers/patient_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/list_filters.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 
 $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : (isOwner() || isAdmin() ? 0 : getSessionBranch());
 if (!isOwner() && !isAdmin() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
-$branches     = getAllBranches();
 $filterStatus = in_array($_GET['status'] ?? '', ['active', 'inactive'], true) ? $_GET['status'] : '';
 $page         = max(1, (int)($_GET['page'] ?? 1));
 
@@ -41,6 +42,9 @@ $extra        = listSearchFilter($search, ['full_name', 'patient_code', 'contact
 array_push($extra, ...listDateRange('created_at', $dateFrom, $dateTo, true));
 $filtersOn    = listActiveCount([isOwner() ? $filterBranch : 0, $filterStatus, $search, $dateFrom, $dateTo, $sortKey !== 'oldest']);
 
+// One parallel wave: the list + branch dropdown + navbar bell (controllers/admin_batch.php)
+admin_prefetch(['list' => admin_q('patients', implode('&', patientRecordsQuery($page, $filterBranch, $filterStatus, $sortOrder, $extra)), ['Prefer: count=exact'])]);
+$branches     = getAllBranches();
 $data         = getPatientRecords($page, $filterBranch, $filterStatus, $sortOrder, $extra);
 $patients     = $data['rows']         ?? [];
 $totalRecords = $data['totalRecords'] ?? 0;
@@ -392,7 +396,7 @@ $sortBase = listUrl('patients-list.php', ['branch' => $filterBranch, 'status' =>
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/patients.js"></script>

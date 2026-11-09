@@ -3,6 +3,8 @@
 define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/controllers/inventory_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 
@@ -10,6 +12,8 @@ $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : 0;
 $filterItem   = isset($_GET['item'])   ? (int)$_GET['item']   : 0;
 $page         = max(1, (int)($_GET['page'] ?? 1));
 
+// One parallel wave: list + branch dropdown + navbar bell (controllers/admin_batch.php)
+admin_prefetch(['list' => admin_q('inventory_movements', implode('&', stockMovementsQuery($page, $filterBranch, $filterItem ?: '')), ['Prefer: count=exact'])]);
 $branches     = getAllBranches();
 $data         = getStockMovements($page, $filterBranch, $filterItem ?: '');
 $movements    = $data['rows'];

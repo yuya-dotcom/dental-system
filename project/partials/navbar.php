@@ -7,27 +7,19 @@
 
 require_once __DIR__ . '/../controllers/secure_controller.php';
 require_once __DIR__ . '/../controllers/auth_controller.php';
+require_once __DIR__ . '/../controllers/admin_batch.php';
 $currentUser = getCurrentUser();
 
 // ── Fetch low/out-of-stock inventory items ────────────────────
-$notifBranchFilter = '';
-if (!isOwner()) {
-    $sessionBranch = getSessionBranch();
-    if ($sessionBranch) {
-        $notifBranchFilter = '&branch_id=eq.' . (int)$sessionBranch;
-    }
-}
-
 // Low stock is decided from the live quantity vs. the item's own reorder
 // level (min_stock), not the stored status, so the bell is never stale:
 // it updates on the next page load after any stock change, and an item
 // drops off as soon as it is restocked above its min_stock.
-$lowStockRes   = supabase_request('inventory', 'GET', [],
-    'select=item_id,item_code,item_name,stock_quantity,min_stock,status,branches(branch_name)'
-    . '&status=neq.inactive'
-    . $notifBranchFilter
-    . '&order=stock_quantity.asc&limit=1000'
-);
+// The query (admin_navbar_spec(): branch-scoped for non-owners) is usually
+// already fetched in parallel with the page's own queries by admin_prefetch();
+// otherwise it runs here.
+$_nb         = admin_navbar_spec();
+$lowStockRes = admin_get($_nb['table'], $_nb['query']);
 $lowStockItems = array_values(array_filter(
     is_array($lowStockRes['data']) ? $lowStockRes['data'] : [],
     fn($i) => (int)$i['stock_quantity'] <= (int)$i['min_stock'] || (int)$i['stock_quantity'] <= 0

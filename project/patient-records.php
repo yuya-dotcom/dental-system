@@ -405,7 +405,7 @@ function prApptPill(?string $status): string
     <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/odontogram.js?v=2"></script>
     <script src="assets/js/patient-record-chart.js?v=1"></script>

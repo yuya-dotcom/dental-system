@@ -24,10 +24,11 @@ require_once __DIR__ . '/controllers/appointment_services_helper.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/dbconfig.php';
 require_once __DIR__ . '/controllers/list_filters.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 
 $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : getSessionBranch();
 if (!isOwner() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
-$branches     = getAllBranches();
 $filterStatus = in_array($_GET['status'] ?? '', ['pending', 'confirmed', 'checked_in', 'completed', 'cancelled', 'no_show'], true) ? $_GET['status'] : '';
 $page         = max(1, (int)($_GET['page'] ?? 1));
 
@@ -54,6 +55,9 @@ $extra         = listSearchFilter($search, ['appointment_code']);
 array_push($extra, ...listDateRange('appointment_date', $dateFrom, $dateTo));
 $filtersOn     = listActiveCount([isOwner() ? $filterBranch : 0, $filterStatus, $search, $dateFrom, isOwner() ? $dateTo : '', $sortKey !== 'date_asc']);
 
+// One parallel wave: the list + branch dropdown + navbar bell (controllers/admin_batch.php)
+admin_prefetch(['list' => admin_q('appointments', implode('&', appointmentRecordsQuery($page, $filterBranch, $filterStatus, $sortOrder, $extra)), ['Prefer: count=exact'])]);
+$branches     = getAllBranches();
 $data         = getAppointmentRecords($page, $filterBranch, $filterStatus, $sortOrder, $extra);
 $appointments = attachAppointmentServiceNames($data['rows']);   // all 1–3 services per row
 $totalRecords = $data['totalRecords'];
@@ -345,7 +349,7 @@ function aptNameCase(?string $name): string
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/es-swal.js?v=2"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>

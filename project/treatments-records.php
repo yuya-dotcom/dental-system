@@ -5,6 +5,8 @@
 define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/controllers/treatment_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/list_filters.php';
@@ -14,7 +16,6 @@ if (!isOwner() && $filterBranch !== getSessionBranch()) $filterBranch = getSessi
 $filterStatus = in_array($_GET['status'] ?? '', ['completed', 'cancelled'], true) ? $_GET['status'] : '';
 $page         = max(1, (int)($_GET['page'] ?? 1));
 
-$branches     = getAllBranches();
 
 // Sort (table headers) / search / treatment date (validated in list_filters.php)
 $sortOptions  = [
@@ -41,6 +42,9 @@ $extra         = listSearchFilter($search, ['treatment_code', 'tooth_number']);
 array_push($extra, ...listDateRange('treatment_date', $dateFrom, $dateTo));
 $filtersOn     = listActiveCount([isOwner() ? $filterBranch : 0, $filterStatus, $search, $dateFrom, $dateTo, $sortKey !== 'code_asc']);
 
+// One parallel wave: the list + branch dropdown + navbar bell (controllers/admin_batch.php)
+admin_prefetch(['list' => admin_q('treatments', implode('&', treatmentRecordsQuery($page, $filterBranch, $filterStatus, $sortOrder, $extra)), ['Prefer: count=exact'])]);
+$branches     = getAllBranches();
 $data         = getTreatmentRecords($page, $filterBranch, $filterStatus, $sortOrder, $extra);
 $treatments   = $data['rows'];
 $totalRecords = $data['totalRecords'];
@@ -377,7 +381,7 @@ $sortBase = listUrl('treatments-records.php', ['branch' => $filterBranch, 'statu
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
     <script src="assets/js/treatments.js?v=3"></script>

@@ -18,6 +18,8 @@
 define('REQUIRED_ROLES', ['owner']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
+require_once __DIR__ . '/controllers/admin_batch.php';
+admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/controllers/appointment_controller.php'; // resolveCount + buildPageResult
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/feedback_controller.php';
@@ -29,7 +31,6 @@ const FB_TREND_DAYS = 90;  // per-dentist trend: last N days vs the N days befor
 
 $page         = max(1, (int)($_GET['page'] ?? 1));
 $offset       = ($page - 1) * FB_PER_PAGE;
-$branches     = getAllBranches();
 $filterBranch = (int)($_GET['branch'] ?? 0);
 $filterDentist= (int)($_GET['dentist'] ?? 0);
 $filterRating = in_array((int)($_GET['rating'] ?? 0), [1, 2, 3, 4, 5], true) ? (int)$_GET['rating'] : 0;
@@ -59,16 +60,25 @@ $q = array_merge([
 ], $filters);
 
 // Dentists for the filter (names only)
-$dentistRes = supabase_request('dentists', 'GET', [], 'select=dentist_id,full_name&order=full_name.asc');
+// One parallel wave: dentists + rating rows + the list + branch dropdown + navbar bell
+$_dentQ  = 'select=dentist_id,full_name&order=full_name.asc';
+$_anaQ   = implode('&', array_filter([
+    'select=rating,category,dentist_id,created_at,dentists(full_name)', 'limit=10000',
+    $filterBranch > 0 ? 'branch_id=eq.' . $filterBranch : null,
+]));
+admin_prefetch([
+    'dentists' => admin_q('dentists', $_dentQ),
+    'ana'      => admin_q('patient_feedback', $_anaQ),
+    'list'     => admin_q('patient_feedback', implode('&', $q), ['Prefer: count=exact']),
+]);
+$branches   = getAllBranches();
+$dentistRes = admin_get('dentists', $_dentQ);
 $dentists   = is_array($dentistRes['data'] ?? null) ? $dentistRes['data'] : [];
 
 // ── Analytics source: every rating in the branch filter (no other filter),
 //    non-identifying columns only. Date range is applied in PHP below so the
 //    trend can also look at the period before it.
-$anaRes  = supabase_request('patient_feedback', 'GET', [], implode('&', array_filter([
-    'select=rating,category,dentist_id,created_at,dentists(full_name)', 'limit=10000',
-    $filterBranch > 0 ? 'branch_id=eq.' . $filterBranch : null,
-])));
+$anaRes  = admin_get('patient_feedback', $_anaQ);
 $anaAll  = empty($anaRes['error']) && is_array($anaRes['data']) ? $anaRes['data'] : [];
 $fbDay   = fn($r) => date('Y-m-d', strtotime($r['created_at']));
 $inRange = fn($r) => (!$dateFrom || $fbDay($r) >= $dateFrom) && (!$dateTo || $fbDay($r) <= $dateTo);
@@ -113,7 +123,7 @@ uasort($perDentist, fn($a, $b) => count($b['ratings']) <=> count($a['ratings']) 
 
 $filtersOn = listActiveCount([$filterBranch, $filterDentist, $filterRating, $dateFrom, $dateTo, $sortKey !== 'newest']);
 
-$result    = supabase_request('patient_feedback', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
+$result    = admin_get('patient_feedback', implode('&', $q), ['Prefer: count=exact']);
 $loadError = !empty($result['error']);
 $rows      = is_array($result['data']) && !$loadError ? $result['data'] : [];
 $total     = $loadError ? 0 : resolveCount($result, 'patient_feedback', $q);
@@ -430,7 +440,7 @@ function fbTs(?string $iso): ?int
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
     <script>

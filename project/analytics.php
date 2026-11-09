@@ -8,57 +8,73 @@ require_once __DIR__ . '/controllers/secure_controller.php';
 //  Business logic: controllers/dashboard_controller.php
 // =============================================================
 require_once __DIR__ . '/controllers/dashboard_controller.php';
-
-$stats = getDashboardStats();
-
-// ── Appointments per month (last 6 months) ───────────────────
-require_once __DIR__ . '/dbconfig.php';
-$monthlyData = [];
-for ($i = 5; $i >= 0; $i--) {
-    $start = date('Y-m-01', strtotime("-$i months"));
-    $end   = date('Y-m-t',  strtotime("-$i months"));
-    $label = date('M Y',    strtotime("-$i months"));
-    $res   = supabase_request('appointments', 'GET', [],
-        'select=status&appointment_date=gte.' . $start . '&appointment_date=lte.' . $end,
-        ['Prefer: count=exact']);
-    $cr    = $res['headers']['content-range'] ?? '';
-    $count = ($cr && str_contains($cr, '/')) ? (int)explode('/', $cr)[1] : count($res['data'] ?? []);
-
-    // completed count for that month
-    $resC  = supabase_request('appointments', 'GET', [],
-        'select=status&status=eq.completed&appointment_date=gte.' . $start . '&appointment_date=lte.' . $end,
-        ['Prefer: count=exact']);
-    $crC   = $resC['headers']['content-range'] ?? '';
-    $comp  = ($crC && str_contains($crC, '/')) ? (int)explode('/', $crC)[1] : count($resC['data'] ?? []);
-
-    $monthlyData[] = ['label' => $label, 'total' => $count, 'completed' => $comp];
-}
-
-// ── Top services ─────────────────────────────────────────────
-$svcRes = supabase_request('appointments', 'GET', [],
-    'select=services(service_name)&service_id=not.is.null&limit=200');
-$svcCounts = [];
-if (is_array($svcRes['data'])) {
-    foreach ($svcRes['data'] as $row) {
-        $name = $row['services']['service_name'] ?? 'Unknown';
-        $svcCounts[$name] = ($svcCounts[$name] ?? 0) + 1;
-    }
-}
-arsort($svcCounts);
-$topServices = array_slice($svcCounts, 0, 6, true);
-
-// ── Per-branch appointment counts ────────────────────────────
 require_once __DIR__ . '/controllers/branch_controller.php';
-$branches    = getAllBranches();
-$branchStats = [];
-foreach ($branches as $b) {
-    $bRes  = supabase_request('appointments', 'GET', [],
-        'select=appointment_id&branch_id=eq.' . $b['branch_id'],
-        ['Prefer: count=exact']);
-    $bCr   = $bRes['headers']['content-range'] ?? '';
-    $bCount = ($bCr && str_contains($bCr, '/')) ? (int)explode('/', $bCr)[1] : count($bRes['data'] ?? []);
-    $branchStats[] = ['name' => $b['branch_name'], 'count' => $bCount];
+require_once __DIR__ . '/controllers/admin_batch.php';
+
+// Performance: all queries below run in two parallel waves over one
+// connection (controllers/admin_batch.php) instead of ~30 sequential ones,
+// and the computed figures are kept for 60 s per user (the card's Refresh
+// button, analytics.php?refresh=1, always recomputes). The navbar bell is
+// still fetched fresh on every load.
+$_analytics = empty($_GET['refresh']) ? admin_cache_get('analytics', 60) : null;
+
+if ($_analytics === null) {
+    $count = ['Prefer: count=exact'];
+
+    // ── Wave 1: stat cards + 6-month trend + top services + branches ──
+    $specs  = dashboardStatsSpecs(false);   // the dashboard's today-list isn't shown here
+    $months = [];
+    for ($i = 5; $i >= 0; $i--) {
+        $start = date('Y-m-01', strtotime("-$i months"));
+        $end   = date('Y-m-t',  strtotime("-$i months"));
+        $months[$i] = date('M Y', strtotime("-$i months"));
+        $specs["m{$i}_total"] = admin_q('appointments',
+            'select=status&appointment_date=gte.' . $start . '&appointment_date=lte.' . $end . '&limit=0', $count);
+        $specs["m{$i}_done"]  = admin_q('appointments',
+            'select=status&status=eq.completed&appointment_date=gte.' . $start . '&appointment_date=lte.' . $end . '&limit=0', $count);
+    }
+    $specs['top_services'] = admin_q('appointments', 'select=services(service_name)&service_id=not.is.null&limit=200');
+
+    $res   = admin_prefetch($specs, ['navbar', 'branches']);
+    $stats = dashboardStatsFrom($res);
+
+    // ── Appointments per month (last 6 months) ───────────────────
+    $monthlyData = [];
+    foreach ($months as $i => $label) {
+        $monthlyData[] = ['label' => $label, 'total' => _countFromHeader($res["m{$i}_total"]), 'completed' => _countFromHeader($res["m{$i}_done"])];
+    }
+
+    // ── Top services ─────────────────────────────────────────────
+    $svcCounts = [];
+    if (is_array($res['top_services']['data'])) {
+        foreach ($res['top_services']['data'] as $row) {
+            $name = $row['services']['service_name'] ?? 'Unknown';
+            $svcCounts[$name] = ($svcCounts[$name] ?? 0) + 1;
+        }
+    }
+    arsort($svcCounts);
+    $topServices = array_slice($svcCounts, 0, 6, true);
+
+    // ── Wave 2: per-branch appointment counts (needs the branch list) ──
+    $branches = getAllBranches();
+    $bSpecs   = [];
+    foreach ($branches as $bi => $b) {
+        $bSpecs[$bi] = admin_q('appointments', 'select=appointment_id&branch_id=eq.' . $b['branch_id'] . '&limit=0', $count);
+    }
+    $bRes        = admin_sb_many($bSpecs);
+    $branchStats = [];
+    foreach ($branches as $bi => $b) {
+        $branchStats[] = ['name' => $b['branch_name'], 'count' => _countFromHeader($bRes[$bi])];
+    }
+
+    $_analytics = compact('stats', 'monthlyData', 'topServices', 'branchStats');
+    admin_cache_set('analytics', $_analytics);
+} else {
+    // Served from the 60 s cache: only the navbar bell still needs a query
+    admin_prefetch([], ['navbar']);
 }
+admin_release_session();
+['stats' => $stats, 'monthlyData' => $monthlyData, 'topServices' => $topServices, 'branchStats' => $branchStats] = $_analytics;
 $maxBranch = max(array_column($branchStats, 'count') ?: [1]);
 
 // JSON for ApexCharts
@@ -150,7 +166,7 @@ $chartCompleted = json_encode(array_column($monthlyData, 'completed'));
                                 <div class="card-header-action">
                                     <div class="card-header-btn">
                                         <div data-bs-toggle="tooltip" title="Refresh">
-                                            <a href="analytics.php" class="avatar-text avatar-xs bg-warning"></a>
+                                            <a href="analytics.php?refresh=1" class="avatar-text avatar-xs bg-warning"></a>
                                         </div>
                                         <div data-bs-toggle="tooltip" title="Maximize/Minimize">
                                             <a href="javascript:void(0);" class="avatar-text avatar-xs bg-success" data-bs-toggle="expand"></a>
