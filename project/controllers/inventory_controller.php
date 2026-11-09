@@ -38,14 +38,14 @@ function inventoryRecordsQuery(int $page, int $branchId, string $category, strin
     $offset = ($page - 1) * INV_PER_PAGE;
 
     $q = [
-        'select=item_id,item_code,item_name,category,stock_quantity,min_stock,status,created_at,branches(branch_name)',
+        'select=item_id,item_code,item_name,category,branch_id,stock_quantity,min_stock,status,created_at,branches(branch_name)',
         $order,
         'limit='  . INV_PER_PAGE,
         'offset=' . $offset,
         ...$extra,
     ];
 
-    if ($branchId > 0) $q[] = 'branch_id=eq.' . $branchId;
+    if ($branchId !== 0) $q[] = 'branch_id=eq.' . $branchId;   // -1 (no scope) matches nothing
     if ($category)     $q[] = 'category=eq.'  . urlencode($category);
     if ($status)       $q[] = 'status=eq.'    . urlencode($status);
 
@@ -95,7 +95,7 @@ function stockMovementsQuery(int $page, int $branchId, string $itemId): array
         'offset=' . $offset,
     ];
 
-    if ($branchId > 0) $q[] = 'branch_id=eq.' . $branchId;
+    if ($branchId !== 0) $q[] = 'branch_id=eq.' . $branchId;   // -1 (no scope) matches nothing
     if ($itemId)       $q[] = 'item_id=eq.'   . (int)$itemId;
 
     return $q;

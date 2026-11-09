@@ -16,6 +16,7 @@ require_once __DIR__ . '/../controllers/audit_controller.php';
 
 header('Content-Type: application/json');
 requireLogin();
+requireStaffApi('owner', 'admin', 'dentist');   // staff only; non-owners are pinned to their branch
 
 $method = $_SERVER['REQUEST_METHOD'];
 $id     = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -24,13 +25,15 @@ $id     = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($method === 'GET' && !$id && isset($_GET['appointment_id'])) {
     $aptId = (int)$_GET['appointment_id'];
     if (!$aptId) { echo json_encode(['success' => false, 'message' => 'Appointment ID required.']); exit; }
-    $cols = 'invoice_id,invoice_code,invoice_date,total_amount,amount_paid,balance,payment_status';
+    $cols = 'invoice_id,invoice_code,invoice_date,total_amount,amount_paid,balance,payment_status,branch_id';
     $q    = 'appointment_id=eq.' . $aptId . '&order=created_at.desc&limit=1&select=';
     // discount_amount exists once database/2026-10-20_invoice_discounts.sql has been run
     $inv  = supabase_request('invoices', 'GET', [], $q . $cols . ',discount_amount');
     if ($inv['status'] < 200 || $inv['status'] >= 300) $inv = supabase_request('invoices', 'GET', [], $q . $cols);
     $row  = $inv['data'][0] ?? null;
     if (!$row) { echo json_encode(['success' => false, 'message' => 'No invoice for this appointment yet.']); exit; }
+    requireBranchAccess($row['branch_id'] ?? null);   // the invoice's real branch, from the database
+    unset($row['branch_id']);                          // response shape unchanged
     // Method of the most recent payment, shown beside the payment status
     $pm = supabase_request('payments', 'GET', [],
         'invoice_id=eq.' . (int)$row['invoice_id'] . '&select=payment_method&order=payment_date.desc,payment_id.desc&limit=1');
@@ -59,6 +62,7 @@ if ($method === 'GET') {
     }
 
     $invoiceRow    = $inv['data'][0];
+    requireBranchAccess($invoiceRow['branch_id'] ?? null);   // the invoice's real branch, from the database
     $appointmentId = (int)($invoiceRow['appointment_id'] ?? 0);
 
     // Fetch all services for this appointment
@@ -113,6 +117,10 @@ if ($method === 'GET') {
 if ($method === 'DELETE') {
     if (!isOwner()) { echo json_encode(['success' => false, 'message' => 'Only owners can delete invoices.']); exit; }
     if (!$id)       { echo json_encode(['success' => false, 'message' => 'Invoice ID required.']);             exit; }
+
+    $own = supabase_request('invoices', 'GET', [], 'invoice_id=eq.' . $id . '&select=branch_id&limit=1');
+    if (empty($own['data'][0])) { echo json_encode(['success' => false, 'message' => 'Invoice not found.']); exit; }
+    requireBranchAccess($own['data'][0]['branch_id'] ?? null);
 
     $before = getInvoiceInfoForAudit($id); // read first: the row is gone afterwards
     $res = supabase_request('invoices', 'DELETE', [], 'invoice_id=eq.' . $id);

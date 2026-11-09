@@ -13,6 +13,7 @@ require_once __DIR__ . '/../controllers/stock_helper.php';
 
 header('Content-Type: application/json');
 requireLogin();
+requireStaffApi('owner', 'admin', 'dentist');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Method not allowed.']);
@@ -22,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $body      = json_decode(file_get_contents('php://input'), true) ?? [];
 $branchId  = (int)($body['branch_id'] ?? 0);
 $materials = is_array($body['materials'] ?? null) ? $body['materials'] : [];
-if (!isOwner() && getSessionBranch()) $branchId = (int)getSessionBranch(); // staff: own branch only
+$branchId  = scopedBranch($branchId); // owner: as sent; admin / dentist: always their own branch
 
 $r = stock_check($materials, $branchId);
 echo json_encode([

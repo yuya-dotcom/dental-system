@@ -21,6 +21,7 @@ require_once __DIR__ . '/../controllers/stock_helper.php';
 
 header('Content-Type: application/json');
 requireLogin();
+requireStaffApi('owner', 'admin', 'dentist');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Method not allowed.']);
@@ -49,6 +50,14 @@ if (!$treatmentId) {
     echo json_encode(['success' => false, 'message' => 'Treatment ID is required.']);
     exit;
 }
+
+// SECURITY: the treatment's real branch (from the database) decides access and
+// is the branch whose stock is deducted and whose invoice is created — a
+// branch_id sent by the browser is not trusted.
+$trtOwn = supabase_request('treatments', 'GET', [], 'treatment_id=eq.' . $treatmentId . '&select=branch_id&limit=1');
+if (empty($trtOwn['data'][0])) apiDeny(404, 'Treatment not found.');
+requireBranchAccess($trtOwn['data'][0]['branch_id'] ?? null);
+$branchId = (int)$trtOwn['data'][0]['branch_id'];
 
 $errors = [];
 

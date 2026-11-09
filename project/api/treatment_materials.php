@@ -11,6 +11,22 @@ require_once __DIR__ . '/../controllers/auth_controller.php';
 
 header('Content-Type: application/json');
 requireLogin();
+requireStaffApi('owner', 'admin', 'dentist');   // staff only; non-owners are pinned to their branch
+
+/** Stop unless the treatment exists and belongs to the user's branch (owner: any). */
+function tm_require_treatment(int $treatmentId): void
+{
+    $r = supabase_request('treatments', 'GET', [], 'treatment_id=eq.' . $treatmentId . '&select=branch_id&limit=1');
+    if (empty($r['data'][0])) apiDeny(404, 'Treatment not found.');
+    requireBranchAccess($r['data'][0]['branch_id'] ?? null);
+}
+/** Same check, starting from a treatment_materials row id. */
+function tm_require_material(int $materialId): void
+{
+    $r = supabase_request('treatment_materials', 'GET', [], 'material_id=eq.' . $materialId . '&select=treatment_id&limit=1');
+    if (empty($r['data'][0])) apiDeny(404, 'Material not found.');
+    tm_require_treatment((int)$r['data'][0]['treatment_id']);
+}
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -18,6 +34,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
     $treatmentId = isset($_GET['treatment_id']) ? (int)$_GET['treatment_id'] : 0;
     if (!$treatmentId) { echo json_encode([]); exit; }
+    tm_require_treatment($treatmentId);
 
     $res = supabase_request('treatment_materials', 'GET', [],
         'treatment_id=eq.' . $treatmentId .
@@ -40,6 +57,10 @@ if ($method === 'POST') {
         echo json_encode(['success' => false, 'message' => 'treatment_id, item_id, and quantity_used are required.']);
         exit;
     }
+    tm_require_treatment($treatmentId);
+    $itm = supabase_request('inventory', 'GET', [], 'item_id=eq.' . $itemId . '&select=branch_id&limit=1');
+    if (empty($itm['data'][0])) apiDeny(404, 'Item not found.');
+    requireBranchAccess($itm['data'][0]['branch_id'] ?? null);
 
     // Check duplicate
     $check = supabase_request('treatment_materials', 'GET', [],
@@ -74,6 +95,7 @@ if ($method === 'PATCH') {
         echo json_encode(['success' => false, 'message' => 'Valid material_id and quantity required.']);
         exit;
     }
+    tm_require_material($id);
 
     $res = supabase_request('treatment_materials', 'PATCH',
         ['quantity_used' => $qty],
@@ -95,6 +117,7 @@ if ($method === 'DELETE') {
         echo json_encode(['success' => false, 'message' => 'Material ID required.']);
         exit;
     }
+    tm_require_material($id);
 
     $res = supabase_request('treatment_materials', 'DELETE', [], 'material_id=eq.' . $id);
 

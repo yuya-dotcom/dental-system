@@ -10,6 +10,7 @@ require_once __DIR__ . '/../controllers/auth_controller.php';
 
 header('Content-Type: application/json');
 requireLogin();
+requireStaffApi('owner', 'admin', 'dentist');   // staff only; non-owners are pinned to their branch
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Method not allowed.']);
@@ -18,16 +19,24 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $body     = json_decode(file_get_contents('php://input'), true) ?? [];
 $itemId   = (int)($body['item_id']         ?? 0);
-$branchId = (int)($body['branch_id']       ?? 0);
 $change   = (int)($body['quantity_change'] ?? 0);
 $reason   = trim($body['reason']           ?? '');
-$perfBy   = trim($body['performed_by']     ?? '');
 $date     = trim($body['movement_date']    ?? date('Y-m-d'));
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = date('Y-m-d');
+// Recorded as the signed-in user, not a name sent by the browser
+$perfBy   = trim((string)($_SESSION['full_name'] ?? ''));
 
-if (!$itemId || !$branchId || $change === 0) {
-    echo json_encode(['success' => false, 'message' => 'item_id, branch_id, and quantity_change are required.']);
+if (!$itemId || $change === 0) {
+    echo json_encode(['success' => false, 'message' => 'item_id and quantity_change are required.']);
     exit;
 }
+
+// SECURITY: the movement's branch is the item's real branch from the database.
+// A branch_id sent by the browser is ignored.
+$itemRes = supabase_request('inventory', 'GET', [], 'item_id=eq.' . $itemId . '&select=branch_id&limit=1');
+if (empty($itemRes['data'][0])) apiDeny(404, 'Item not found.');
+$branchId = (int)($itemRes['data'][0]['branch_id'] ?? 0);
+requireBranchAccess($branchId);
 
 $res = supabase_request('inventory_movements', 'POST', [
     'item_id'         => $itemId,

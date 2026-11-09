@@ -191,8 +191,8 @@ function admin_navbar_spec(): array
 {
     $filter = '';
     if (!isOwner()) {
-        $sessionBranch = getSessionBranch();
-        if ($sessionBranch) $filter = '&branch_id=eq.' . (int)$sessionBranch;
+        // Own branch only; a non-owner without a branch gets -1 (matches nothing)
+        $filter = '&branch_id=eq.' . scopedBranch(0);
     }
     return admin_q('inventory',
         'select=item_id,item_code,item_name,stock_quantity,min_stock,status,branches(branch_name)'

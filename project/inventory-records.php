@@ -22,6 +22,7 @@ $filterBranch   = isset($_GET['branch'])   ? (int)$_GET['branch']   : 0;
 $filterCategory = isset($_GET['category']) ? trim($_GET['category']) : '';
 $filterStatus   = isset($_GET['status'])   ? trim($_GET['status'])   : '';
 $page           = max(1, (int)($_GET['page'] ?? 1));
+$qBranch        = scopedBranch($filterBranch);   // owner: as filtered; admin / dentist: own branch only
 
 // Sort / search (validated in list_filters.php)
 $sortOptions  = [
@@ -47,12 +48,12 @@ $filtersOn    = listActiveCount([$filterBranch, $filterCategory, $filterStatus, 
 // One parallel wave: list + categories + branch dropdown + navbar bell (controllers/admin_batch.php)
 $_invExtra   = listSearchFilter($search, ['item_name', 'item_code']);
 admin_prefetch([
-    'list'       => admin_q('inventory', implode('&', inventoryRecordsQuery($page, $filterBranch, $filterCategory, $filterStatus, $sortOrder, $_invExtra)), ['Prefer: count=exact']),
+    'list'       => admin_q('inventory', implode('&', inventoryRecordsQuery($page, $qBranch, $filterCategory, $filterStatus, $sortOrder, $_invExtra)), ['Prefer: count=exact']),
     'categories' => admin_q('inventory', INV_CATEGORIES_QUERY),
 ]);
 $branches   = getAllBranches();
 $categories = getInventoryCategories();
-$data         = getInventoryRecords($page, $filterBranch, $filterCategory, $filterStatus, $sortOrder, $_invExtra);
+$data         = getInventoryRecords($page, $qBranch, $filterCategory, $filterStatus, $sortOrder, $_invExtra);
 $items        = $data['rows'];
 $totalRecords = $data['totalRecords'];
 $totalPages   = $data['totalPages'];
@@ -309,7 +310,7 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
                             <label class="form-label fw-semibold small">Branch <span class="text-danger">*</span></label>
                             <select id="inv_branch" class="form-select">
                                 <option value="">— Select Branch —</option>
-                                <?php foreach ($branches as $b): ?>
+                                <?php foreach ($branches as $b): if (!canAccessBranch($b['branch_id'])) continue; // admins: own branch only ?>
                                 <option value="<?= $b['branch_id'] ?>"><?= htmlspecialchars($b['branch_name']) ?></option>
                                 <?php endforeach; ?>
                             </select>

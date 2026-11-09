@@ -235,6 +235,8 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
                     },
                     body: JSON.stringify({
                         action: 'google_auth',
+                        // The server verifies this token with Supabase Auth and takes the email from it
+                        access_token: finalSession.access_token,
                         email: user.email,
                         full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
                         google_id: user.id,

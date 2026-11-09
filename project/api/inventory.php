@@ -11,12 +11,14 @@ require_once __DIR__ . '/../controllers/auth_controller.php';
 
 header('Content-Type: application/json');
 requireLogin();
+requireStaffApi('owner', 'admin', 'dentist');   // staff only; non-owners are pinned to their branch
 
 $method = $_SERVER['REQUEST_METHOD'];
 
 // ── GET — list items for branch ──────────────────────────────
 if ($method === 'GET') {
-    $branchId = isset($_GET['branch_id']) ? (int)$_GET['branch_id'] : 0;
+    // Owner: the requested branch (0 = all). Admin / dentist: always their own branch.
+    $branchId = scopedBranch(isset($_GET['branch_id']) ? (int)$_GET['branch_id'] : 0);
     $q = 'select=item_id,item_code,item_name,category,stock_quantity,min_stock,status&status=neq.inactive&order=item_name.asc';
     if ($branchId) $q .= '&branch_id=eq.' . $branchId;
 
@@ -43,6 +45,10 @@ if ($method === 'PATCH') {
 
     // Floor rule + compare-and-swap (controllers/stock_helper.php)
     require_once __DIR__ . '/../controllers/stock_helper.php';
+    // The item's real branch from the database — never the request's
+    $item = stock_rows([$id])[$id] ?? null;
+    if (!$item) apiDeny(404, 'Item not found.');
+    requireBranchAccess($item['branch_id'] ?? null);
     $r = stock_apply($id, -$deduct);
     echo json_encode($r['ok']
         ? ['success' => true, 'new_quantity' => $r['after']]

@@ -24,6 +24,12 @@ define('SUPABASE_URL', $_secrets['supabase_url']);
 define('SUPABASE_KEY', $_secrets['supabase_key']);
 unset($_secrets);
 
+// The clinic runs on Philippine time. Without this, date()/strtotime() use the
+// server's php.ini zone (Europe/Berlin locally, likely UTC on the host), which
+// saved invoices made after midnight under the previous day and shifted times
+// by 7–8 hours. Stored timestamps carry their offset, so existing data is unaffected.
+date_default_timezone_set('Asia/Manila');
+
 
 // ------------------------------------------------------------------
 //  THE MAIN FUNCTION: supabase_request()

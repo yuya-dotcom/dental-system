@@ -15,6 +15,7 @@ require_once __DIR__ . '/../controllers/notification_helper.php';
 
 header('Content-Type: application/json');
 requireLogin();
+requireStaffApi('owner', 'admin', 'dentist');   // staff only; non-owners are pinned to their branch
 
 $method = $_SERVER['REQUEST_METHOD'];
 $id     = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -39,6 +40,7 @@ if ($method === 'GET') {
     );
     if (!empty($res['data'][0])) {
         $apt = $res['data'][0];
+        requireBranchAccess($apt['branch_id'] ?? null);   // the appointment's real branch
 
         // Resolve contact: prefer patients.contact_number, fallback to patient_accounts
         $contact = $apt['patients']['contact_number'] ?? null;
@@ -72,6 +74,7 @@ if ($method === 'PATCH') {
         echo json_encode(['success' => false, 'message' => 'Appointment ID required.']);
         exit;
     }
+    requireAppointmentBranch($id);
     $body   = json_decode(file_get_contents('php://input'), true) ?? [];
     $status = trim($body['status'] ?? '');
 
@@ -165,6 +168,7 @@ if ($method === 'PUT') {
         echo json_encode(['success' => false, 'message' => 'Appointment ID required.']);
         exit;
     }
+    requireAppointmentBranch($id);   // may edit only an appointment of their own branch
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     _saveAppointment($id, $body);
     exit;
@@ -221,6 +225,9 @@ function _saveAppointment(?int $appointmentId, array $body): void
         echo json_encode(['success' => false, 'message' => implode(' ', $errors)]);
         return;
     }
+
+    // The (new) branch must be the user's own branch too (owner: any)
+    if (!canAccessBranch($payload['branch_id'])) apiDeny(403, 'You can only manage appointments in your own branch.');
 
     // Normalise time to HH:MM:SS
     if (strlen($payload['appointment_time']) === 5) {

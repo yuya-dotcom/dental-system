@@ -117,7 +117,19 @@ function requireLogin(): void
 {
     bootSession();
     if (empty($_SESSION['logged_in'])) {
+        // JSON APIs answer 401 instead of redirecting to the HTML login page
+        if (str_contains(str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? ''), '/api/')) {
+            apiDeny(401, 'Please sign in again.');
+        }
         header('Location: login.php');
+        exit;
+    }
+    // Fail closed: a non-owner session without a branch has no data scope.
+    if (!staffBranchValid() && basename($_SERVER['SCRIPT_NAME'] ?? '') !== 'unauthorized.php') {
+        if (str_contains(str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? ''), '/api/')) {
+            apiDeny(403, 'Your account has no branch assigned.');
+        }
+        header('Location: unauthorized.php');
         exit;
     }
 }
@@ -189,6 +201,81 @@ function getSessionBranch(): int
     bootSession();
     if (($_SESSION['role'] ?? '') === 'owner') return 0;
     return (int)($_SESSION['branch_id'] ?? 0);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  BRANCH-LEVEL AUTHORIZATION
+//  Owner: every branch. Admin / Dentist: only the branch stored in
+//  their session at login. A non-owner without a branch (or with an
+//  unknown role) is never treated as "all branches" — they fail closed.
+//  Record branches are always read from the database by the caller,
+//  never taken from the request.
+// ─────────────────────────────────────────────────────────────
+
+/** True when the session is a staff role with a usable branch scope. */
+function staffBranchValid(): bool
+{
+    $role = $_SESSION['role'] ?? '';
+    if ($role === 'owner') return true;
+    return in_array($role, ['admin', 'dentist'], true) && (int)($_SESSION['branch_id'] ?? 0) > 0;
+}
+
+/** May the current staff user touch a record that belongs to $recordBranchId? */
+function canAccessBranch($recordBranchId): bool
+{
+    if (($_SESSION['role'] ?? '') === 'owner') return true;
+    if (!staffBranchValid()) return false;
+    $rb = (int)($recordBranchId ?? 0);
+    return $rb > 0 && $rb === (int)$_SESSION['branch_id'];
+}
+
+/**
+ * Branch filter for list/stat queries: owner keeps the requested branch
+ * (0 = all), everyone else is pinned to their own branch whatever was asked.
+ */
+function scopedBranch(int $requested = 0): int
+{
+    if (($_SESSION['role'] ?? '') === 'owner') return max(0, $requested);
+    return staffBranchValid() ? (int)$_SESSION['branch_id'] : -1; // -1 never matches (callers are gated first)
+}
+
+/** JSON error with an HTTP status; generic text only, no record details. */
+function apiDeny(int $status = 403, string $message = 'You do not have access to this record.'): void
+{
+    if (!headers_sent()) {
+        http_response_code($status);
+        header('Content-Type: application/json');
+    }
+    echo json_encode(['success' => false, 'message' => $message]);
+    exit;
+}
+
+/**
+ * Guard for staff JSON APIs: 401 when not signed in as staff, 403 for a
+ * role outside $roles or a non-owner without a branch.
+ */
+function requireStaffApi(string ...$roles): void
+{
+    bootSession();
+    if (empty($_SESSION['logged_in']) || empty($_SESSION['user_id'])) apiDeny(401, 'Please sign in again.');
+    if (!$roles) $roles = ['owner', 'admin', 'dentist'];
+    if (!in_array($_SESSION['role'] ?? '', $roles, true)) apiDeny(403, 'You are not allowed to do this.');
+    if (!staffBranchValid()) apiDeny(403, 'Your account has no branch assigned.');
+}
+
+/** Stop unless the appointment exists (404) and is in the user's branch (403). Returns its branch. */
+function requireAppointmentBranch(int $appointmentId): int
+{
+    $r = supabase_request('appointments', 'GET', [], 'appointment_id=eq.' . $appointmentId . '&select=branch_id&limit=1');
+    if (empty($r['data'][0])) apiDeny(404, 'Appointment not found.');
+    requireBranchAccess($r['data'][0]['branch_id'] ?? null);
+    return (int)$r['data'][0]['branch_id'];
+}
+
+/** Stop unless the current user may access $recordBranchId (403, generic message). */
+function requireBranchAccess($recordBranchId): void
+{
+    if (!canAccessBranch($recordBranchId)) apiDeny(403);
 }
 
 // ─────────────────────────────────────────────────────────────

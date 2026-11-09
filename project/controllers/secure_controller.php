@@ -172,3 +172,14 @@ if (defined('REQUIRED_ROLES') && is_array(REQUIRED_ROLES)) {
         exit;
     }
 }
+
+// ── 6. BRANCH SCOPE (fail closed) ─────────────────────────────
+//  Admins and dentists only ever see their own branch. A non-owner
+//  session without a branch must never fall through to "all branches".
+$__role = $_SESSION['role'] ?? '';
+if ($__role !== 'owner'
+    && !(in_array($__role, ['admin', 'dentist'], true) && (int)($_SESSION['branch_id'] ?? 0) > 0)) {
+    header('Location: unauthorized.php');
+    exit;
+}
+unset($__role);

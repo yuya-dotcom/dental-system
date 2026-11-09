@@ -131,8 +131,9 @@ function addClinicalNote(int $patientId, int $branchId, string $noteText, string
 /**
  * CRUD: Delete clinical note
  */
-function deleteClinicalNote(int $noteId): array {
-    return supabase_request('clinical_notes', 'DELETE', [], 'note_id=eq.' . $noteId);
+function deleteClinicalNote(int $noteId, int $patientId): array {
+    // Only a note of the patient whose record is open (not any note id in the system)
+    return supabase_request('clinical_notes', 'DELETE', [], 'note_id=eq.' . $noteId . '&patient_id=eq.' . $patientId, ['Prefer: return=representation']);
 }
 
 /**

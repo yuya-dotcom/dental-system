@@ -11,6 +11,7 @@ require_once __DIR__ . '/controllers/list_filters.php';
 $filterBranch  = isset($_GET['branch'])  ? (int)$_GET['branch']  : 0;
 $filterPayment = in_array($_GET['payment'] ?? '', ['paid', 'partial', 'unpaid'], true) ? $_GET['payment'] : '';
 $page          = max(1, (int)($_GET['page'] ?? 1));
+$qBranch       = scopedBranch($filterBranch);   // owner: as filtered; admin: own branch only
 
 
 // Sort (table headers) / search / invoice date (validated in list_filters.php)
@@ -40,9 +41,9 @@ array_push($extra, ...listDateRange('invoice_date', $dateFrom, $dateTo));
 $filtersOn     = listActiveCount([isOwner() ? $filterBranch : 0, $filterPayment, $search, $dateFrom, $dateTo, $sortKey !== 'code_asc']);
 
 // One parallel wave: the list + branch dropdown + navbar bell (controllers/admin_batch.php)
-admin_prefetch(['list' => admin_q('invoices', implode('&', invoiceRecordsQuery($page, $filterBranch, $filterPayment, $sortOrder, $extra)), ['Prefer: count=exact'])]);
+admin_prefetch(['list' => admin_q('invoices', implode('&', invoiceRecordsQuery($page, $qBranch, $filterPayment, $sortOrder, $extra)), ['Prefer: count=exact'])]);
 $branches     = getAllBranches();
-$data         = getInvoiceRecords($page, $filterBranch, $filterPayment, $sortOrder, $extra);
+$data         = getInvoiceRecords($page, $qBranch, $filterPayment, $sortOrder, $extra);
 $invoices     = $data['rows'];
 $totalRecords = $data['totalRecords'];
 $totalPages   = $data['totalPages'];

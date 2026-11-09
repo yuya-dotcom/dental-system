@@ -20,6 +20,7 @@ require_once __DIR__ . '/../controllers/audit_controller.php';
 
 header('Content-Type: application/json');
 requireLogin();
+requireStaffApi('owner', 'admin', 'dentist');   // staff only; non-owners are pinned to their branch
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -33,12 +34,14 @@ function idc_peso(float $n): string { return '₱' . number_format($n, 2); }
 function idc_invoice(int $invoiceId): array {
     $r = supabase_request('invoices', 'GET', [],
         'invoice_id=eq.' . $invoiceId .
-        '&select=invoice_id,appointment_id,total_amount,amount_paid,payment_status,subtotal_amount,discount_amount&limit=1');
+        '&select=invoice_id,appointment_id,branch_id,total_amount,amount_paid,payment_status,subtotal_amount,discount_amount&limit=1');
     if (!idc_ok($r)) {
         idc_fail('Discounts are not set up yet — run database/2026-10-20_invoice_discounts.sql in Supabase.');
     }
     if (empty($r['data'][0])) idc_fail('Invoice not found.');
     $inv = $r['data'][0];
+    // Every GET / apply / remove goes through here: check the invoice's real branch
+    requireBranchAccess($inv['branch_id'] ?? null);
     // Before any discount, subtotal = total (also covers invoices created before the migration)
     $inv['subtotal'] = round((float)($inv['subtotal_amount'] ?? $inv['total_amount']), 2);
     $inv['paid']     = round((float)($inv['amount_paid'] ?? 0), 2);

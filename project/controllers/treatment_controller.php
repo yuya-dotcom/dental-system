@@ -193,7 +193,7 @@ function invoiceRecordsQuery(int $page, int $branchId, string $paymentStatus, st
         ...$extra,
     ];
 
-    if ($branchId > 0)     $q[] = 'branch_id=eq.'      . $branchId;
+    if ($branchId !== 0)   $q[] = 'branch_id=eq.'      . $branchId;   // -1 (no scope) matches nothing
     if ($paymentStatus)    $q[] = 'payment_status=eq.'  . urlencode($paymentStatus);
 
     return $q;

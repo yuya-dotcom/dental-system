@@ -7,6 +7,9 @@ require_once __DIR__ . '/../controllers/name_helper.php';
 
 header('Content-Type: application/json');
 requireLogin();
+// Adding, editing and deleting patient records is Owner-only in the UI
+// (patients-list.php); enforce the same rule here.
+requireStaffApi('owner');
 
 $input  = json_decode(file_get_contents('php://input'), true) ?? [];
 $action = $input['action'] ?? '';

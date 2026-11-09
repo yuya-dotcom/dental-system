@@ -190,9 +190,54 @@ if ($action === 'register') {
 }
 
 // ── GOOGLE AUTH ───────────────────────────────────────────────────────────────
+/**
+ * SECURITY: verifies a Supabase Auth access token with Supabase itself
+ * (GET /auth/v1/user) and returns the signed-in user, or null.
+ * The email used for portal login comes ONLY from this verified user —
+ * never from the request body (that allowed logging in as anyone).
+ */
+function portal_verified_google_user(string $accessToken): ?array
+{
+    if ($accessToken === '' || strlen($accessToken) > 4096) return null;
+    $secrets = require __DIR__ . '/../config/secrets.php';
+    $apikey  = (string)($secrets['supabase_publishable_key'] ?? '');
+    if (!str_starts_with($apikey, 'sb_publishable_')) $apikey = SUPABASE_KEY;
+    unset($secrets);
+
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+        $ch = curl_init(SUPABASE_URL . '/auth/v1/user');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_HTTPHEADER     => ['apikey: ' . $apikey, 'Authorization: Bearer ' . $accessToken, 'Accept: application/json'],
+        ] + supabase_tls_options());
+        $body  = curl_exec($ch);
+        $errno = curl_errno($ch);
+        $code  = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($errno && $attempt === 0 && supabase_tls_fallback($errno)) continue;   // same TLS fallback as dbconfig.php
+        break;
+    }
+    if ($code !== 200) return null;
+    $user = json_decode((string)$body, true);
+    if (!is_array($user) || empty($user['email']) || empty($user['id'])) return null;
+
+    // Must be a Google identity (not e.g. an unconfirmed e-mail/password sign-up)
+    $meta      = $user['app_metadata'] ?? [];
+    $providers = array_merge([(string)($meta['provider'] ?? '')], (array)($meta['providers'] ?? []));
+    if (!in_array('google', $providers, true)) return null;
+    return $user;
+}
+
 if ($action === 'google_auth') {
-    $email    = trim($input['email']    ?? '');
-    $fullName = trim($input['full_name'] ?? '');
+    $gUser = portal_verified_google_user(trim((string)($input['access_token'] ?? '')));
+    if (!$gUser) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Google sign-in could not be verified. Please try again.']);
+        exit;
+    }
+    $email    = trim((string)$gUser['email']);   // verified by Supabase Auth, not taken from the request
+    $fullName = trim((string)($gUser['user_metadata']['full_name'] ?? $gUser['user_metadata']['name'] ?? $input['full_name'] ?? ''));
 
     if (!$email) {
         echo json_encode(['success' => false, 'message' => 'No email returned from Google.']);

@@ -14,6 +14,15 @@ require_once __DIR__ . '/../controllers/audit_controller.php';
 
 header('Content-Type: application/json');
 requireLogin();
+requireStaffApi('owner', 'admin', 'dentist');   // staff only; non-owners are pinned to their branch
+
+/** The invoice's real branch from the database; stops with 404/403 when not found / not allowed. */
+function pay_require_invoice_branch(int $invoiceId): void
+{
+    $r = supabase_request('invoices', 'GET', [], 'invoice_id=eq.' . $invoiceId . '&select=branch_id&limit=1');
+    if (empty($r['data'][0])) apiDeny(404, 'Invoice not found.');
+    requireBranchAccess($r['data'][0]['branch_id'] ?? null);
+}
 
 $method    = $_SERVER['REQUEST_METHOD'];
 $id        = isset($_GET['id'])         ? (int)$_GET['id']         : 0;
@@ -22,6 +31,7 @@ $invoiceId = isset($_GET['invoice_id']) ? (int)$_GET['invoice_id'] : 0;
 // ── GET ──────────────────────────────────────────────────────
 if ($method === 'GET') {
     if (!$invoiceId) { echo json_encode([]); exit; }
+    pay_require_invoice_branch($invoiceId);
 
     $res = supabase_request('payments', 'GET', [],
         'invoice_id=eq.' . $invoiceId .
@@ -52,12 +62,13 @@ if ($method === 'POST') {
     // Fetch current invoice to check balance
     $inv = supabase_request('invoices', 'GET', [],
         'invoice_id=eq.' . $invoiceId .
-        '&select=invoice_id,total_amount,amount_paid,balance,payment_status&limit=1'
+        '&select=invoice_id,total_amount,amount_paid,balance,payment_status,branch_id&limit=1'
     );
 
     if (empty($inv['data'][0])) {
         echo json_encode(['success' => false, 'message' => 'Invoice not found.']); exit;
     }
+    requireBranchAccess($inv['data'][0]['branch_id'] ?? null);   // the invoice's real branch
 
     $invoice    = $inv['data'][0];
     $total      = (float)$invoice['total_amount'];
@@ -156,6 +167,7 @@ if ($method === 'DELETE') {
 
     $payment   = $pmt['data'][0];
     $invId     = (int)$payment['invoice_id'];
+    pay_require_invoice_branch($invId);
     $pmtAmount = (float)$payment['amount'];
     $before    = getInvoiceInfoForAudit($invId);
 
@@ -190,18 +202,19 @@ if ($method === 'DELETE') {
                   '; balance ' . auditPeso($before['balance'] ?? ($total - (float)$inv['data'][0]['amount_paid'])) . ' → ' . auditPeso($newBalance) .
                   '; status ' . ($before['payment_status'] ?? '—') . ' → ' . $newStatus . '.'
                 : 'FAILED — invoice totals could not be updated: ' . ($invUpd['error'] ?? 'Unknown error')));
-    } else {
-        logBillingActivity('DELETE', $invId, $before,
-            'Payment #' . $id . ' of ' . auditPeso($pmtAmount) . ' removed; the invoice could not be re-read to reverse its totals.');
 
-        // Sync appointment payment_status
+        // Sync appointment payment_status (same as recording a payment) — only
+        // here, where the invoice was re-read and $newStatus is known
         $apptId = $inv['data'][0]['appointment_id'] ?? null;
-        if ($apptId) {
+        if ($apptId && $invUpd['status'] >= 200 && $invUpd['status'] < 300) {
             supabase_request('appointments', 'PATCH',
                 ['payment_status' => $newStatus, 'updated_at' => date('c')],
                 'appointment_id=eq.' . (int)$apptId
             );
         }
+    } else {
+        logBillingActivity('DELETE', $invId, $before,
+            'Payment #' . $id . ' of ' . auditPeso($pmtAmount) . ' removed; the invoice could not be re-read to reverse its totals.');
     }
 
     echo json_encode(['success' => true, 'message' => 'Payment removed and invoice updated.']);

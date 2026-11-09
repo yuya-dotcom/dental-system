@@ -11,11 +11,12 @@ require_once __DIR__ . '/controllers/branch_controller.php';
 $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : 0;
 $filterItem   = isset($_GET['item'])   ? (int)$_GET['item']   : 0;
 $page         = max(1, (int)($_GET['page'] ?? 1));
+$qBranch      = scopedBranch($filterBranch);   // owner: as filtered; admin / dentist: own branch only
 
 // One parallel wave: list + branch dropdown + navbar bell (controllers/admin_batch.php)
-admin_prefetch(['list' => admin_q('inventory_movements', implode('&', stockMovementsQuery($page, $filterBranch, $filterItem ?: '')), ['Prefer: count=exact'])]);
+admin_prefetch(['list' => admin_q('inventory_movements', implode('&', stockMovementsQuery($page, $qBranch, $filterItem ?: '')), ['Prefer: count=exact'])]);
 $branches     = getAllBranches();
-$data         = getStockMovements($page, $filterBranch, $filterItem ?: '');
+$data         = getStockMovements($page, $qBranch, $filterItem ?: '');
 $movements    = $data['rows'];
 $totalRecords = $data['totalRecords'];
 $totalPages   = $data['totalPages'];

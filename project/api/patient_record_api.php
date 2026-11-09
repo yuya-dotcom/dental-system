@@ -72,7 +72,12 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => 'Invalid note.']);
             exit;
         }
-        deleteClinicalNote($noteId);
+        $del = deleteClinicalNote($noteId, $patientId);
+        if (($del['status'] ?? 0) < 200 || ($del['status'] ?? 0) >= 300 || empty($del['data'])) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Note not found for this patient.']);
+            exit;
+        }
         echo json_encode(['success' => true, 'message' => 'Note deleted.']);
         break;
 

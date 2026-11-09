@@ -17,6 +17,7 @@ require_once __DIR__ . '/../controllers/notification_helper.php';
 
 header('Content-Type: application/json');
 requireLogin();
+requireStaffApi('owner', 'admin', 'dentist');   // staff only; non-owners are pinned to their branch
 
 $input  = json_decode(file_get_contents('php://input'), true) ?? [];
 $action = $input['action'] ?? $_POST['action'] ?? '';
@@ -43,6 +44,7 @@ function addAppointment(array $d): array
     if (!in_array($d['status'], $allowedStatuses)) {
         return ['success' => false, 'message' => 'Invalid status value.'];
     }
+    if (!canAccessBranch((int)$d['branch_id'])) apiDeny(403, 'You can only manage appointments in your own branch.');
 
     $payload = [
         'patient_id'       => (int)$d['patient_id'],
@@ -92,6 +94,9 @@ function editAppointment(array $d): array
     if (!empty($d['status']) && !in_array($d['status'], $allowedStatuses)) {
         return ['success' => false, 'message' => 'Invalid status value.'];
     }
+    // Current branch (from the database) and the target branch must both be the user's
+    requireAppointmentBranch((int)$d['appointment_id']);
+    if (!canAccessBranch((int)($d['branch_id'] ?? 0))) apiDeny(403, 'You can only manage appointments in your own branch.');
 
     $payload = [
         'patient_id'       => (int)$d['patient_id'],
@@ -141,6 +146,9 @@ function deleteAppointment(array $d): array
     }
 
     $aptId = (int)$d['appointment_id'];
+    // Deleting is an Owner/Admin action (the UI hides it from dentists), own branch only
+    if (isDentist()) apiDeny(403, 'You are not allowed to do this.');
+    requireAppointmentBranch($aptId);
 
     // Safety guard: do not delete if a treatment is already linked
     $linked = supabase_request('treatments', 'GET', [],

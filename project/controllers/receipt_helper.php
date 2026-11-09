@@ -27,18 +27,23 @@ function receipt_fail(int $status, string $message): void
 }
 
 /**
- * Staff (owner/admin/dentist) can open any receipt.
- * A portal patient can open only their own — checked in receipt_load().
- * Returns ['staff' => bool, 'patient_id' => ?int].
+ * Owners can open any receipt; admins and dentists only receipts of their
+ * own branch; a portal patient only their own — all checked in receipt_load()
+ * against the invoice's real branch / patient from the database.
+ * Returns ['staff' => bool, 'patient_id' => ?int, 'role' => string, 'branch_id' => int].
  */
 function receipt_require_access(): array
 {
     if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 
-    $isStaff = isset($_SESSION['user_id'])
-        && in_array($_SESSION['role'] ?? '', ['owner', 'admin', 'dentist'], true);
+    $role    = (string)($_SESSION['role'] ?? '');
+    $isStaff = !empty($_SESSION['logged_in']) && isset($_SESSION['user_id'])
+        && in_array($role, ['owner', 'admin', 'dentist'], true);
     if ($isStaff) {
-        return ['staff' => true, 'patient_id' => null];
+        $branch = (int)($_SESSION['branch_id'] ?? 0);
+        // Fail closed: a non-owner without a branch has no receipt scope
+        if ($role !== 'owner' && $branch <= 0) receipt_fail(403, 'You do not have access to this receipt.');
+        return ['staff' => true, 'patient_id' => null, 'role' => $role, 'branch_id' => $branch];
     }
 
     if (isset($_SESSION['portal_account_id'])) {
@@ -50,7 +55,7 @@ function receipt_require_access(): array
         );
         $pid = $accRes['data'][0]['patient_id'] ?? null;
         if ($pid) {
-            return ['staff' => false, 'patient_id' => (int)$pid];
+            return ['staff' => false, 'patient_id' => (int)$pid, 'role' => 'patient', 'branch_id' => 0];
         }
     }
 
@@ -89,6 +94,11 @@ function receipt_load(int $invoiceId, array $access): array
 
     // SECURITY: a patient may only see their own receipts
     if (!$access['staff'] && (int)$inv['patient_id'] !== (int)$access['patient_id']) {
+        receipt_fail(403, 'You do not have access to this receipt.');
+    }
+    // SECURITY: admins / dentists only for invoices of their own branch
+    if ($access['staff'] && ($access['role'] ?? '') !== 'owner'
+        && ((int)($inv['branch_id'] ?? 0) <= 0 || (int)$inv['branch_id'] !== (int)($access['branch_id'] ?? 0))) {
         receipt_fail(403, 'You do not have access to this receipt.');
     }
 

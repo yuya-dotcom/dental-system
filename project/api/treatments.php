@@ -15,6 +15,15 @@ require_once __DIR__ . '/../controllers/notification_helper.php';
 
 header('Content-Type: application/json');
 requireLogin();
+requireStaffApi('owner', 'admin', 'dentist');   // staff only; non-owners are pinned to their branch
+
+/** The treatment's real branch from the database; 404 / 403 when missing / not allowed. */
+function trt_require_branch(int $treatmentId): void
+{
+    $r = supabase_request('treatments', 'GET', [], 'treatment_id=eq.' . $treatmentId . '&select=branch_id&limit=1');
+    if (empty($r['data'][0])) apiDeny(404, 'Treatment not found.');
+    requireBranchAccess($r['data'][0]['branch_id'] ?? null);
+}
 
 $method    = $_SERVER['REQUEST_METHOD'];
 $id        = isset($_GET['id'])         ? (int)$_GET['id']         : 0;
@@ -33,6 +42,7 @@ if ($method === 'GET') {
             '&limit=1'
         );
         if (!empty($res['data'][0])) {
+            requireBranchAccess($res['data'][0]['branch_id'] ?? null);
             echo json_encode(['success' => true, 'data' => $res['data'][0]]);
         } else {
             echo json_encode(['success' => false, 'message' => 'Treatment not found.']);
@@ -44,7 +54,8 @@ if ($method === 'GET') {
         $res = supabase_request('treatments', 'GET', [],
             'patient_id=eq.' . $patientId .
             '&select=treatment_id,treatment_code,treatment_date,cost,status,services(service_name)' .
-            '&order=treatment_date.desc'
+            '&order=treatment_date.desc' .
+            (isOwner() ? '' : '&branch_id=eq.' . scopedBranch(0))   // non-owners: own branch only
         );
         echo json_encode($res['data'] ?? []);
         exit;
@@ -65,6 +76,7 @@ if ($method === 'POST') {
     if (empty($body['patient_id'])) { echo json_encode(['success' => false, 'message' => 'Patient is required.']);  exit; }
     if (empty($body['branch_id']))  { echo json_encode(['success' => false, 'message' => 'Branch is required.']);   exit; }
     if (empty($body['status']))     { echo json_encode(['success' => false, 'message' => 'Status is required.']);   exit; }
+    if (!canAccessBranch((int)$body['branch_id'])) apiDeny(403, 'You can only add treatments to your own branch.');
 
     // Generate treatment code matching existing format (TR-XXXXX or TRT-XXXX)
     $last     = supabase_request('treatments', 'GET', [], 'select=treatment_code&order=treatment_code.desc&limit=1');
@@ -106,6 +118,7 @@ if ($method === 'POST') {
 // ── PATCH — update ───────────────────────────────────────────
 if ($method === 'PATCH') {
     if (!$id) { echo json_encode(['success' => false, 'message' => 'Treatment ID required.']); exit; }
+    trt_require_branch($id);
 
     $body    = json_decode(file_get_contents('php://input'), true) ?? [];
     $payload = ['updated_at' => date('c')];
@@ -137,6 +150,7 @@ if ($method === 'DELETE') {
         echo json_encode(['success' => false, 'message' => 'Unauthorized.']); exit;
     }
     if (!$id) { echo json_encode(['success' => false, 'message' => 'Treatment ID required.']); exit; }
+    trt_require_branch($id);
 
     $res = supabase_request('treatments', 'DELETE', [], 'treatment_id=eq.' . $id);
 

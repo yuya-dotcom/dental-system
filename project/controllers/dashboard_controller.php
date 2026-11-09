@@ -15,6 +15,18 @@ require_once __DIR__ . '/admin_batch.php';
 require_once __DIR__ . '/appointment_services_helper.php';
 
 /**
+ * Branch filter for every stat query: '' for the owner (all branches),
+ * '&branch_id=eq.N' for admins / dentists (their session branch only).
+ * Pages are gated by secure_controller.php, so a non-owner always has a branch;
+ * scopedBranch() returns -1 otherwise, which matches nothing (fail closed).
+ */
+function dashboardBranchFilter(): string
+{
+    $b = scopedBranch(0);
+    return $b === 0 ? '' : '&branch_id=eq.' . $b;
+}
+
+/**
  * The independent stat queries, keyed for dashboardStatsFrom().
  * $withTodayList adds today's appointment list (dashboard.php only).
  */
@@ -24,24 +36,25 @@ function dashboardStatsSpecs(bool $withTodayList = true): array
     $monthStart = date('Y-m-01');
     $monthEnd   = date('Y-m-t');
     $count      = ['Prefer: count=exact'];
+    $bf         = dashboardBranchFilter();
 
     $specs = [
         // ── Appointments ─────────────────────────────────────
-        'st_apt_all'       => admin_q('appointments', 'select=status&limit=0', $count),
-        'st_apt_today'     => admin_q('appointments', 'select=status&appointment_date=eq.' . $today . '&limit=0', $count),
-        'st_apt_pending'   => admin_q('appointments', 'select=status&status=eq.pending&limit=0', $count),
-        'st_apt_completed' => admin_q('appointments', 'select=status&status=eq.completed&limit=0', $count),
+        'st_apt_all'       => admin_q('appointments', 'select=status&limit=0' . $bf, $count),
+        'st_apt_today'     => admin_q('appointments', 'select=status&appointment_date=eq.' . $today . '&limit=0' . $bf, $count),
+        'st_apt_pending'   => admin_q('appointments', 'select=status&status=eq.pending&limit=0' . $bf, $count),
+        'st_apt_completed' => admin_q('appointments', 'select=status&status=eq.completed&limit=0' . $bf, $count),
         // ── Patients ─────────────────────────────────────────
-        'st_pat_all'       => admin_q('patients', 'select=patient_id&limit=0', $count),
+        'st_pat_all'       => admin_q('patients', 'select=patient_id&limit=0' . $bf, $count),
         'st_pat_month'     => admin_q('patients',
-            'select=patient_id&created_at=gte.' . $monthStart . 'T00:00:00&created_at=lte.' . $monthEnd . 'T23:59:59&limit=0', $count),
+            'select=patient_id&created_at=gte.' . $monthStart . 'T00:00:00&created_at=lte.' . $monthEnd . 'T23:59:59&limit=0' . $bf, $count),
         // ── Treatments ───────────────────────────────────────
-        'st_trt_active'    => admin_q('treatments', 'select=treatment_id&status=in.(ongoing,in_progress)&limit=0', $count),
-        'st_trt_completed' => admin_q('treatments', 'select=treatment_id&status=eq.completed&limit=0', $count),
+        'st_trt_active'    => admin_q('treatments', 'select=treatment_id&status=in.(ongoing,in_progress)&limit=0' . $bf, $count),
+        'st_trt_completed' => admin_q('treatments', 'select=treatment_id&status=eq.completed&limit=0' . $bf, $count),
         // ── Revenue (invoices) — the amounts are summed in PHP ──
         'st_inv_month'     => admin_q('invoices',
-            'select=total_amount,amount_paid,payment_status&invoice_date=gte.' . $monthStart . '&invoice_date=lte.' . $monthEnd),
-        'st_inv_all'       => admin_q('invoices', 'select=amount_paid'),
+            'select=total_amount,amount_paid,payment_status&invoice_date=gte.' . $monthStart . '&invoice_date=lte.' . $monthEnd . $bf),
+        'st_inv_all'       => admin_q('invoices', 'select=amount_paid' . $bf),
     ];
 
     if ($withTodayList) {
@@ -49,7 +62,7 @@ function dashboardStatsSpecs(bool $withTodayList = true): array
         $specs['st_today_list'] = admin_q('appointments', implode('&', [
             'select=appointment_id,patient_id,appointment_code,appointment_time,status,payment_status,'
                 . 'patients(full_name),services(service_name),branches(branch_name)',
-            'appointment_date=eq.' . $today,
+            'appointment_date=eq.' . $today . $bf,
             'order=appointment_time.asc',
             'limit=8',
         ]));

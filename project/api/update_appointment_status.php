@@ -19,6 +19,7 @@ require_once __DIR__ . '/../controllers/appointment_controller.php';
 
 header('Content-Type: application/json');
 requireLogin();
+requireStaffApi('owner', 'admin', 'dentist');   // staff only; non-owners are pinned to their branch
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -34,6 +35,8 @@ if ($appointmentId < 1 || empty($newStatus)) {
     echo json_encode(['success' => false, 'message' => 'Appointment ID and status are required.']);
     exit;
 }
+
+requireAppointmentBranch($appointmentId);   // the appointment's real branch
 
 // ── Fetch current state BEFORE update (for rich audit log) ──
 $info = getAppointmentInfoForAudit($appointmentId);

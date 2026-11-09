@@ -11,6 +11,8 @@ header('Content-Type: application/json');
 requireLogin();
 
 $branchId = isset($_GET['branch_id']) ? (int)$_GET['branch_id'] : 0;
+// Same rule as patients-list.php: owners and admins see every patient, dentists their branch
+if (isDentist()) $branchId = scopedBranch($branchId);
 
 $q = 'select=patient_id,full_name,contact_number&status=eq.active&order=full_name.asc';
 if ($branchId) $q .= '&branch_id=eq.' . $branchId;

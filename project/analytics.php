@@ -16,10 +16,11 @@ require_once __DIR__ . '/controllers/admin_batch.php';
 // and the computed figures are kept for 60 s per user (the card's Refresh
 // button, analytics.php?refresh=1, always recomputes). The navbar bell is
 // still fetched fresh on every load.
-$_analytics = empty($_GET['refresh']) ? admin_cache_get('analytics', 60) : null;
+$_analytics = empty($_GET['refresh']) ? admin_cache_get('analytics_v2', 60) : null;
 
 if ($_analytics === null) {
     $count = ['Prefer: count=exact'];
+    $bf    = dashboardBranchFilter();   // '' for the owner, '&branch_id=eq.N' for admins / dentists
 
     // ── Wave 1: stat cards + 6-month trend + top services + branches ──
     $specs  = dashboardStatsSpecs(false);   // the dashboard's today-list isn't shown here
@@ -29,11 +30,11 @@ if ($_analytics === null) {
         $end   = date('Y-m-t',  strtotime("-$i months"));
         $months[$i] = date('M Y', strtotime("-$i months"));
         $specs["m{$i}_total"] = admin_q('appointments',
-            'select=status&appointment_date=gte.' . $start . '&appointment_date=lte.' . $end . '&limit=0', $count);
+            'select=status&appointment_date=gte.' . $start . '&appointment_date=lte.' . $end . '&limit=0' . $bf, $count);
         $specs["m{$i}_done"]  = admin_q('appointments',
-            'select=status&status=eq.completed&appointment_date=gte.' . $start . '&appointment_date=lte.' . $end . '&limit=0', $count);
+            'select=status&status=eq.completed&appointment_date=gte.' . $start . '&appointment_date=lte.' . $end . '&limit=0' . $bf, $count);
     }
-    $specs['top_services'] = admin_q('appointments', 'select=services(service_name)&service_id=not.is.null&limit=200');
+    $specs['top_services'] = admin_q('appointments', 'select=services(service_name)&service_id=not.is.null&limit=200' . $bf);
 
     $res   = admin_prefetch($specs, ['navbar', 'branches']);
     $stats = dashboardStatsFrom($res);
@@ -57,6 +58,9 @@ if ($_analytics === null) {
 
     // ── Wave 2: per-branch appointment counts (needs the branch list) ──
     $branches = getAllBranches();
+    // Admins / dentists: only their own branch's bar (owner: every branch)
+    $scope    = scopedBranch(0);
+    if ($scope !== 0) $branches = array_values(array_filter($branches, fn($b) => (int)$b['branch_id'] === $scope));
     $bSpecs   = [];
     foreach ($branches as $bi => $b) {
         $bSpecs[$bi] = admin_q('appointments', 'select=appointment_id&branch_id=eq.' . $b['branch_id'] . '&limit=0', $count);
@@ -68,7 +72,7 @@ if ($_analytics === null) {
     }
 
     $_analytics = compact('stats', 'monthlyData', 'topServices', 'branchStats');
-    admin_cache_set('analytics', $_analytics);
+    admin_cache_set('analytics_v2', $_analytics);
 } else {
     // Served from the 60 s cache: only the navbar bell still needs a query
     admin_prefetch([], ['navbar']);

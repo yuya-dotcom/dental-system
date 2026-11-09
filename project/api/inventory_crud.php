@@ -13,11 +13,10 @@ require_once __DIR__ . '/../controllers/stock_helper.php';
 header('Content-Type: application/json');
 requireLogin();
 
-// Dentists cannot modify inventory
-if (isDentist()) {
-    echo json_encode(['success' => false, 'message' => 'Unauthorized.']);
-    exit;
-}
+// Only owners and admins modify inventory (dentists and anyone else: 403).
+// Admins are pinned to their own branch; every check below uses the item's
+// real branch from the database.
+requireStaffApi('owner', 'admin');
 
 $input  = json_decode(file_get_contents('php://input'), true) ?? [];
 $action = $input['action'] ?? '';
@@ -44,7 +43,8 @@ function addItem(array $d): array {
     if (empty($d['branch_id']))  return ['success' => false, 'message' => 'Branch is required.'];
 
     // Admins locked to their own branch
-    if (isAdmin() && (int)$d['branch_id'] !== getSessionBranch()) {
+    if (!canAccessBranch((int)$d['branch_id'])) {
+        http_response_code(403);
         return ['success' => false, 'message' => 'You can only add items to your own branch.'];
     }
 
@@ -72,12 +72,19 @@ function editItem(array $d): array {
     if (empty($d['item_id']))   return ['success' => false, 'message' => 'Missing item ID.'];
     if (empty($d['item_name'])) return ['success' => false, 'message' => 'Item name is required.'];
 
-    if (isAdmin() && (int)$d['branch_id'] !== getSessionBranch()) {
-        return ['success' => false, 'message' => 'You can only manage items in your own branch.'];
-    }
-
     $cur = stock_rows([(int)$d['item_id']])[(int)$d['item_id']] ?? null;
     if (!$cur) return ['success' => false, 'message' => 'Item not found.'];
+
+    // SECURITY: the item's CURRENT branch (from the database) must be the user's,
+    // and so must the branch it is saved under. Admins therefore can't edit
+    // another branch's item or move an item to/from another branch; the owner can.
+    // No branch in the request = keep the item's current branch.
+    $curBranch    = (int)($cur['branch_id'] ?? 0);
+    $targetBranch = !empty($d['branch_id']) ? (int)$d['branch_id'] : $curBranch;
+    if (!canAccessBranch($curBranch) || !canAccessBranch($targetBranch)) {
+        http_response_code(403);
+        return ['success' => false, 'message' => 'You can only manage items in your own branch.'];
+    }
     $newQty = (int)($d['stock_quantity'] ?? 0);
     $oldQty = (int)$cur['stock_quantity'];
     if ($newQty < 0) return ['success' => false, 'message' => 'Stock cannot be negative.'];
@@ -92,7 +99,7 @@ function editItem(array $d): array {
     $payload = [
         'item_name'      => trim($d['item_name']),
         'category'       => $d['category']       ?? null,
-        'branch_id'      => (int)$d['branch_id'],
+        'branch_id'      => $targetBranch,
         'stock_quantity' => $newQty,
         'min_stock'      => $minStock,
         'status'         => $status,
@@ -109,6 +116,14 @@ function editItem(array $d): array {
 // ── Delete Item ───────────────────────────────────────────────
 function deleteItem(array $d): array {
     if (empty($d['item_id'])) return ['success' => false, 'message' => 'Missing item ID.'];
+
+    // SECURITY: only items of the user's own branch (owner: any)
+    $cur = stock_rows([(int)$d['item_id']])[(int)$d['item_id']] ?? null;
+    if (!$cur) return ['success' => false, 'message' => 'Item not found.'];
+    if (!canAccessBranch($cur['branch_id'] ?? null)) {
+        http_response_code(403);
+        return ['success' => false, 'message' => 'You can only manage items in your own branch.'];
+    }
 
     $r = supabase_request('inventory', 'DELETE', [], 'item_id=eq.' . (int)$d['item_id']);
     if ($r['error']) return ['success' => false, 'message' => $r['error']];
@@ -129,7 +144,8 @@ function logMovement(array $d): array {
     $itemRes = supabase_request('inventory', 'GET', [], 'select=stock_quantity,branch_id&item_id=eq.' . $itemId);
     if (empty($itemRes['data'][0])) return ['success' => false, 'message' => 'Item not found.'];
     $branchId = (int)$itemRes['data'][0]['branch_id'];
-    if (isAdmin() && $branchId !== getSessionBranch()) {
+    if (!canAccessBranch($branchId)) {
+        http_response_code(403);
         return ['success' => false, 'message' => 'You can only manage items in your own branch.'];
     }
 

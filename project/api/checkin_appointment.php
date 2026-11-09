@@ -79,6 +79,8 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => 'appointment_id, patient_id, and checked_by are required.']);
             exit;
         }
+        // SECURITY: only appointments of the user's own branch (owner: any)
+        requireAppointmentBranch($appointmentId);
 
         // Build vital signs payload — omit null fields so Supabase uses column defaults
         $vitalData = [
