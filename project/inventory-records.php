@@ -21,7 +21,9 @@ require_once __DIR__ . '/controllers/list_filters.php';
 $filterBranch   = isset($_GET['branch'])   ? (int)$_GET['branch']   : 0;
 $filterCategory = isset($_GET['category']) ? trim($_GET['category']) : '';
 $filterStatus   = isset($_GET['status'])   ? trim($_GET['status'])   : '';
-$page           = max(1, (int)($_GET['page'] ?? 1));
+$viewArchived   = ($_GET['view'] ?? '') === 'archived';   // archived items (history kept) vs active
+$filterView     = $viewArchived ? 'archived' : '';
+$page          = max(1, (int)($_GET['page'] ?? 1));
 $qBranch        = scopedBranch($filterBranch);   // owner: as filtered; admin / dentist: own branch only
 
 // Sort / search (validated in list_filters.php)
@@ -43,24 +45,24 @@ $sortOptions  = [
 ];
 [$sortKey, $sortOrder] = listSort($sortOptions, 'name_asc');
 $search       = listSearch();
-$filtersOn    = listActiveCount([$filterBranch, $filterCategory, $filterStatus, $search, $sortKey !== 'name_asc']);
+$filtersOn    = listActiveCount([$filterBranch, $filterCategory, $filterStatus, $filterView, $search, $sortKey !== 'name_asc']);
 
 // One parallel wave: list + categories + branch dropdown + navbar bell (controllers/admin_batch.php)
 $_invExtra   = listSearchFilter($search, ['item_name', 'item_code']);
 admin_prefetch([
-    'list'       => admin_q('inventory', implode('&', inventoryRecordsQuery($page, $qBranch, $filterCategory, $filterStatus, $sortOrder, $_invExtra)), ['Prefer: count=exact']),
+    'list'       => admin_q('inventory', implode('&', inventoryRecordsQuery($page, $qBranch, $filterCategory, $filterStatus, $sortOrder, $_invExtra, $viewArchived)), ['Prefer: count=exact']),
     'categories' => admin_q('inventory', INV_CATEGORIES_QUERY),
 ]);
 $branches   = getAllBranches();
 $categories = getInventoryCategories();
-$data         = getInventoryRecords($page, $qBranch, $filterCategory, $filterStatus, $sortOrder, $_invExtra);
+$data         = getInventoryRecords($page, $qBranch, $filterCategory, $filterStatus, $sortOrder, $_invExtra, $viewArchived);
 $items        = $data['rows'];
 $totalRecords = $data['totalRecords'];
 $totalPages   = $data['totalPages'];
 $from         = $data['from'];
 $to           = $data['to'];
-$baseUrl = listUrl('inventory-records.php', ['branch' => $filterBranch, 'category' => $filterCategory, 'status' => $filterStatus, 'q' => $search, 'sort' => $sortKey === 'name_asc' ? '' : $sortKey]);
-$sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'category' => $filterCategory, 'status' => $filterStatus, 'q' => $search]);
+$baseUrl = listUrl('inventory-records.php', ['branch' => $filterBranch, 'category' => $filterCategory, 'status' => $filterStatus, 'view' => $filterView, 'q' => $search, 'sort' => $sortKey === 'name_asc' ? '' : $sortKey]);
+$sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'category' => $filterCategory, 'status' => $filterStatus, 'view' => $filterView, 'q' => $search]);
 
 ?>
 <!DOCTYPE html>
@@ -131,6 +133,11 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
                                 <option value="out_of_stock"<?= $filterStatus==='out_of_stock'?'selected':'' ?>>Out of Stock</option>
                                 <option value="inactive"    <?= $filterStatus==='inactive'    ?'selected':'' ?>>Inactive</option>
                             </select></div>
+                            <div class="list-field"><label class="list-label" for="filterView">Show</label>
+                            <select id="filterView" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                <option value="">Active Items</option>
+                                <option value="archived" <?= $viewArchived ? 'selected' : '' ?>>Archived Items</option>
+                            </select></div>
                             <?php if (isOwner()): ?>
                             <div class="list-field"><label class="list-label" for="filterBranch">Branch</label>
                             <select id="filterBranch" class="js-custom-select" data-cs-filter onchange="applyFilters()">
@@ -170,9 +177,13 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
                                             <td><?= $minStock ?></td>
                                             <!-- Fix 1: badge now uses local invStatusBadge() which covers in_stock -->
                                             <td>
+                                                <?php if (!empty($item['archived_at'])): ?>
+                                                <span class="badge bg-soft-secondary text-secondary" title="Archived <?= htmlspecialchars(date('M j, Y', strtotime($item['archived_at']))) ?>">Archived</span>
+                                                <?php else: ?>
                                                 <span class="badge <?= invStatusBadge($item['status'] ?? '') ?>">
                                                     <?= invStatusLabel($item['status'] ?? '') ?>
                                                 </span>
+                                                <?php endif; ?>
                                             </td>
                                             <td class="text-end">
                                                 <div class="dropdown">
@@ -194,7 +205,13 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
                                                         <a href="inventory-stock-movement.php?item=<?= (int)$item['item_id'] ?>" class="dropdown-item">
                                                             <i class="feather-refresh-cw"></i> View Movements
                                                         </a>
-                                                        <?php if (!isDentist()): ?>
+                                                        <?php if (!isDentist() && !empty($item['archived_at'])): ?>
+                                                        <div class="dropdown-divider"></div>
+                                                        <a href="javascript:void(0);" class="dropdown-item text-success"
+                                                           onclick="restoreItem('<?= (int)$item['item_id'] ?>','<?= htmlspecialchars($item['item_name'] ?? '', ENT_QUOTES) ?>')">
+                                                           <i class="feather-rotate-ccw"></i> Restore
+                                                        </a>
+                                                        <?php elseif (!isDentist()): ?>
                                                         <a href="javascript:void(0);" class="dropdown-item"
                                                            onclick="openMovementModal('<?= (int)$item['item_id'] ?>','<?= htmlspecialchars($item['item_name'] ?? '', ENT_QUOTES) ?>','<?= $stock ?>')">
                                                            <i class="feather-plus-circle"></i> Log Movement
@@ -431,13 +448,14 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
-    <script src="assets/js/inventory.js"></script>
+    <script src="assets/js/inventory.js?v=2"></script>
     <script>
     function applyFilters() {
         window._applyFilters('inventory-records.php', {
             branch:   'filterBranch',
             category: 'filterCategory',
-            status:   'filterStatus'
+            status:   'filterStatus',
+            view:     'filterView'
         });
     }
     </script>

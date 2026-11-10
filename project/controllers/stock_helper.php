@@ -41,7 +41,7 @@ function stock_rows(array $itemIds): array
     $ids = array_values(array_unique(array_filter(array_map('intval', $itemIds))));
     if (!$ids) return [];
     $res = supabase_request('inventory', 'GET', [],
-        'item_id=in.(' . implode(',', $ids) . ')&select=item_id,item_code,item_name,branch_id,stock_quantity,min_stock,status');
+        'item_id=in.(' . implode(',', $ids) . ')&select=item_id,item_code,item_name,branch_id,stock_quantity,min_stock,status,archived_at');
     $out = [];
     foreach (($res['data'] ?? []) as $r) $out[(int)$r['item_id']] = $r;
     return $out;
@@ -59,13 +59,13 @@ function stock_resolve_branch(array $itemIds, int $branchId): array
     foreach ($itemIds as $id) {
         $id = (int)$id;
         $row = $given[$id] ?? null;
-        if ($row && (!$branchId || (int)$row['branch_id'] === $branchId)) { $map[$id] = $row; continue; }
+        if ($row && empty($row['archived_at']) && (!$branchId || (int)$row['branch_id'] === $branchId)) { $map[$id] = $row; continue; }
         $map[$id] = null;
         if ($row) $needNames[$id] = strtolower(trim($row['item_name']));
     }
     if ($needNames && $branchId) {
         $res = supabase_request('inventory', 'GET', [],
-            'branch_id=eq.' . $branchId . '&status=neq.inactive&select=item_id,item_code,item_name,branch_id,stock_quantity,min_stock,status');
+            'branch_id=eq.' . $branchId . '&status=neq.inactive&archived_at=is.null&select=item_id,item_code,item_name,branch_id,stock_quantity,min_stock,status,archived_at');
         $byName = [];
         foreach (($res['data'] ?? []) as $r) $byName[strtolower(trim($r['item_name']))] = $r;
         foreach ($needNames as $id => $name) $map[$id] = $byName[$name] ?? null;
@@ -151,6 +151,7 @@ function stock_apply(int $itemId, int $change, int $tries = 3): array
     for ($i = 0; $i < $tries; $i++) {
         $row = stock_rows([$itemId])[$itemId] ?? null;
         if (!$row) return ['ok' => false, 'message' => 'Item not found.'];
+        if (!empty($row['archived_at'])) return ['ok' => false, 'message' => '"' . $row['item_name'] . '" is archived. Restore it in Inventory first.'];
         $cur = (int)$row['stock_quantity'];
         $new = $cur + $change;
         if ($change < 0 && $new < STOCK_FLOOR) {

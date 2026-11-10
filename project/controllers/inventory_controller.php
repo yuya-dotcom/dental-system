@@ -19,10 +19,10 @@ const MOV_PER_PAGE = 10;
 // ─────────────────────────────────────────────────────────────
 
 // $order: validated 'order=…' clause; $extra: prebuilt PostgREST filters (list_filters.php)
-function getInventoryRecords(int $page, int $branchId, string $category, string $status, string $order = 'order=item_name.asc', array $extra = []): array
+function getInventoryRecords(int $page, int $branchId, string $category, string $status, string $order = 'order=item_name.asc', array $extra = [], bool $archived = false): array
 {
     $offset = ($page - 1) * INV_PER_PAGE;
-    $q = inventoryRecordsQuery($page, $branchId, $category, $status, $order, $extra);
+    $q = inventoryRecordsQuery($page, $branchId, $category, $status, $order, $extra, $archived);
 
     // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
     $result = (function_exists('admin_get') ? admin_get('inventory', implode('&', $q), ['Prefer: count=exact']) : supabase_request('inventory', 'GET', [], implode('&', $q), ['Prefer: count=exact']));
@@ -33,12 +33,14 @@ function getInventoryRecords(int $page, int $branchId, string $category, string 
 }
 
 /** The PostgREST filter parts for getInventoryRecords() (also used to prefetch it). */
-function inventoryRecordsQuery(int $page, int $branchId, string $category, string $status, string $order = 'order=item_name.asc', array $extra = []): array
+// $archived: false = active items only, true = archived items only
+function inventoryRecordsQuery(int $page, int $branchId, string $category, string $status, string $order = 'order=item_name.asc', array $extra = [], bool $archived = false): array
 {
     $offset = ($page - 1) * INV_PER_PAGE;
 
     $q = [
-        'select=item_id,item_code,item_name,category,branch_id,stock_quantity,min_stock,status,created_at,branches(branch_name)',
+        'select=item_id,item_code,item_name,category,branch_id,stock_quantity,min_stock,status,created_at,archived_at,branches(branch_name)',
+        $archived ? 'archived_at=not.is.null' : 'archived_at=is.null',
         $order,
         'limit='  . INV_PER_PAGE,
         'offset=' . $offset,

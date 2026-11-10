@@ -8,7 +8,7 @@ require_once __DIR__ . '/dbconfig.php';
 
 // One parallel wave: services + inventory items + material links + navbar bell
 $_svcQ = 'select=service_id,service_name,service_type,base_price,status&status=neq.inactive&order=service_name.asc';
-$_invQ = 'select=item_id,item_code,item_name,category,stock_quantity&status=neq.inactive&order=item_name.asc';
+$_invQ = 'select=item_id,item_code,item_name,category,stock_quantity&status=neq.inactive&archived_at=is.null&order=item_name.asc';
 // Add-material dropdown: admins see only their own branch's items (owner: all)
 if (!isOwner()) $_invQ .= '&branch_id=eq.' . scopedBranch(0);
 $_smQ  = 'select=service_id,item_id';

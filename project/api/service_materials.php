@@ -46,9 +46,10 @@ if ($method === 'POST') {
         echo json_encode(['success' => false, 'message' => 'service_id, item_id, and quantity are required.']); exit;
     }
     // Admins may only link an item of their own branch (the item's real branch)
-    $itm = supabase_request('inventory', 'GET', [], 'item_id=eq.' . $itemId . '&select=branch_id&limit=1');
+    $itm = supabase_request('inventory', 'GET', [], 'item_id=eq.' . $itemId . '&select=branch_id,archived_at&limit=1');
     if (empty($itm['data'][0])) apiDeny(404, 'Item not found.');
     requireBranchAccess($itm['data'][0]['branch_id'] ?? null);
+    if (!empty($itm['data'][0]['archived_at'])) apiDeny(409, 'This item is archived. Restore it in Inventory first.');
 
     // Check for duplicate
     $check = supabase_request('service_materials', 'GET', [],

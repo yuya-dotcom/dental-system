@@ -37,7 +37,7 @@ const SERVICE_DESC_MAX = 500;
 // Queries of getServiceRecords() / getMaterialInventoryItems(), shared with the page prefetch
 const SERVICE_RECORDS_QUERY         = 'select=service_id,service_name,service_type,base_price,description,status,created_at,duration_minutes,chart_outcome&order=service_name.asc&limit=1000';
 const SERVICE_MATERIAL_COUNTS_QUERY = 'select=service_id&limit=10000';
-const MATERIAL_ITEMS_QUERY          = 'select=item_id,item_code,item_name,category,stock_quantity&status=neq.inactive&order=item_name.asc';
+const MATERIAL_ITEMS_QUERY          = 'select=item_id,item_code,item_name,category,stock_quantity&status=neq.inactive&archived_at=is.null&order=item_name.asc';
 
 function getServiceRecords(): array
 {

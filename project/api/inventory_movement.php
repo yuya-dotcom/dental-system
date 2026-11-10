@@ -33,10 +33,11 @@ if (!$itemId || $change === 0) {
 
 // SECURITY: the movement's branch is the item's real branch from the database.
 // A branch_id sent by the browser is ignored.
-$itemRes = supabase_request('inventory', 'GET', [], 'item_id=eq.' . $itemId . '&select=branch_id&limit=1');
+$itemRes = supabase_request('inventory', 'GET', [], 'item_id=eq.' . $itemId . '&select=branch_id,archived_at&limit=1');
 if (empty($itemRes['data'][0])) apiDeny(404, 'Item not found.');
 $branchId = (int)($itemRes['data'][0]['branch_id'] ?? 0);
 requireBranchAccess($branchId);
+if (!empty($itemRes['data'][0]['archived_at'])) apiDeny(409, 'This item is archived. Restore it in Inventory first.');
 
 $res = supabase_request('inventory_movements', 'POST', [
     'item_id'         => $itemId,

@@ -58,9 +58,10 @@ if ($method === 'POST') {
         exit;
     }
     tm_require_treatment($treatmentId);
-    $itm = supabase_request('inventory', 'GET', [], 'item_id=eq.' . $itemId . '&select=branch_id&limit=1');
+    $itm = supabase_request('inventory', 'GET', [], 'item_id=eq.' . $itemId . '&select=branch_id,archived_at&limit=1');
     if (empty($itm['data'][0])) apiDeny(404, 'Item not found.');
     requireBranchAccess($itm['data'][0]['branch_id'] ?? null);
+    if (!empty($itm['data'][0]['archived_at'])) apiDeny(409, 'This item is archived. Restore it in Inventory first.');
 
     // Check duplicate
     $check = supabase_request('treatment_materials', 'GET', [],

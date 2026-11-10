@@ -93,9 +93,70 @@ function saveItem() {
 }
 
 
-/* ── Delete Item ───────────────────────────────────────────────── */
+/* ── Delete / Archive Item ─────────────────────────────────────── */
+// Items with stock history are archived by the server (history kept);
+// items without history are deleted.
+function invEsc(s) {
+    const d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+}
+
+function invItemAction(action, id) {
+    return fetch('api/inventory_crud.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, item_id: id })
+    }).then(r => r.json());
+}
+
 function deleteItem(id, name) {
-    confirmDelete('api/inventory_crud.php', { item_id: id }, name, 'Item');
+    Swal.fire({
+        title: 'Delete item?',
+        html: `<strong>${invEsc(name)}</strong> will be removed from the inventory list.<br>`
+            + `<small class="text-muted">If it has stock history, it is archived instead so the history is kept. `
+            + `You can restore it from <em>Show: Archived Items</em>.</small>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, remove',
+    }).then(r => {
+        if (!r.isConfirmed) return;
+        invItemAction('delete', id)
+            .then(d => {
+                if (!d.success) return Swal.fire('Error', d.message || 'Delete failed.', 'error');
+                Swal.fire({
+                    icon: 'success',
+                    title: d.archived ? 'Archived' : 'Deleted',
+                    text: d.message,
+                    timer: d.archived ? 2600 : 1600,
+                    showConfirmButton: false
+                }).then(() => location.reload());
+            })
+            .catch(() => Swal.fire('Error', 'Could not connect to server.', 'error'));
+    });
+}
+
+function restoreItem(id, name) {
+    Swal.fire({
+        title: 'Restore item?',
+        html: `<strong>${invEsc(name)}</strong> will be back in the inventory list and dropdowns.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#198754',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, restore',
+    }).then(r => {
+        if (!r.isConfirmed) return;
+        invItemAction('restore', id)
+            .then(d => {
+                if (!d.success) return Swal.fire('Error', d.message || 'Restore failed.', 'error');
+                Swal.fire({ icon: 'success', title: 'Restored', text: d.message, timer: 1600, showConfirmButton: false })
+                    .then(() => location.reload());
+            })
+            .catch(() => Swal.fire('Error', 'Could not connect to server.', 'error'));
+    });
 }
 
 

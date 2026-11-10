@@ -196,7 +196,7 @@ function admin_navbar_spec(): array
     }
     return admin_q('inventory',
         'select=item_id,item_code,item_name,stock_quantity,min_stock,status,branches(branch_name)'
-        . '&status=neq.inactive'
+        . '&status=neq.inactive&archived_at=is.null'
         . $filter
         . '&order=stock_quantity.asc&limit=1000');
 }

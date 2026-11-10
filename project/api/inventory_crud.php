@@ -25,6 +25,7 @@ switch ($action) {
     case 'add':          echo json_encode(addItem($input));         break;
     case 'edit':         echo json_encode(editItem($input));        break;
     case 'delete':       echo json_encode(deleteItem($input));      break;
+    case 'restore':      echo json_encode(restoreItem($input));     break;
     case 'log_movement': echo json_encode(logMovement($input));     break;
     default:             echo json_encode(['success' => false, 'message' => 'Invalid action.']);
 }
@@ -74,6 +75,7 @@ function editItem(array $d): array {
 
     $cur = stock_rows([(int)$d['item_id']])[(int)$d['item_id']] ?? null;
     if (!$cur) return ['success' => false, 'message' => 'Item not found.'];
+    if (!empty($cur['archived_at'])) return ['success' => false, 'message' => 'This item is archived. Restore it first.'];
 
     // SECURITY: the item's CURRENT branch (from the database) must be the user's,
     // and so must the branch it is saved under. Admins therefore can't edit
@@ -114,20 +116,70 @@ function editItem(array $d): array {
 }
 
 // ── Delete Item ───────────────────────────────────────────────
+// An item with history (stock movements or materials used in treatments) is
+// ARCHIVED instead: hidden from lists and dropdowns, history kept. An item
+// without history is deleted for real. Response: archived = true|false.
 function deleteItem(array $d): array {
     if (empty($d['item_id'])) return ['success' => false, 'message' => 'Missing item ID.'];
+    $itemId = (int)$d['item_id'];
 
     // SECURITY: only items of the user's own branch (owner: any)
-    $cur = stock_rows([(int)$d['item_id']])[(int)$d['item_id']] ?? null;
+    $cur = stock_rows([$itemId])[$itemId] ?? null;
     if (!$cur) return ['success' => false, 'message' => 'Item not found.'];
     if (!canAccessBranch($cur['branch_id'] ?? null)) {
         http_response_code(403);
         return ['success' => false, 'message' => 'You can only manage items in your own branch.'];
     }
+    if (!empty($cur['archived_at'])) return ['success' => false, 'message' => 'This item is already archived.'];
 
-    $r = supabase_request('inventory', 'DELETE', [], 'item_id=eq.' . (int)$d['item_id']);
+    if (!inv_has_history($itemId)) {
+        // No history: drop its service-material links (configuration only), then the item
+        supabase_request('service_materials', 'DELETE', [], 'item_id=eq.' . $itemId);
+        $r = supabase_request('inventory', 'DELETE', [], 'item_id=eq.' . $itemId);
+        if (!$r['error']) return ['success' => true, 'archived' => false, 'message' => 'Item deleted.'];
+        // Still referenced (e.g. history added meanwhile) → archive below
+        if (($r['data']['code'] ?? '') !== '23503') return ['success' => false, 'message' => $r['error']];
+    }
+    return archiveItem($itemId);
+}
+
+/** True when the item appears in stock movements or treatment materials. */
+function inv_has_history(int $itemId): bool
+{
+    foreach (['inventory_movements', 'treatment_materials'] as $t) {
+        $r = supabase_request($t, 'GET', [], 'item_id=eq.' . $itemId . '&select=item_id&limit=1');
+        if ($r['error'] || !is_array($r['data'])) return true;   // unsure → keep history (archive)
+        if ($r['data']) return true;
+    }
+    return false;
+}
+
+function archiveItem(int $itemId): array
+{
+    $r = supabase_request('inventory', 'PATCH', ['archived_at' => date('c'), 'updated_at' => date('c')],
+        'item_id=eq.' . $itemId . '&archived_at=is.null');
     if ($r['error']) return ['success' => false, 'message' => $r['error']];
-    return ['success' => true, 'message' => 'Item deleted successfully.'];
+    // An archived item must not be pulled in as a service's default material anymore
+    supabase_request('service_materials', 'DELETE', [], 'item_id=eq.' . $itemId);
+    return ['success' => true, 'archived' => true,
+            'message' => 'Item archived. Its stock history is kept; you can restore it from the Archived view.'];
+}
+
+// ── Restore an archived item ─────────────────────────────────
+function restoreItem(array $d): array {
+    if (empty($d['item_id'])) return ['success' => false, 'message' => 'Missing item ID.'];
+    $itemId = (int)$d['item_id'];
+    $cur = stock_rows([$itemId])[$itemId] ?? null;
+    if (!$cur) return ['success' => false, 'message' => 'Item not found.'];
+    if (!canAccessBranch($cur['branch_id'] ?? null)) {
+        http_response_code(403);
+        return ['success' => false, 'message' => 'You can only manage items in your own branch.'];
+    }
+    if (empty($cur['archived_at'])) return ['success' => false, 'message' => 'This item is not archived.'];
+
+    $r = supabase_request('inventory', 'PATCH', ['archived_at' => null, 'updated_at' => date('c')], 'item_id=eq.' . $itemId);
+    if ($r['error']) return ['success' => false, 'message' => $r['error']];
+    return ['success' => true, 'message' => 'Item restored.'];
 }
 
 // ── Log Stock Movement ────────────────────────────────────────
@@ -141,8 +193,9 @@ function logMovement(array $d): array {
     $itemId = (int)$d['item_id'];
     $change = (int)$d['quantity_change'];
 
-    $itemRes = supabase_request('inventory', 'GET', [], 'select=stock_quantity,branch_id&item_id=eq.' . $itemId);
+    $itemRes = supabase_request('inventory', 'GET', [], 'select=stock_quantity,branch_id,archived_at&item_id=eq.' . $itemId);
     if (empty($itemRes['data'][0])) return ['success' => false, 'message' => 'Item not found.'];
+    if (!empty($itemRes['data'][0]['archived_at'])) return ['success' => false, 'message' => 'This item is archived. Restore it first.'];
     $branchId = (int)$itemRes['data'][0]['branch_id'];
     if (!canAccessBranch($branchId)) {
         http_response_code(403);

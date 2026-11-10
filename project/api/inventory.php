@@ -19,7 +19,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
     // Owner: the requested branch (0 = all). Admin / dentist: always their own branch.
     $branchId = scopedBranch(isset($_GET['branch_id']) ? (int)$_GET['branch_id'] : 0);
-    $q = 'select=item_id,item_code,item_name,category,stock_quantity,min_stock,status&status=neq.inactive&order=item_name.asc';
+    $q = 'select=item_id,item_code,item_name,category,stock_quantity,min_stock,status&status=neq.inactive&archived_at=is.null&order=item_name.asc';
     if ($branchId) $q .= '&branch_id=eq.' . $branchId;
 
     $res = supabase_request('inventory', 'GET', [], $q);
