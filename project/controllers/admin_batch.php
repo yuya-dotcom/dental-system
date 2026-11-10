@@ -51,6 +51,8 @@ function admin_sb_attach_share(): void
     static $done = false;
     if ($done) return;
     $done = true;
+    // Host without curl share handles → dbconfig.php creates its own handle as usual
+    if (!function_exists('curl_share_init') || !function_exists('curl_share_setopt')) return;
 
     // If supabase_request() already ran, its handle holds an open connection in
     // its own pool; attaching the share now would strand that connection and
@@ -81,9 +83,35 @@ function admin_sb_many(array $reqs): array
     return $reqs ? admin_sb_exec($reqs) : [];
 }
 
+/**
+ * True when PHP's parallel curl functions are usable. Some hosts (InfinityFree)
+ * disable curl_multi_*; the batch then runs the same requests one by one.
+ */
+function sb_multi_available(): bool
+{
+    static $ok = null;
+    if ($ok === null) {
+        $ok = true;
+        foreach (['curl_multi_init', 'curl_multi_add_handle', 'curl_multi_exec', 'curl_multi_select',
+                  'curl_multi_info_read', 'curl_multi_getcontent', 'curl_multi_remove_handle'] as $f) {
+            if (!function_exists($f)) { $ok = false; break; }
+        }
+    }
+    return $ok;
+}
+
 /** Low-level parallel executor (kept separate so it has a single entry point). */
 function admin_sb_exec(array $reqs): array
 {
+    // No curl_multi on this host → same requests, sequentially, same result shape
+    if (!sb_multi_available()) {
+        $out = [];
+        foreach ($reqs as $key => $r) {
+            $out[$key] = supabase_request($r['table'], strtoupper($r['method'] ?? 'GET'), [], $r['query'] ?? '', $r['headers'] ?? []);
+        }
+        return $out;
+    }
+
     static $mh = null;
     if ($mh === null) {
         $mh = curl_multi_init();

@@ -22,6 +22,20 @@
 
 require_once __DIR__ . '/../dbconfig.php';
 
+/** True when PHP's parallel curl functions are usable (disabled on some hosts). */
+function portal_multi_available(): bool
+{
+    static $ok = null;
+    if ($ok === null) {
+        $ok = true;
+        foreach (['curl_multi_init', 'curl_multi_add_handle', 'curl_multi_exec', 'curl_multi_select',
+                  'curl_multi_info_read', 'curl_multi_getcontent', 'curl_multi_remove_handle'] as $f) {
+            if (!function_exists($f)) { $ok = false; break; }
+        }
+    }
+    return $ok;
+}
+
 /** A request spec for portal_sb_multi(). */
 function sbq(string $table, string $query = '', string $method = 'GET', array $data = []): array
 {
@@ -36,6 +50,16 @@ function portal_sb_multi(array $reqs): array
 {
     static $mh = null;           // kept for the whole PHP request → one reused connection
     if (!$reqs) return [];
+
+    // Some hosts (InfinityFree) disable curl_multi_* → run the same requests
+    // one by one through supabase_request() (same result shape)
+    if (!portal_multi_available()) {
+        $out = [];
+        foreach ($reqs as $key => $r) {
+            $out[$key] = supabase_request($r['table'], strtoupper($r['method'] ?? 'GET'), $r['data'] ?? [], $r['query'] ?? '');
+        }
+        return $out;
+    }
 
     if ($mh === null) {
         $mh = curl_multi_init();
