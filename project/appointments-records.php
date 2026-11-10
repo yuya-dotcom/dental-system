@@ -200,8 +200,9 @@ function aptNameCase(?string $name): string
                             <?php endif; ?>
                                 <?= listResetControl('appointments-records.php', $filtersOn) ?>
                             </div>
-                            <div class="card-body custom-card-action p-0">
-                                <div class="table-responsive apt-table-wrapper">
+                            <!-- overflow:visible (same as appointments-schedule.php) so the ⋮ menu pops out instead of being clipped -->
+                            <div class="card-body custom-card-action p-0" style="overflow:visible;">
+                                <div class="table-responsive" style="overflow:visible;">
                                     <table class="table table-hover mb-0 apt-records-table">
                                         <thead>
                                             <tr>
@@ -266,11 +267,13 @@ function aptNameCase(?string $name): string
                                                                             <i class="feather-check-circle"></i> Confirm
                                                                         </a>
                                                                     <?php endif; ?>
-                                                                    <?php if (in_array($apt['status'], ['pending', 'confirmed'])): ?>
-                                                                        <a href="javascript:void(0);" class="dropdown-item text-primary"
-                                                                            onclick="updateStatus(<?= (int)$apt['appointment_id'] ?>, 'completed', '<?= htmlspecialchars($apt['appointment_code'], ENT_QUOTES) ?>')">
-                                                                            <i class="feather-check"></i> Mark Completed
+                                                                    <?php if ($apt['status'] === 'checked_in'): ?>
+                                                                        <!-- Completion goes through the treatment (Finish creates the invoice and deducts stock) -->
+                                                                        <a href="treatments-active.php" class="dropdown-item text-primary">
+                                                                            <i class="feather-activity"></i> Go to Active Treatments
                                                                         </a>
+                                                                    <?php endif; ?>
+                                                                    <?php if (in_array($apt['status'], ['pending', 'confirmed'])): ?>
                                                                         <a href="javascript:void(0);" class="dropdown-item text-warning"
                                                                             onclick="updateStatus(<?= (int)$apt['appointment_id'] ?>, 'cancelled', '<?= htmlspecialchars($apt['appointment_code'], ENT_QUOTES) ?>')">
                                                                             <i class="feather-x-circle"></i> Cancel

@@ -56,9 +56,8 @@ function addItem(array $d): array {
         'branch_id'      => (int)$d['branch_id'],
         'stock_quantity' => max(0, (int)($d['stock_quantity'] ?? 0)),
         'min_stock'      => (int)($d['min_stock']      ?? 0),
-        // Status follows the quantity (same values as the rest of the table)
-        'status'         => ($d['status'] ?? '') === 'inactive' ? 'inactive'
-                            : stock_status(max(0, (int)($d['stock_quantity'] ?? 0)), (int)($d['min_stock'] ?? 0)),
+        // Status always follows the quantity (the database trigger enforces the same rule)
+        'status'         => stock_status(max(0, (int)($d['stock_quantity'] ?? 0)), (int)($d['min_stock'] ?? 0)),
         'created_at'     => date('c'),
         'updated_at'     => date('c'),
     ];
@@ -95,8 +94,8 @@ function editItem(array $d): array {
         return ['success' => false, 'message' => 'Stock must keep at least ' . STOCK_FLOOR . ' unit. Use a stock movement with a reason to record usage or disposal.'];
     }
     $minStock = (int)($d['min_stock'] ?? 0);
-    // "inactive" is a manual choice; otherwise the status follows the quantity
-    $status = ($d['status'] ?? '') === 'inactive' ? 'inactive' : stock_status($newQty, $minStock);
+    // Status always follows the quantity (the database trigger enforces the same rule)
+    $status = stock_status($newQty, $minStock);
 
     $payload = [
         'item_name'      => trim($d['item_name']),

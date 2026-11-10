@@ -14,7 +14,6 @@ function openAddItemModal() {
     document.getElementById('inv_branch').value            = '';
     document.getElementById('inv_stock').value             = '0';
     document.getElementById('inv_min_stock').value         = '0';
-    document.getElementById('inv_status').value            = 'active';
     document.getElementById('invModalError').style.display = 'none';
     new bootstrap.Modal(document.getElementById('inventoryModal')).show();
 }
@@ -29,7 +28,6 @@ function openEditItemModal(item) {
     document.getElementById('inv_branch').value            = item.branch_id      || '';
     document.getElementById('inv_stock').value             = item.stock_quantity ?? 0;
     document.getElementById('inv_min_stock').value         = item.min_stock      ?? 0;
-    document.getElementById('inv_status').value            = item.status         || 'active';
     document.getElementById('invModalError').style.display = 'none';
     new bootstrap.Modal(document.getElementById('inventoryModal')).show();
 }
@@ -61,7 +59,6 @@ function saveItem() {
         branch_id:      document.getElementById('inv_branch').value,
         stock_quantity: document.getElementById('inv_stock').value,
         min_stock:      document.getElementById('inv_min_stock').value,
-        status:         document.getElementById('inv_status').value,
     };
 
     errBox.style.display = 'none';

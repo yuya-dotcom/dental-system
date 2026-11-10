@@ -131,7 +131,6 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
                                 <option value="in_stock"    <?= $filterStatus==='in_stock'    ?'selected':'' ?>>In Stock</option>
                                 <option value="low_stock"   <?= $filterStatus==='low_stock'   ?'selected':'' ?>>Low Stock</option>
                                 <option value="out_of_stock"<?= $filterStatus==='out_of_stock'?'selected':'' ?>>Out of Stock</option>
-                                <option value="inactive"    <?= $filterStatus==='inactive'    ?'selected':'' ?>>Inactive</option>
                             </select></div>
                             <div class="list-field"><label class="list-label" for="filterView">Show</label>
                             <select id="filterView" class="js-custom-select" data-cs-filter onchange="applyFilters()">
@@ -340,14 +339,8 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
                             <label class="form-label fw-semibold small">Min Stock <span class="text-muted">(alert threshold)</span></label>
                             <input type="number" id="inv_min_stock" class="form-control" value="0" min="0">
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Status</label>
-                            <select id="inv_status" class="form-select">
-                                <option value="in_stock">In Stock</option>
-                                <option value="low_stock">Low Stock</option>
-                                <option value="out_of_stock">Out of Stock</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
+                        <div class="col-12">
+                            <p class="text-muted small mb-0"><i class="feather-info me-1"></i>Status is set automatically from Stock and Min Stock. To take an item out of use, delete it — items with history are archived and can be restored.</p>
                         </div>
                     </div>
                 </div>
@@ -448,7 +441,7 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/custom-select.js?v=2"></script>
-    <script src="assets/js/inventory.js?v=2"></script>
+    <script src="assets/js/inventory.js?v=3"></script>
     <script>
     function applyFilters() {
         window._applyFilters('inventory-records.php', {

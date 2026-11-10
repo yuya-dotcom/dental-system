@@ -82,6 +82,12 @@ if ($method === 'PATCH') {
         echo json_encode(['success' => false, 'message' => 'Invalid status.']);
         exit;
     }
+    // Completing goes through Active Treatments → Finish (api/finish_treatment.php),
+    // which records the treatment, deducts stock and creates the invoice.
+    if ($status === 'completed') {
+        echo json_encode(['success' => false, 'message' => 'Appointments are completed by finishing the treatment in Active Treatments.']);
+        exit;
+    }
 
     $before = notif_appt_snapshot((int)$id);
     $res = supabase_request(
