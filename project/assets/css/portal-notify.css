@@ -1,0 +1,54 @@
+/* =============================================================
+   assets/css/portal-notify.css — Patient Portal notification settings
+   (Profile › Notifications card) and the "Get reminders" banner on the
+   Appointments page. Behaviour: assets/js/portal-notify.js.
+   ============================================================= */
+.pn-card { padding: 1.1rem 1.1rem .6rem; margin-top: 1rem; }
+.pn-card[hidden] { display: none !important; }
+.pn-head { display: flex; align-items: flex-start; gap: .7rem; margin-bottom: .6rem; }
+.pn-head-ico { width: 34px; height: 34px; border-radius: 9px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  background: #e6f3fb; color: #0279BC; font-size: 15px; }
+.pn-title { font-size: .95rem; font-weight: 700; margin: 0; color: #0b3a57; }
+.pn-sub { font-size: .78rem; color: #6b7a90; margin: .15rem 0 0; line-height: 1.4; }
+.pn-row { display: flex; align-items: center; gap: .7rem; padding: .7rem 0; border-top: 1px solid var(--border, #e5e7eb); }
+.pn-ico { width: 28px; flex: 0 0 auto; text-align: center; color: #6b7a90; font-size: 15px; }
+.pn-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; cursor: pointer; margin: 0; }
+.pn-txt .t { font-size: .86rem; font-weight: 600; color: #1f2d3d; }
+.pn-txt .d { font-size: .74rem; color: #6b7a90; line-height: 1.35; margin-top: .1rem; }
+.pn-txt .d.warn { color: #b26a00; }
+
+/* Accessible switch built on a real checkbox */
+.pn-switch { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 40px; height: 23px; border-radius: 999px; background: #cfd8e3;
+  position: relative; cursor: pointer; transition: background-color .15s ease; margin: 0; }
+.pn-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 17px; height: 17px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .25); transition: transform .15s ease; }
+.pn-switch:checked { background: #0279BC; }
+.pn-switch:checked::after { transform: translateX(17px); }
+.pn-switch:focus-visible { outline: 2px solid #0279BC; outline-offset: 2px; }
+.pn-switch:disabled { opacity: .45; cursor: not-allowed; }
+.pn-switch[aria-busy="true"] { opacity: .7; cursor: progress; }
+
+.pn-hint { font-size: .74rem; line-height: 1.45; color: #6b7a90; background: #f6f9fc; border: 1px solid var(--border, #e5e7eb); border-radius: 9px;
+  padding: .55rem .7rem; margin: .2rem 0 .5rem; }
+.pn-hint[hidden] { display: none; }
+.pn-hint i { color: #0279BC; margin-right: .3rem; }
+
+/* "Get reminders on this device" banner (Appointments page) */
+.pn-banner { display: flex; align-items: center; gap: .8rem; padding: .8rem 1rem; margin-bottom: 1rem; border-radius: 12px;
+  background: #f0f8fd; border: 1px solid #cfe7f6; }
+.pn-banner[hidden] { display: none; }
+.pn-banner-ico { width: 36px; height: 36px; border-radius: 10px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  background: #fff; color: #0279BC; font-size: 16px; border: 1px solid #cfe7f6; }
+.pn-banner-txt { flex: 1 1 auto; min-width: 0; font-size: .82rem; color: #1f2d3d; line-height: 1.45; }
+.pn-banner-txt strong { display: block; font-size: .88rem; color: #0b3a57; }
+.pn-banner-actions { display: flex; gap: .4rem; flex: 0 0 auto; }
+.pn-btn { border: 0; border-radius: 8px; height: 34px; padding: 0 .9rem; font-size: .8rem; font-weight: 600; font-family: inherit; cursor: pointer; }
+.pn-btn-primary { background: #0279BC; color: #fff; }
+.pn-btn-primary:hover { background: #02659d; }
+.pn-btn-ghost { background: transparent; color: #4b5b6e; }
+.pn-btn-ghost:hover { background: #e3eef6; }
+@media (max-width: 575.98px) {
+  .pn-banner { flex-wrap: wrap; }
+  .pn-banner-actions { width: 100%; justify-content: flex-end; }
+}
+@media (prefers-reduced-motion: reduce) { .pn-switch, .pn-switch::after { transition: none; } }

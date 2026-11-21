@@ -22,4 +22,14 @@ return [
     // Public base URL for emailed links, no trailing slash (config/app.php).
     // Server: 'https://your-domain'. Local: omit for localhost, or a LAN IP for phones.
     'app_base_url' => 'https://your-domain.example',
+
+    // Web Push (VAPID) + SMS OTP hashing. Generate once with:
+    //   php cron/generate_vapid_keys.php --subject=mailto:clinic@example.com
+    // and copy the SAME values to the server and to the GitHub Actions secrets
+    // (.github/workflows/reminders.yml). Changing the VAPID keys invalidates every
+    // patient's push subscription; changing otp_pepper only voids codes in flight.
+    'vapid_public_key'      => '',   // base64url, 65-byte P-256 point (safe to share)
+    'vapid_private_key_pem' => '',   // -----BEGIN PRIVATE KEY----- … (server only)
+    'vapid_subject'         => 'mailto:clinic@example.com',
+    'otp_pepper'            => '',   // 64 hex chars
 ];

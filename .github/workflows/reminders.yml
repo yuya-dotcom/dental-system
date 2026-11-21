@@ -1,0 +1,99 @@
+name: Appointment reminders
+
+# Day-before reminders (email + SMS + push) for CONFIRMED appointments,
+# plus a UniSMS delivery-status refresh — project/cron/send_appointment_reminders.php.
+#
+# Runs here instead of on the web host: InfinityFree has no cron jobs and its
+# anti-bot page blocks non-browser HTTP calls. The script talks to Supabase,
+# UniSMS, Gmail SMTP and the push services directly.
+#
+# Safe to run any number of times: every message is claimed in
+# notification_logs by a unique key (appointment + channel + current slot)
+# before it is sent, so re-runs, manual runs and GitHub's delayed schedules
+# never send twice, and rescheduled appointments get the NEW slot only.
+#
+# Repository secrets (Settings › Secrets and variables › Actions):
+#   SUPABASE_URL, SUPABASE_SECRET_KEY, UNISMS_API_KEY, UNISMS_SENDER_ID,
+#   SMTP_USERNAME, SMTP_APP_PASSWORD, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY_PEM,
+#   VAPID_SUBJECT, APP_BASE_URL
+
+on:
+  schedule:
+    - cron: '0 1 * * *'        # 09:00 Asia/Manila, every day
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview only (no messages, no database writes)'
+        type: boolean
+        default: true
+      date:
+        description: 'Appointment date to process (YYYY-MM-DD, default: tomorrow)'
+        required: false
+
+concurrency:
+  group: appointment-reminders
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check PHP
+        run: php -v && php -m | grep -E -i '^(curl|openssl|mbstring)$'
+
+      - name: Write config/secrets.php from repository secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          UNISMS_API_KEY: ${{ secrets.UNISMS_API_KEY }}
+          UNISMS_SENDER_ID: ${{ secrets.UNISMS_SENDER_ID }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY_PEM: ${{ secrets.VAPID_PRIVATE_KEY_PEM }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+        run: |
+          php -r '
+            foreach (["SUPABASE_URL","SUPABASE_SECRET_KEY","UNISMS_API_KEY","SMTP_USERNAME","SMTP_APP_PASSWORD","APP_BASE_URL"] as $k)
+              if (getenv($k) === false || getenv($k) === "") { fwrite(STDERR, "Missing secret: $k\n"); exit(1); }
+            $v = fn($k) => var_export((string)getenv($k), true);
+            $src = "<?php\n"
+              . "if (!defined(\"UNISMS_API_KEY\")) define(\"UNISMS_API_KEY\", " . $v("UNISMS_API_KEY") . ");\n"
+              . "if (!defined(\"UNISMS_SENDER_ID\")) define(\"UNISMS_SENDER_ID\", " . (getenv("UNISMS_SENDER_ID") ? $v("UNISMS_SENDER_ID") : "\"Unisoft\"") . ");\n"
+              . "return [\n"
+              . "  \"supabase_url\" => " . $v("SUPABASE_URL") . ",\n"
+              . "  \"supabase_key\" => " . $v("SUPABASE_SECRET_KEY") . ",\n"
+              . "  \"smtp_username\" => " . $v("SMTP_USERNAME") . ",\n"
+              . "  \"smtp_app_password\" => " . $v("SMTP_APP_PASSWORD") . ",\n"
+              . "  \"vapid_public_key\" => " . $v("VAPID_PUBLIC_KEY") . ",\n"
+              . "  \"vapid_private_key_pem\" => " . $v("VAPID_PRIVATE_KEY_PEM") . ",\n"
+              . "  \"vapid_subject\" => " . $v("VAPID_SUBJECT") . ",\n"
+              . "  \"app_base_url\" => " . $v("APP_BASE_URL") . ",\n"
+              . "];\n";
+            file_put_contents("project/config/secrets.php", $src);
+            chmod("project/config/secrets.php", 0600);
+          '
+
+      - name: Send reminders
+        working-directory: project/cron
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
+          RUN_DATE: ${{ github.event_name == 'workflow_dispatch' && inputs.date || '' }}
+        run: |
+          args="$DRY_RUN"
+          if [ -n "$RUN_DATE" ]; then
+            echo "$RUN_DATE" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' || { echo "Invalid date"; exit 2; }
+            args="$args --date=$RUN_DATE"
+          fi
+          php send_appointment_reminders.php $args
+
+      - name: Remove secrets file
+        if: always()
+        run: rm -f project/config/secrets.php

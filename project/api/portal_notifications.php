@@ -39,9 +39,15 @@ $accountId = (int)$_SESSION['portal_account_id'];
 
 // ── LIST ─────────────────────────────────────────────────────
 if ($action === 'list') {
-    $pRes      = supabase_request('patient_accounts', 'GET', [],
-        'account_id=eq.' . $accountId . '&select=patient_id&limit=1');
-    $patientId = isset($pRes['data'][0]['patient_id']) ? (int)$pRes['data'][0]['patient_id'] : null;
+    // Same rule as pl_patient_id() (controllers/portal_batch.php): the link, once
+    // set, never moves, so the session copy saves a lookup on every 60 s poll.
+    $patientId = (!empty($_SESSION['portal_patient_id']) && (int)($_SESSION['portal_patient_id_for'] ?? 0) === $accountId)
+        ? (int)$_SESSION['portal_patient_id'] : null;
+    if ($patientId === null) {
+        $pRes      = supabase_request('patient_accounts', 'GET', [],
+            'account_id=eq.' . $accountId . '&select=patient_id&limit=1');
+        $patientId = isset($pRes['data'][0]['patient_id']) ? (int)$pRes['data'][0]['patient_id'] : null;
+    }
 
     $offset = max(0, (int)($_GET['offset'] ?? 0));
     $limit  = 20;

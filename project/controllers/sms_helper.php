@@ -61,7 +61,10 @@ function sendSMS(string $recipient, string $message): array {
             $err   = is_array($first) ? reset($first) : $first;
         }
         if (!is_string($err) || $err === '') $err = 'Unknown SMS error.';
-        error_log("UniSMS error [{$statusCode}]: {$err} | recipient={$recipient} | response={$response}");
+        // The raw response may echo the message text (an OTP code) — log it without content
+        $logged = is_array($decoded) ? $decoded : ['raw_length' => strlen((string)$response)];
+        array_walk_recursive($logged, function (&$v, $k) { if ($k === 'content') $v = '[redacted]'; });
+        error_log("UniSMS error [{$statusCode}]: {$err} | recipient={$recipient} | response=" . json_encode($logged));
         return ['success' => false, 'message' => $err];
     }
 

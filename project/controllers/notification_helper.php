@@ -16,6 +16,9 @@ if (!function_exists('notif_create')) {
 
 define('NOTIF_TABLE', 'patient_notifications');
 
+// Staff Notification Center (owner / admin / dentist) — fed from the same hooks below
+require_once __DIR__ . '/staff_notifications.php';
+
 /** Insert one notification; duplicates (same account + dedupe_key) are ignored. */
 function notif_create(int $accountId, string $category, string $event, string $title,
                       string $message, ?string $linkPage, string $dedupeKey): bool
@@ -100,8 +103,23 @@ function notif_appointment($appt, ?array $before = null): void
         $a = is_array($appt) ? $appt : notif_appt_snapshot((int)$appt);
         if (!$a || empty($a['appointment_id'])) return;
 
+        staffn_appointment($a, $before);   // staff bell (after the response; never throws)
+
         $id       = (int)$a['appointment_id'];
         $status   = (string)($a['status'] ?? '');
+
+        // Email / SMS / push for confirmed, cancelled and rescheduled appointments
+        // (controllers/notification_service.php — sent after the response, logged in
+        // notification_logs). Loaded only when something changed, so ordinary requests
+        // don't pay for PHPMailer. Runs for walk-in patients too (SMS needs no account).
+        $movedSlot = $before
+            && (($before['appointment_date'] ?? '') !== ($a['appointment_date'] ?? '')
+                || substr((string)($before['appointment_time'] ?? ''), 0, 5) !== substr((string)($a['appointment_time'] ?? ''), 0, 5));
+        if ((!$before && $status === 'confirmed') || ($before && (($before['status'] ?? '') !== $status || $movedSlot))) {
+            require_once __DIR__ . '/notification_service.php';
+            notify_appointment_change($a, $before);
+        }
+
         $accounts = notif_accounts_for_patient(
             isset($a['patient_id']) ? (int)$a['patient_id'] : null,
             isset($a['account_id']) ? (int)$a['account_id'] : null
@@ -199,6 +217,7 @@ function notif_payment_recorded(int $paymentId, int $invoiceId, float $amount, f
 function notif_treatment(int $treatmentId, ?array $before = null): void
 {
     try {
+        staffn_treatment($treatmentId, $before);   // staff bell (after the response)
         $res = supabase_request('treatments', 'GET', [],
             'treatment_id=eq.' . $treatmentId . '&select=treatment_id,patient_id,service_id,status,tooth_number&limit=1');
         $t = $res['data'][0] ?? null;

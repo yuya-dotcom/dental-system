@@ -6,8 +6,17 @@ if (php_sapi_name() !== 'cli') {
 
 // =============================================================
 //  cron/send_appointment_reminders.php
-//  Day-before SMS reminders for CONFIRMED appointments.
-//  Run nightly by Windows Task Scheduler via cron/run_reminders.bat.
+//  Day-before reminders for CONFIRMED appointments: email + SMS + push
+//  (controllers/notification_service.php, honouring patient preferences).
+//  Runs nightly from GitHub Actions (.github/workflows/reminders.yml);
+//  cron/run_reminders.bat (Windows Task Scheduler) still works as a backup.
+//
+//  Safe to run any number of times: each message is keyed by appointment +
+//  channel + the CURRENT date/time, so nothing is sent twice, a rescheduled
+//  appointment is reminded for its new slot, and cancelled ones (no longer
+//  'confirmed') are never picked up. Until the notification tables exist
+//  (database/proposed/2026-11-13_notification_system.sql) it falls back to
+//  the original SMS-only reminder below.
 //
 //  php send_appointment_reminders.php                 send for tomorrow
 //  php send_appointment_reminders.php --dry-run       preview, no SMS / no DB writes
@@ -17,8 +26,15 @@ if (php_sapi_name() !== 'cli') {
 
 date_default_timezone_set('Asia/Manila');
 
+// On GitHub Actions the job log may be readable by others: print only codes and
+// counts, and keep PHP's error log (it can contain phone numbers / addresses) off
+// the console. Full details are in notification_logs (System › Notifications).
+$remPublic = getenv('GITHUB_ACTIONS') === 'true';
+if ($remPublic) ini_set('error_log', sys_get_temp_dir() . '/es-reminders-php.log');
+
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../controllers/sms_helper.php';
+require_once __DIR__ . '/../controllers/notification_service.php';
 
 const REMINDER_SMS_MAX = 160; // one GSM-7 segment
 
@@ -140,7 +156,43 @@ $appointments = $res['data'];
 echo '[' . date('Y-m-d H:i:s') . ' Asia/Manila] ' . ($dryRun ? 'DRY RUN — ' : '')
    . "appointment date {$date}: " . count($appointments) . " confirmed appointment(s)" . PHP_EOL;
 
-// ── Process ──────────────────────────────────────────────────
+// ── Process: all channels through the notification service ───
+if (notify_logs_available() || $dryRun) {
+    $tally = [];
+    foreach ($appointments as $a) {
+        $id  = (int)($a['appointment_id'] ?? 0);
+        $ref = !empty($a['appointment_code']) ? (string)$a['appointment_code'] : "#{$id}";
+        try {
+            $r = notify_send_reminders($id, $dryRun);
+            if (isset($r['error'])) { echo "{$ref}  skipped ({$r['error']})" . PHP_EOL; $tally['skipped'] = ($tally['skipped'] ?? 0) + 1; continue; }
+            $line = [];
+            foreach ($r as $ch => $res) {
+                if (isset($res['result'])) { $line[] = "{$ch}={$res['result']}" . (!empty($res['error']) && !$remPublic ? "({$res['error']})" : ''); $tally["{$ch}:{$res['result']}"] = ($tally["{$ch}:{$res['result']}"] ?? 0) + 1; }
+                else { foreach ($res as $k => $v) if ($v) { $line[] = "{$ch}:{$k}={$v}"; $tally["{$ch}:{$k}"] = ($tally["{$ch}:{$k}"] ?? 0) + $v; } }
+                if ($dryRun && !$remPublic && !empty($res['preview'])) $line[] = PHP_EOL . "    [{$ch}] {$res['preview']}";
+            }
+            echo "{$ref}  " . implode('  ', $line) . PHP_EOL;
+        } catch (Throwable $e) {
+            error_log("reminders: {$ref} failed: " . $e->getMessage());
+            echo "{$ref}  failed (internal error)" . PHP_EOL;
+        }
+    }
+    // Carrier delivery status of SMS sent in the last 48 h (UniSMS reports pending → sent / failed later)
+    if (!$dryRun) {
+        try {
+            foreach (notify_sms_refresh_recent() as $s => $n) $tally["sms-delivery:{$s}"] = $n;
+        } catch (Throwable $e) {
+            error_log('reminders: delivery status refresh failed: ' . $e->getMessage());
+        }
+    }
+    ksort($tally);
+    $parts = [];
+    foreach ($tally as $k => $v) $parts[] = "{$k}={$v}";
+    echo '[' . date('Y-m-d H:i:s') . ' Asia/Manila] ' . ($dryRun ? 'DRY RUN ' : '') . ($parts ? implode(' ', $parts) : 'nothing to send') . PHP_EOL;
+    exit(0);
+}
+
+// ── Fallback (notification tables not created yet): SMS only, as before ──
 $counts = ['sent' => 0, 'failed' => 0, 'skipped' => 0, 'duplicate' => 0];
 if ($dryRun) $counts = ['dry-run' => 0, 'failed' => 0, 'skipped' => 0];
 
