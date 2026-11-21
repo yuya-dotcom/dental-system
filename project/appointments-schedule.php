@@ -5,16 +5,21 @@ require_once __DIR__ . '/controllers/secure_controller.php';
 require_once __DIR__ . '/controllers/admin_batch.php';
 admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/controllers/appointment_controller.php';
+require_once __DIR__ . '/controllers/appointment_services_helper.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/dbconfig.php';
 
 $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : getSessionBranch();
 if (!isOwner() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
+// Table columns — Owner: Date/Time, Patient Name, Service, Branch, Status, Action.
+// Admin / dentist: no Branch column (the list is pinned to their own branch above).
+$schShowBranch = isOwner();
 $filterStatus = in_array($_GET['status'] ?? '', ['pending', 'confirmed', 'checked_in'], true) ? $_GET['status'] : '';
 
 // Sort / search / date range (validated in list_filters.php).
 // The old single-day ?date= link still works: it becomes a one-day range.
 require_once __DIR__ . '/controllers/list_filters.php';
+require_once __DIR__ . '/controllers/record_ui.php';   // Appointment Records cell markup
 $sortOptions  = [
     'date_asc'     => ['Appointment Date (Soonest)', 'appointment_date.asc,appointment_time.asc,appointment_id.asc'],
     'date_desc'    => ['Appointment Date (Latest)',  'appointment_date.desc,appointment_time.desc,appointment_id.desc'],
@@ -32,7 +37,10 @@ $page         = max(1, (int)($_GET['page'] ?? 1));
 
 // Wave 1 (parallel): dropdown data + branch dropdown + navbar bell. Unaffected by the
 // no_show update below; the appointment list itself is read after that update.
-$_patQ = 'select=patient_id,full_name&order=full_name.asc&limit=500';
+// Patients for Add / Edit Appointment: owners and admins see every patient (same
+// rule as patients-list.php and api/patients.php); patient_code feeds the
+// "PAT-00007  Name" search (by name or Patient ID).
+$_patQ = 'select=patient_id,patient_code,full_name&order=full_name.asc&limit=1000';
 $_denQ = 'select=dentist_id,full_name&order=full_name.asc&limit=200';
 admin_prefetch(['pat' => admin_q('patients', $_patQ), 'den' => admin_q('dentists', $_denQ)]);
 $branches     = getAllBranches();
@@ -40,6 +48,16 @@ $patientsRes  = admin_get('patients', $_patQ);
 $dentistsRes  = admin_get('dentists', $_denQ);
 $patientsList = is_array($patientsRes['data']) ? $patientsRes['data'] : [];
 $dentistsList = is_array($dentistsRes['data']) ? $dentistsRes['data'] : [];
+
+// Add / Edit Appointment branch: only the owner chooses one. A branch-assigned
+// account (admin) gets no branch field — its own branch is used, and the
+// server enforces it from the session (api/appointments.php).
+$aptFixedBranch     = isOwner() ? 0 : getSessionBranch();
+$aptFixedBranchName = '';
+foreach ($branches as $b) {
+    if ((int)$b['branch_id'] === $aptFixedBranch) $aptFixedBranchName = (string)$b['branch_name'];
+}
+if ($aptFixedBranch && $aptFixedBranchName === '') $aptFixedBranchName = 'Your branch';
 
 // ── Auto-expire overdue appointments ──────────────────────────────────────────
 // Runs once per page load, before the schedule data is fetched.
@@ -63,49 +81,10 @@ $to           = $data['to'];
 $baseUrl = listUrl('appointments-schedule.php', ['branch' => $filterBranch, 'status' => $filterStatus, 'q' => $search, 'from' => $dateFrom, 'to' => $dateTo, 'sort' => $sortKey === 'date_asc' ? '' : $sortKey]);
 $sortBase = listUrl('appointments-schedule.php', ['branch' => $filterBranch, 'status' => $filterStatus, 'q' => $search, 'from' => $dateFrom, 'to' => $dateTo]);
 
-// ── Batch-fetch all services for appointments on this page ────
-// getAppointmentSchedule() only joins the legacy service_id column.
-// We fetch appointment_services for all visible rows in one request
-// and merge them in, so the table can show every service chosen.
-if (!empty($appointments)) {
-    $aptIds = array_filter(array_map(fn($a) => (int)($a['appointment_id'] ?? 0), $appointments));
-    if ($aptIds) {
-        $idList = implode(',', $aptIds);
-        $svcJunctionRes = supabase_request(
-            'appointment_services',
-            'GET',
-            [],
-            'appointment_id=in.(' . $idList . ')' .
-            '&select=appointment_id,sort_order,services(service_id,service_name)' .
-            '&order=appointment_id.asc,sort_order.asc'
-        );
-        // Build lookup: appointment_id => [service_name, ...]
-        $svcMap = [];
-        foreach (($svcJunctionRes['data'] ?? []) as $row) {
-            $aid  = (int)$row['appointment_id'];
-            $name = $row['services']['service_name'] ?? null;
-            if ($name) $svcMap[$aid][] = $name;
-        }
-        // Merge into appointments array
-        foreach ($appointments as &$apt) {
-            $aid = (int)($apt['appointment_id'] ?? 0);
-            $apt['all_service_names'] = $svcMap[$aid] ?? [];
-        }
-        unset($apt);
-    }
-}
+// All 1–3 services per row: embedded in the list query (appointment_controller.php),
+// so this is no longer a separate appointment_services request.
+$appointments = attachAppointmentServiceNames($appointments);
 
-function schStatusBadgeClass(string $s): string
-{
-    return match ($s) {
-        'pending'    => 'bg-soft-warning text-warning',
-        'confirmed'  => 'bg-soft-success text-success',
-        'checked_in' => 'bg-soft-primary text-primary',
-        'completed'  => 'bg-soft-info text-info',
-        'cancelled'  => 'bg-soft-danger text-danger',
-        default      => 'bg-soft-secondary text-secondary',
-    };
-}
 function schStatusDisplay(string $s): string
 {
     return $s === 'checked_in' ? 'Checked In' : ucfirst($s);
@@ -125,8 +104,8 @@ function schStatusDisplay(string $s): string
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/select2.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/select2-theme.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
-    <link rel="stylesheet" href="assets/css/custom.css?v=5">
-    <link rel="stylesheet" href="assets/css/es-swal.css?v=4">
+    <link rel="stylesheet" href="assets/css/custom.css?v=18">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
     <link rel="stylesheet" href="assets/css/admin.css?v=5">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <style>
@@ -412,6 +391,10 @@ function schStatusDisplay(string $s): string
         }
         .svc-chip-remove:hover { color: #dc3545; }
     </style>
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-records.css?v=7">
+    <link rel="stylesheet" href="assets/css/analytics.css?v=8">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
 </head>
 
 <body>
@@ -444,14 +427,15 @@ function schStatusDisplay(string $s): string
                 </div>
             </div>
 
-            <div class="main-content">
+            <div class="main-content an-page ar-page">
                 <div class="row">
                     <div class="col-lg-12">
                         <div class="card stretch stretch-full">
                             <div class="card-header">
-                                <h5 class="card-title">
+                                <h5 class="card-title mb-0">
                                     Appointment Schedules
-                                    <span class="badge bg-soft-primary text-primary ms-2"><?= $totalRecords ?> total</span>
+                                    <span class="an-pill info ms-2"><?= $totalRecords ?> <?= $filtersOn ? 'found' : 'total' ?></span>
+                                    <span class="rec-card-sub">Upcoming visits that are pending, confirmed or checked in</span>
                                 </h5>
                                 <div class="card-header-action">
                                     <div class="card-header-btn">
@@ -489,71 +473,76 @@ function schStatusDisplay(string $s): string
                             </div>
                             <div class="card-body custom-card-action p-0" style="overflow:visible;">
                                 <div class="table-responsive" style="overflow:visible;">
-                                    <table class="table table-hover mb-0" style="min-width:900px;">
+                                    <table class="table table-hover mb-0 rec-table ar-table" style="min-width:900px;">
                                         <thead>
                                             <tr>
-                                                <?= listTh('Patient Name', 'patient_asc', 'patient_desc', $sortKey, $sortBase) ?>
                                                 <?= listTh('Date / Time', 'date_asc', 'date_desc', $sortKey, $sortBase) ?>
+                                                <?= listTh('Patient Name', 'patient_asc', 'patient_desc', $sortKey, $sortBase) ?>
                                                 <th>Service</th>
-                                                <th>Notes</th>
+                                                <?php if ($schShowBranch): ?>
+                                                <th>Branch</th>
+                                                <?php endif; ?>
                                                 <?= listTh('Status', 'status_asc', 'status_desc', $sortKey, $sortBase) ?>
-                                                <th class="text-end">Action</th>
+                                                <th class="rec-col-action text-end">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <?php if (empty($appointments)): ?>
-                                                <tr>
-                                                    <td colspan="6" class="text-center py-4 text-muted">
-                                                        <i class="feather-calendar me-2"></i><?= $filtersOn ? 'No appointments match the selected filters. <a href="appointments-schedule.php" class="fw-semibold">Reset filters</a>' : 'No appointments found.' ?>
-                                                    </td>
-                                                </tr>
+                                                <?= listEmpty($schShowBranch ? 6 : 5, (bool)$filtersOn, 'No upcoming appointments', 'Appointments booked in the Patient Portal or with Add Appointment appear here.', 'feather-calendar', 'appointments-schedule.php') ?>
                                             <?php else: ?>
                                                 <?php foreach ($appointments as $apt): ?>
-                                                    <tr>
-                                                        <td>
-                                                            <a href="patient-records.php?id=<?= (int)($apt['patient_id'] ?? 0) ?>"
-                                                                class="text-primary fw-semibold">
-                                                                <?= htmlspecialchars($apt['patients']['full_name'] ?? '—') ?>
-                                                            </a>
+                                                    <tr class="<?= ($apt['appointment_date'] ?? '') === date('Y-m-d') ? 'is-today' : '' ?>">
+                                                        <td data-col="datetime">
+                                                            <?php $_aTs = !empty($apt['appointment_date']) ? strtotime($apt['appointment_date']) : false; ?>
+                                                            <?= recWhen(formatAptDate($apt['appointment_date']), ($_aTs ? date('D', $_aTs) . ', ' : '') . formatAptTime($apt['appointment_time']), ($apt['appointment_date'] ?? '') === date('Y-m-d')) ?>
                                                         </td>
-                                                        <td>
-                                                            <div class="fw-semibold"><?= formatAptDate($apt['appointment_date']) ?></div>
-                                                            <div class="text-muted small"><?= formatAptTime($apt['appointment_time']) ?></div>
+                                                        <td data-col="patient">
+                                                            <?= recWho($apt['patients']['full_name'] ?? '', (int)($apt['patient_id'] ?? 0), 'patient-records.php?id=' . (int)($apt['patient_id'] ?? 0), (string)($apt['patients']['patient_code'] ?? '')) ?>
                                                         </td>
-                                                        <td>
+                                                        <td data-col="service">
                                                             <?php
+                                                            // At most two services; the rest behind "+N more" → View Appointment
                                                             $allSvcs = $apt['all_service_names'] ?? [];
                                                             if (empty($allSvcs) && !empty($apt['services']['service_name'])) {
                                                                 $allSvcs = [$apt['services']['service_name']];
                                                             }
+                                                            $moreSvcs = max(0, count($allSvcs) - 2);
                                                             if (!empty($allSvcs)):
-                                                                foreach ($allSvcs as $i => $svcName):
                                                             ?>
-                                                                <span class="badge bg-soft-primary text-primary d-inline-flex align-items-center gap-1 mb-1" style="font-size:.74rem;font-weight:500;">
-                                                                    <span style="opacity:.55;font-size:.65rem;"><?= $i + 1 ?>.</span>
-                                                                    <?= htmlspecialchars($svcName) ?>
-                                                                </span>
-                                                            <?php
-                                                                endforeach;
-                                                            else:
-                                                            ?>
+                                                                <div class="sch-svc-cell">
+                                                                <?php foreach (array_slice($allSvcs, 0, 2) as $i => $svcName): ?>
+                                                                    <span class="rec-pill">
+                                                                        <span class="rec-muted"><?= $i + 1 ?>.</span>
+                                                                        <?= htmlspecialchars($svcName) ?>
+                                                                    </span>
+                                                                <?php endforeach; ?>
+                                                                <?php if ($moreSvcs > 0): ?>
+                                                                    <button type="button" class="sch-svc-more" onclick="viewAppointment(<?= (int)$apt['appointment_id'] ?>)"
+                                                                        title="<?= htmlspecialchars(implode(', ', array_slice($allSvcs, 2))) ?>"
+                                                                        aria-label="Show all <?= count($allSvcs) ?> services of this appointment">+<?= $moreSvcs ?> more</button>
+                                                                <?php endif; ?>
+                                                                </div>
+                                                            <?php else: ?>
                                                                 <span class="text-muted">General Consultation</span>
                                                             <?php endif; ?>
                                                         </td>
-                                                        <td class="text-muted small"><?= htmlspecialchars($apt['notes'] ?? '—') ?></td>
-                                                        <td>
-                                                            <span class="badge <?= schStatusBadgeClass($apt['status'] ?? '') ?>">
-                                                                <?= schStatusDisplay($apt['status'] ?? '') ?>
-                                                            </span>
+                                                        <?php if ($schShowBranch): ?>
+                                                        <td data-col="branch">
+                                                            <?= recBranch($apt['branches']['branch_name'] ?? '', $branches ?? []) ?>
                                                         </td>
-                                                        <td class="text-end">
+                                                        <?php endif; ?>
+                                                        <td data-col="status">
+                                                            <?= recPill(schStatusDisplay($apt['status'] ?? ''), aptStatusPillClass((string)($apt['status'] ?? ''))) ?>
+                                                        </td>
+                                                        <td class="rec-col-action">
                                                             <div class="dropdown">
                                                                 <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto"
-                                                                    data-bs-toggle="dropdown" data-bs-strategy="fixed">
+                                                                    data-bs-toggle="dropdown" data-bs-strategy="fixed" aria-label="Actions">
                                                                     <i class="feather-more-vertical"></i>
                                                                 </a>
                                                                 <div class="dropdown-menu dropdown-menu-end action-dropdown">
                                                                     <a href="javascript:void(0);" class="dropdown-item"
+                                                                        data-apt-prefetch="<?= (int)$apt['appointment_id'] ?>"
                                                                         onclick="viewAppointment(<?= (int)$apt['appointment_id'] ?>)">
                                                                         <i class="feather-eye"></i> View Appointment
                                                                     </a>
@@ -603,49 +592,9 @@ function schStatusDisplay(string $s): string
                                 </div>
                             </div>
 
-                            <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                <p class="text-muted small mb-0">
-                                    Showing <?= $from ?>–<?= $to ?> of <?= $totalRecords ?> appointment(s)
-                                    <?php if ($filtersOn): ?>
-                                        &nbsp;·&nbsp;<a href="appointments-schedule.php" class="text-danger">
-                                            <i class="feather-x-circle me-1"></i>Clear filters
-                                        </a>
-                                    <?php endif; ?>
-                                </p>
-                                <?php if ($totalPages > 1): ?>
-                                    <ul class="list-unstyled d-flex align-items-center gap-1 mb-0 pagination-common-style">
-                                        <li>
-                                            <?php if ($page > 1): ?>
-                                                <a href="<?= $baseUrl ?>&page=<?= $page - 1 ?>"><i class="bi bi-arrow-left"></i></a>
-                                            <?php else: ?>
-                                                <a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-left"></i></a>
-                                            <?php endif; ?>
-                                        </li>
-                                        <?php
-                                        $wStart = max(1, $page - 2);
-                                        $wEnd   = min($totalPages, $wStart + 4);
-                                        $wStart = max(1, $wEnd - 4);
-                                        ?>
-                                        <?php if ($wStart > 1): ?>
-                                            <li><a href="<?= $baseUrl ?>&page=1">1</a></li>
-                                            <?php if ($wStart > 2): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?>
-                                        <?php endif; ?>
-                                        <?php for ($p = $wStart; $p <= $wEnd; $p++): ?>
-                                            <li><a href="<?= $baseUrl ?>&page=<?= $p ?>" class="<?= $p === $page ? 'active' : '' ?>"><?= $p ?></a></li>
-                                        <?php endfor; ?>
-                                        <?php if ($wEnd < $totalPages): ?>
-                                            <?php if ($wEnd < $totalPages - 1): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?>
-                                            <li><a href="<?= $baseUrl ?>&page=<?= $totalPages ?>"><?= $totalPages ?></a></li>
-                                        <?php endif; ?>
-                                        <li>
-                                            <?php if ($page < $totalPages): ?>
-                                                <a href="<?= $baseUrl ?>&page=<?= $page + 1 ?>"><i class="bi bi-arrow-right"></i></a>
-                                            <?php else: ?>
-                                                <a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-right"></i></a>
-                                            <?php endif; ?>
-                                        </li>
-                                    </ul>
-                                <?php endif; ?>
+                            <div class="card-footer ar-foot d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <?= listFootCount($from, $to, $totalRecords, 'appointment', 'appointments-schedule.php', (bool)$filtersOn) ?>
+                                <?= listPager($baseUrl, $page, $totalPages) ?>
                             </div>
 
                         </div>
@@ -677,83 +626,107 @@ function schStatusDisplay(string $s): string
                         <div id="modalError" class="apt-form-alert" role="alert" style="display:none;"></div>
                         <input type="hidden" id="apt_id">
 
-                        <div class="apt-form-grid">
-                            <!-- ── LEFT: Date & Time ──────────────────────── -->
-                            <section class="ar-card apt-form-card">
+                        <!-- Layout: the schedule (date calendar | time slots side by side) is
+                             the wide column and comes first, so dates and times are visible
+                             without scrolling; patient, dentist, services and notes sit in a
+                             compact column beside it (stacked below on smaller screens).
+                             Header and footer stay put while the body scrolls. -->
+                        <div class="apt-form-layout">
+                            <!-- ── Schedule ──────────────────────────────── -->
+                            <section class="ar-card apt-form-card apt-form-card-open apt-sched-card">
                                 <div class="ar-card-header">
                                     <span class="ar-card-icon"><i class="feather-calendar"></i></span>
-                                    <h6 class="ar-card-title">Date &amp; Time</h6>
+                                    <h6 class="ar-card-title">Schedule</h6>
+                                    <?php if ($aptFixedBranch): ?>
+                                        <!-- Branch-assigned account: no branch choice — the server uses the
+                                             account's own branch (api/appointments.php). -->
+                                        <span class="apt-branch-chip" title="Appointments you add are saved under your branch">
+                                            <i class="feather-map-pin"></i> <?= htmlspecialchars($aptFixedBranchName) ?>
+                                        </span>
+                                        <input type="hidden" id="apt_branch" value="<?= (int)$aptFixedBranch ?>" data-fixed-branch>
+                                    <?php endif; ?>
                                 </div>
-                                <div class="apt-form-card-body">
-                                    <div class="apt-field">
-                                        <label class="apt-label" for="apt_branch">Branch <span class="apt-req" aria-hidden="true">*</span></label>
-                                        <select id="apt_branch" class="form-select js-custom-select" data-cs-float data-cs-no-placeholder>
-                                            <option value=""> Select Branch </option>
-                                            <?php foreach ($branches as $b): ?>
-                                                <option value="<?= $b['branch_id'] ?>"><?= htmlspecialchars($b['branch_name']) ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <div class="apt-field-err" data-err-for="apt_branch"></div>
-                                    </div>
-                                    <div class="apt-label">Date <span class="apt-req" aria-hidden="true">*</span></div>
-                                    <div id="adminCalendarWrap" class="rounded-3 border">
-                                        <div class="slot-empty">
-                                            <svg width="30" height="30" viewBox="0 0 32 32" fill="none" style="margin-bottom:6px;opacity:0.3;">
-                                                <rect x="3" y="5" width="26" height="22" rx="3" stroke="#6b7a8d" stroke-width="1.5" />
-                                                <path d="M9 3v4M23 3v4M3 12h26" stroke="#6b7a8d" stroke-width="1.5" stroke-linecap="round" />
-                                            </svg><br>
-                                            Select a branch to load available dates.
+                                <div class="apt-form-card-body apt-sched-body">
+                                    <div class="apt-sched-left">
+                                        <?php if (!$aptFixedBranch): ?>
+                                        <div class="apt-field apt-branch-field">
+                                            <label class="apt-label" for="apt_branch">Branch <span class="apt-req" aria-hidden="true">*</span></label>
+                                            <select id="apt_branch" class="form-select js-custom-select" data-cs-float data-cs-no-placeholder>
+                                                <option value=""> Select Branch </option>
+                                                <?php foreach ($branches as $b): ?>
+                                                    <option value="<?= $b['branch_id'] ?>"><?= htmlspecialchars($b['branch_name']) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <div class="apt-field-err" data-err-for="apt_branch"></div>
                                         </div>
+                                        <?php endif; ?>
+                                        <div class="apt-label">Available Date <span class="apt-req" aria-hidden="true">*</span></div>
+                                        <div id="adminCalendarWrap" class="rounded-3 border">
+                                            <div class="slot-empty">
+                                                <svg width="30" height="30" viewBox="0 0 32 32" fill="none" style="margin-bottom:6px;opacity:0.3;">
+                                                    <rect x="3" y="5" width="26" height="22" rx="3" stroke="#6b7a8d" stroke-width="1.5" />
+                                                    <path d="M9 3v4M23 3v4M3 12h26" stroke="#6b7a8d" stroke-width="1.5" stroke-linecap="round" />
+                                                </svg><br>
+                                                Select a branch to load available dates.
+                                            </div>
+                                        </div>
+                                        <div class="apt-field-err" data-err-for="apt_date"></div>
                                     </div>
-                                    <div class="apt-field-err" data-err-for="apt_date"></div>
-                                    <div id="adminTimeSlots" class="mt-3" style="display:none;">
-                                        <div class="apt-label"><i class="feather-clock me-1"></i>Available Time Slots <span class="apt-req" aria-hidden="true">*</span></div>
-                                        <div id="adminTimeSlotsGrid"></div>
-                                    </div>
-                                    <div class="apt-field-err" data-err-for="apt_time"></div>
-                                    <input type="hidden" id="apt_date">
-                                    <input type="hidden" id="apt_time">
-                                    <div id="aptDateTimeSummary" class="apt-dt-summary" style="display:none;">
-                                        <i class="feather-check-circle"></i>
-                                        <span id="aptDateTimeText"></span>
+                                    <div class="apt-sched-right">
+                                        <div class="apt-slots-head">
+                                            <div class="apt-label mb-0"><i class="feather-clock me-1"></i>Available Time Slot <span class="apt-req" aria-hidden="true">*</span></div>
+                                            <button type="button" class="apt-slots-refresh" id="aptSlotsRefresh" hidden title="Check availability again">
+                                                <i class="feather-refresh-cw"></i> Refresh
+                                            </button>
+                                        </div>
+                                        <div id="adminTimeSlots">
+                                            <div id="adminTimeSlotsGrid">
+                                                <div class="slot-empty apt-slots-placeholder"><i class="feather-clock"></i><br>Choose a date to see the available times.</div>
+                                            </div>
+                                        </div>
+                                        <div class="apt-field-err" data-err-for="apt_time"></div>
+                                        <input type="hidden" id="apt_date">
+                                        <input type="hidden" id="apt_time">
+                                        <div id="aptDateTimeSummary" class="apt-dt-summary" style="display:none;">
+                                            <i class="feather-check-circle"></i>
+                                            <span id="aptDateTimeText"></span>
+                                        </div>
                                     </div>
                                 </div>
                             </section>
 
-                            <!-- ── RIGHT: Appointment Details ──────────────── -->
-                            <div class="apt-form-col">
-                                <section class="ar-card apt-form-card">
-                                    <div class="ar-card-header">
-                                        <span class="ar-card-icon"><i class="feather-user"></i></span>
-                                        <h6 class="ar-card-title">Patient &amp; Dentist</h6>
+                            <!-- ── Details: patient · dentist · services · notes ── -->
+                            <section class="ar-card apt-form-card apt-form-card-open apt-details-card">
+                                <div class="ar-card-header">
+                                    <span class="ar-card-icon"><i class="feather-user"></i></span>
+                                    <h6 class="ar-card-title" id="aptPatientCardTitle">Appointment Details</h6>
+                                </div>
+                                <div class="apt-form-card-body apt-details-body">
+                                    <div class="apt-field">
+                                        <label class="apt-label" for="apt_patient">Patient <span class="apt-req" aria-hidden="true">*</span></label>
+                                        <!-- Search by name or Patient ID (data-code → custom-select.js shows
+                                             "PAT-00007  Name", the ID small and grey, and matches both) -->
+                                        <select id="apt_patient" class="form-select js-custom-select" data-cs-float data-cs-search data-cs-no-placeholder
+                                                data-cs-search-placeholder="Search name or Patient ID…">
+                                            <option value=""> Select Patient </option>
+                                            <?php foreach ($patientsList as $pt): ?>
+                                                <option value="<?= (int)$pt['patient_id'] ?>" data-code="<?= htmlspecialchars((string)($pt['patient_code'] ?? '')) ?>"><?= htmlspecialchars($pt['full_name']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <div class="apt-field-err" data-err-for="apt_patient"></div>
                                     </div>
-                                    <div class="apt-form-card-body">
-                                        <div class="apt-field">
-                                            <label class="apt-label" for="apt_patient">Patient <span class="apt-req" aria-hidden="true">*</span></label>
-                                            <select id="apt_patient" class="form-select js-custom-select" data-cs-float data-cs-search data-cs-no-placeholder>
-                                                <option value=""> Select Patient </option>
-                                                <?php foreach ($patientsList as $pt): ?>
-                                                    <option value="<?= $pt['patient_id'] ?>"><?= htmlspecialchars($pt['full_name']) ?></option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <div class="apt-field-err" data-err-for="apt_patient"></div>
-                                        </div>
-                                        <div class="apt-field mb-0">
-                                            <label class="apt-label" for="apt_dentist">Dentist <span class="apt-opt">(optional)</span></label>
-                                            <select id="apt_dentist" class="form-select js-custom-select" data-cs-float data-cs-search disabled>
-                                                <option value=""> Select a branch first </option>
-                                            </select>
-                                        </div>
+                                    <!-- Add only. Edit keeps the stored dentist (not shown, not sent). -->
+                                    <div class="apt-field" id="aptDentistField">
+                                        <label class="apt-label" for="apt_dentist">Dentist <span class="apt-opt">(optional)</span></label>
+                                        <select id="apt_dentist" class="form-select js-custom-select" data-cs-float data-cs-search disabled>
+                                            <option value=""> Select a branch first </option>
+                                        </select>
+                                        <div class="apt-field-err" data-err-for="apt_dentist"></div>
                                     </div>
-                                </section>
 
-                                <!-- ── Multi-service picker ───────────────── -->
-                                <section class="ar-card apt-form-card apt-form-card-open">
-                                    <div class="ar-card-header">
-                                        <span class="ar-card-icon"><i class="feather-layers"></i></span>
-                                        <h6 class="ar-card-title">Services <span class="apt-opt">(optional · up to 3)</span></h6>
-                                    </div>
-                                    <div class="apt-form-card-body">
+                                    <!-- ── Multi-service picker ───────────────── -->
+                                    <div class="apt-field apt-svc-field">
+                                        <div class="apt-label">Services <span class="apt-opt">(optional · up to 3)</span></div>
                                         <div id="apt_svc_chips_wrap" style="display:none;margin-bottom:8px;">
                                             <div id="apt_svc_chips" class="d-flex flex-wrap gap-1"></div>
                                         </div>
@@ -786,49 +759,27 @@ function schStatusDisplay(string $s): string
                                         <p id="apt_svc_cap_msg" class="text-muted small mt-1 mb-0" style="display:none;font-size:.72rem;">
                                             <em>Maximum of 3 services per booking reached.</em>
                                         </p>
+                                        <p class="apt-svc-note mb-0">The visit length (and so the open times) follows the services.</p>
                                     </div>
-                                </section>
 
-                                <!-- Add mode only — hidden in Edit (status/notes are managed elsewhere in the workflow) -->
-                                <section class="ar-card apt-form-card" id="aptStatusNotesCard">
-                                    <div class="ar-card-header">
-                                        <span class="ar-card-icon"><i class="feather-clipboard"></i></span>
-                                        <h6 class="ar-card-title">Status &amp; Notes</h6>
+                                    <!-- Add mode only — Edit keeps the stored notes. No Status / Payment:
+                                         new appointments are saved as Confirmed; payments are recorded
+                                         in Billing & Payments. -->
+                                    <div class="apt-field mb-0 apt-notes-field" id="aptNotesField">
+                                        <label class="apt-label" for="apt_notes">Notes <span class="apt-opt">(optional)</span></label>
+                                        <textarea id="apt_notes" class="form-control" rows="2" maxlength="1000" placeholder="Optional notes..."></textarea>
                                     </div>
-                                    <div class="apt-form-card-body">
-                                        <div class="row g-3">
-                                            <div class="col-sm-6">
-                                                <label class="apt-label" for="apt_status">Status</label>
-                                                <select id="apt_status" class="form-select js-custom-select" data-cs-float>
-                                                    <option value="pending">Pending</option>
-                                                    <option value="confirmed">Confirmed</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-sm-6">
-                                                <label class="apt-label" for="apt_payment">Payment</label>
-                                                <select id="apt_payment" class="form-select js-custom-select" data-cs-float>
-                                                    <option value="unpaid">Unpaid</option>
-                                                    <option value="paid">Paid</option>
-                                                    <option value="partial">Partial</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-12">
-                                                <label class="apt-label" for="apt_notes">Notes <span class="apt-opt">(optional)</span></label>
-                                                <textarea id="apt_notes" class="form-control" rows="3" placeholder="Optional notes..."></textarea>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </section>
-                            </div>
+                                </div>
+                            </section>
                         </div>
                     </div>
                     <div class="modal-footer apt-record-footer apt-form-footer">
-                        <span class="apt-form-hint"><span class="apt-req">*</span> Required fields</span>
+                        <span class="apt-form-hint" id="aptFormHint"><span class="apt-req">*</span> Required fields</span>
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                             <button type="button" class="btn btn-primary px-4" id="modalSaveBtn" onclick="saveAppointment()">
                                 <i class="feather-save me-1"></i> Save Appointment
                             </button>
+                            <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -840,25 +791,23 @@ function schStatusDisplay(string $s): string
     <!-- ══════════════════════════════════════════════════════════
          COMPLETION MODAL
          ══════════════════════════════════════════════════════════ -->
-    <div class="modal fade" id="completionModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header border-0 pb-0">
-                    <div>
-                        <h5 class="modal-title fw-bold mb-0">
-                            <i class="feather-check-circle me-2 text-success"></i>Complete Appointment
-                        </h5>
-                        <p class="text-muted small mb-0">
-                            Review and adjust materials to deduct for
-                            <strong id="cmpl_appointment_code"></strong>
-                        </p>
+    <div class="modal fade es-detail-modal" id="completionModal" tabindex="-1" aria-labelledby="cmplTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg modal-fullscreen-sm-down apt-form-dialog rec-form-dialog">
+            <div class="modal-content apt-record-content">
+                <div class="modal-header apt-record-header">
+                    <div class="apt-record-title-wrap">
+                        <div class="apt-record-icon" aria-hidden="true"><i class="feather-check-circle"></i></div>
+                        <div class="min-w-0">
+                            <h5 class="apt-record-title mb-0" id="cmplTitle">Complete Appointment</h5>
+                            <div class="apt-record-meta">Review and adjust materials to deduct for <strong id="cmpl_appointment_code"></strong></div>
+                        </div>
                     </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
-                    <div id="cmpl_error" class="alert alert-danger small py-2 px-3 mb-3" style="display:none;"></div>
+                <div class="modal-body apt-form-body">
+                    <div id="cmpl_error" class="apt-form-alert" role="alert" style="display:none;"></div>
                     <div class="table-responsive mb-3">
-                        <table class="table table-sm mb-0">
+                        <table class="table table-sm mb-0 rec-table ar-table">
                             <thead class="table-light">
                                 <tr>
                                     <th>Item</th>
@@ -869,8 +818,8 @@ function schStatusDisplay(string $s): string
                             </thead>
                             <tbody id="cmpl_materials_body"></tbody>
                         </table>
-                        <div id="cmpl_no_materials" class="text-center py-3 text-muted small" style="display:none;">
-                            <i class="feather-info me-1"></i>No materials configured. Add items manually or proceed without deduction.
+                        <div id="cmpl_no_materials" class="rec-note mt-2 mb-0" style="display:none;">
+                            <i class="feather-info"></i><span>No materials are set up for this service. Add items below, or continue without deducting stock.</span>
                         </div>
                     </div>
                     <div class="card bg-light border-0 p-3">
@@ -886,16 +835,13 @@ function schStatusDisplay(string $s): string
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer border-0 d-flex justify-content-between">
-                    <p class="text-muted small mb-0">
-                        <i class="feather-alert-circle me-1 text-warning"></i>
-                        Stock will be deducted automatically upon confirmation.
-                    </p>
+                <div class="modal-footer apt-record-footer apt-form-footer">
+                    <span class="apt-form-hint"><i class="feather-alert-circle me-1 text-warning"></i>Stock is deducted when you confirm.</span>
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-light btn" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-success px-4" id="cmpl_confirm_btn" onclick="confirmCompletion()">
                             <i class="feather-check-circle me-1"></i> Confirm &amp; Complete
                         </button>
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -1008,10 +954,10 @@ function schStatusDisplay(string $s): string
 
                 <div class="modal-footer ci-footer">
                     <div class="ci-actions">
-                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-primary px-4" id="ci_submit_btn" onclick="submitCheckIn()">
                             <i class="feather-user-check me-1"></i> Confirm Check-In
                         </button>
+                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -1022,7 +968,7 @@ function schStatusDisplay(string $s): string
     <!-- ══════════════════════════════════════════════════════════
          VIEW APPOINTMENT MODAL
          ══════════════════════════════════════════════════════════ -->
-    <div class="modal fade" id="viewAppointmentModal" tabindex="-1" aria-labelledby="viewAptTitle" aria-hidden="true">
+    <div class="modal fade es-detail-modal ar-detail-modal" id="viewAppointmentModal" tabindex="-1" aria-labelledby="viewAptTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down apt-record-dialog">
             <div class="modal-content apt-record-content">
 
@@ -1108,10 +1054,12 @@ function schStatusDisplay(string $s): string
                                 </div>
                             </section>
 
+                            <!-- The appointment's own notes (appointments.notes), not treatment / clinical notes -->
                             <section class="ar-card ar-card-wide" id="view_notes_card">
                                 <div class="ar-card-header">
                                     <span class="ar-card-icon"><i class="feather-file-text"></i></span>
                                     <h6 class="ar-card-title">Notes</h6>
+                                    <span class="ar-card-sub">Appointment notes</span>
                                 </div>
                                 <div class="ar-card-fields">
                                     <p class="ar-notes" id="view_notes">—</p>
@@ -1137,10 +1085,26 @@ function schStatusDisplay(string $s): string
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/es-swal.js?v=2"></script>
-    <script src="assets/js/admin.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
-    <script src="assets/js/appointments.js?v=6"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
+    <script src="assets/js/admin.js?v=7"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
+    <script src="assets/js/apt-details.js?v=1"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
+    <script src="assets/js/es-records.js?v=3"></script>
+    <script>
+        // Branch open days / hours for the Add / Edit calendar — the same rules the
+        // Patient Portal booking uses (controllers/branch_config.php).
+        window.APT_BOOKING_BRANCHES = <?= json_encode((function () {
+            require_once __DIR__ . '/controllers/branch_config.php';
+            $out = [];
+            foreach (getBookingBranches() as $bb) {
+                $out[(string)$bb['branch_id']] = ['days' => array_values($bb['days']), 'exceptions' => (object)$bb['exceptions'], 'active' => $bb['active'], 'hours' => $bb['hours_label']];
+            }
+            return $out;
+        })(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+    </script>
+    <script>window.APT_FIXED_BRANCH = <?= (int)$aptFixedBranch ?>;</script>
+    <script src="assets/js/appointments.js?v=12"></script>
     <script>
         const CURRENT_USER_NAME = <?= json_encode($_SESSION['full_name'] ?? $_SESSION['username'] ?? '', JSON_HEX_TAG | JSON_HEX_QUOT) ?>;
 
@@ -1157,10 +1121,16 @@ function schStatusDisplay(string $s): string
             document.getElementById('modalSubtitle').textContent = 'Fill in the details below to schedule an appointment.';
             document.getElementById('modalError').style.display = 'none';
             if (typeof _aptClearFieldErrors === 'function') _aptClearFieldErrors();
-            document.getElementById('aptStatusNotesCard').style.display = '';
+            document.getElementById('aptNotesField').style.display = '';
+            document.getElementById('aptDentistField').style.display = '';
+            document.getElementById('aptPatientCardTitle').textContent = 'Appointment Details';
+            document.getElementById('aptFormHint').innerHTML = '<span class="apt-req">*</span> Required fields';
             window._aptEditPreset = null;
 
-            ['apt_branch', 'apt_patient', 'apt_notes'].forEach(id => {
+            // A branch-assigned account keeps its own branch (hidden field, set by the server)
+            const fixedBranch = window.APT_FIXED_BRANCH ? String(window.APT_FIXED_BRANCH) : '';
+            document.getElementById('apt_branch').value = fixedBranch;
+            ['apt_patient', 'apt_notes'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
@@ -1169,8 +1139,6 @@ function schStatusDisplay(string $s): string
             dentistSel.innerHTML = '<option value=""> Select a branch first </option>';
             dentistSel.disabled  = true;
 
-            document.getElementById('apt_status').value  = 'pending';
-            document.getElementById('apt_payment').value = 'unpaid';
             if (window.refreshCustomSelects) refreshCustomSelects(); // custom dropdowns show the reset values
             document.getElementById('apt_date').value    = '';
             document.getElementById('apt_time').value    = '';
@@ -1186,22 +1154,36 @@ function schStatusDisplay(string $s): string
                     </svg><br>Select a branch to load available dates.
                 </div>`;
 
-            document.getElementById('adminTimeSlots').style.display     = 'none';
+            if (window._aptSlotsPlaceholder) window._aptSlotsPlaceholder();
             document.getElementById('aptDateTimeSummary').style.display = 'none';
             document.getElementById('modalSaveBtn').innerHTML = '<i class="feather-save me-1"></i> Save Appointment';
 
             if (typeof _aptResetServicePicker === 'function') _aptResetServicePicker();
 
             new bootstrap.Modal(document.getElementById('appointmentModal')).show();
+            // Own branch: its dates and dentists load right away (no branch to pick)
+            if (fixedBranch) document.getElementById('apt_branch').dispatchEvent(new Event('change'));
         }
 
-        function openEditModal(appointmentId) {
+        // Edit Appointment: the signed-in owner / admin confirms their password
+        // first (verifyAdminPassword, assets/js/appointments.js → server check).
+        // Cancel or a wrong password → the edit form never opens.
+        async function openEditModal(appointmentId) {
+            if (!(await verifyAdminPassword(appointmentId))) return;
+            _openEditModalVerified(appointmentId);
+        }
+
+        function _openEditModalVerified(appointmentId) {
             document.getElementById('apt_id').value             = appointmentId;
             document.getElementById('modalTitle').textContent   = 'Edit Appointment';
             document.getElementById('modalSubtitle').textContent = 'Update the schedule, patient or services, then save your changes.';
             document.getElementById('modalError').style.display = 'none';
             if (typeof _aptClearFieldErrors === 'function') _aptClearFieldErrors();
-            document.getElementById('aptStatusNotesCard').style.display = 'none';
+            document.getElementById('aptNotesField').style.display = 'none';
+            // No Dentist field when editing: the stored dentist is kept as it is
+            document.getElementById('aptDentistField').style.display = 'none';
+            document.getElementById('aptPatientCardTitle').textContent = 'Patient & Services';
+            document.getElementById('aptFormHint').innerHTML = '<span class="apt-req">*</span> Required fields';
             window._aptEditPreset = null;
 
             const calWrap = document.getElementById('adminCalendarWrap');
@@ -1214,7 +1196,7 @@ function schStatusDisplay(string $s): string
                         <path d="M9 3v4M23 3v4M3 12h26" stroke="#6b7a8d" stroke-width="1.5" stroke-linecap="round"/>
                     </svg><br>Select a branch to load available dates.
                 </div>`;
-            document.getElementById('adminTimeSlots').style.display     = 'none';
+            if (window._aptSlotsPlaceholder) window._aptSlotsPlaceholder();
             document.getElementById('aptDateTimeSummary').style.display = 'none';
             document.getElementById('modalSaveBtn').innerHTML           = '<i class="feather-save me-1"></i> Save Changes';
 
@@ -1222,11 +1204,9 @@ function schStatusDisplay(string $s): string
 
             new bootstrap.Modal(document.getElementById('appointmentModal')).show();
 
-            fetch(`api/appointments.php?id=${appointmentId}`)
-                .then(r => r.json())
-                .then(data => {
-                    if (!data.success) throw new Error(data.message || 'Could not load appointment.');
-                    const apt = data.data;
+            // Always fresh from the server for editing (same shared loader)
+            AptDetails.get(appointmentId, { fresh: true })
+                .then(apt => {
 
                     const branchSel  = document.getElementById('apt_branch');
                     const patientSel = document.getElementById('apt_patient');
@@ -1252,22 +1232,11 @@ function schStatusDisplay(string $s): string
                         document.getElementById('aptDateTimeSummary').style.display = 'flex';
                     }
 
-                    if (apt.branch_id) {
-                        branchSel.dispatchEvent(new Event('change'));
-                        const waitForDentists = setInterval(() => {
-                            const sel = document.getElementById('apt_dentist');
-                            if (sel && !sel.disabled && sel.options.length > 1) {
-                                sel.value = apt.dentist_id || '';
-                                if (sel._csRefresh) sel._csRefresh();
-                                clearInterval(waitForDentists);
-                            }
-                        }, 100);
-                        setTimeout(() => clearInterval(waitForDentists), 3000);
-                    }
-
+                    // Services first: the visit length decides which times are open
                     if (typeof _aptLoadExistingServices === 'function') {
                         _aptLoadExistingServices(apt.appointment_services || []);
                     }
+                    if (apt.branch_id) branchSel.dispatchEvent(new Event('change'));
                 })
                 .catch(err => {
                     document.getElementById('modalError').textContent   = err.message;
@@ -1286,20 +1255,34 @@ function schStatusDisplay(string $s): string
             );
         });
 
+        // View Appointment — shared loader + in-memory cache (assets/js/apt-details.js):
+        // one request per appointment; reopening shows the cached copy at once
+        // (refreshed in the background when older than 30 s); any write on the
+        // page clears the cache. The spinner shows only for a real fetch.
+        let _viewAptId = null;
         function viewAppointment(appointmentId) {
-            document.getElementById('view_loading').style.display  = 'block';
-            document.getElementById('view_body').style.display     = 'none';
-            document.getElementById('view_error').style.display    = 'none';
-            document.getElementById('view_apt_code_sub').textContent = '—';
+            _viewAptId = appointmentId;
+            const fromCache = AptDetails.open(appointmentId, {
+                onData: apt => { if (_viewAptId === appointmentId) _renderViewAppointment(apt); },
+                onError: err => {
+                    if (_viewAptId !== appointmentId) return;
+                    document.getElementById('view_loading').style.display = 'none';
+                    document.getElementById('view_body').style.display    = 'none';
+                    document.getElementById('view_error').textContent     = err.message;
+                    document.getElementById('view_error').style.display   = 'block';
+                },
+            });
+            if (!fromCache) {
+                document.getElementById('view_loading').style.display  = 'block';
+                document.getElementById('view_body').style.display     = 'none';
+                document.getElementById('view_error').style.display    = 'none';
+                document.getElementById('view_apt_code_sub').textContent = '—';
+            }
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('viewAppointmentModal')).show();
+        }
 
-            new bootstrap.Modal(document.getElementById('viewAppointmentModal')).show();
-
-            fetch(`api/appointments.php?id=${appointmentId}`)
-                .then(r => r.json())
-                .then(data => {
-                    if (!data.success) throw new Error(data.message || 'Failed to load.');
-
-                    const apt = data.data;
+        function _renderViewAppointment(apt) {
+                    document.getElementById('view_error').style.display = 'none';
 
                     const dateStr = apt.appointment_date
                         ? new Date(apt.appointment_date + 'T00:00:00')
@@ -1364,17 +1347,13 @@ function schStatusDisplay(string $s): string
                     document.getElementById('view_services').innerHTML          = svcNames.map(n => `<li>${esc(n)}</li>`).join('');
                     document.getElementById('view_status').innerHTML            = `<span class="badge ar-dot ${statusClass}">${esc(statusLabel)}</span>`;
                     document.getElementById('view_payment').innerHTML           = `<span class="badge ar-dot ${paymentClass}">${esc(paymentLabel)}</span>`;
-                    document.getElementById('view_notes').textContent           = notes;
-                    document.getElementById('view_notes_card').style.display    = notes ? '' : 'none';
+                    // Appointment notes (appointments.notes) — not treatment / clinical notes
+                    const notesEl = document.getElementById('view_notes');
+                    notesEl.textContent = notes || 'No notes available.';
+                    notesEl.classList.toggle('ar-muted', !notes);
 
                     document.getElementById('view_loading').style.display = 'none';
                     document.getElementById('view_body').style.display    = 'block';
-                })
-                .catch(err => {
-                    document.getElementById('view_loading').style.display = 'none';
-                    document.getElementById('view_error').textContent     = err.message;
-                    document.getElementById('view_error').style.display   = 'block';
-                });
         }
     </script>
 </body>

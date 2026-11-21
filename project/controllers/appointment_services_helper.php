@@ -21,8 +21,21 @@ function attachAppointmentServiceNames(array $rows): array
     $ids = array_values(array_unique(array_filter(array_map(
         fn($r) => (int)($r['appointment_id'] ?? 0), $rows))));
 
+    // Rows that already carry appointment_services(sort_order,services(service_name))
+    // embedded (the Schedule / Records list queries) need no extra request.
+    $embedded = $rows && !array_filter($rows, fn($r) => !is_array($r['appointment_services'] ?? null));
+
     $map = [];
-    if ($ids) {
+    if ($embedded) {
+        foreach ($rows as $r) {
+            $svc = $r['appointment_services'];
+            usort($svc, fn($a, $b) => (int)($a['sort_order'] ?? 0) <=> (int)($b['sort_order'] ?? 0));
+            foreach ($svc as $row) {
+                $name = $row['services']['service_name'] ?? null;
+                if ($name) $map[(int)$r['appointment_id']][] = $name;
+            }
+        }
+    } elseif ($ids) {
         $res = supabase_request('appointment_services', 'GET', [],
             'appointment_id=in.(' . implode(',', $ids) . ')' .
             '&select=appointment_id,sort_order,services(service_name)' .
@@ -37,6 +50,7 @@ function attachAppointmentServiceNames(array $rows): array
         $names = $map[(int)($r['appointment_id'] ?? 0)] ?? [];
         if (!$names && !empty($r['services']['service_name'])) $names = [$r['services']['service_name']];
         $r['all_service_names'] = $names;
+        unset($r['appointment_services']);
     }
     unset($r);
     return $rows;

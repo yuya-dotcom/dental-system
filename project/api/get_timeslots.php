@@ -1,7 +1,12 @@
 <?php
 // =============================================================
 //  api/get_timeslots.php
-//  GET ?date=YYYY-MM-DD&branch=ID[&services=1,2,3]
+//  GET ?date=YYYY-MM-DD&branch=ID[&services=1,2,3][&exclude=APPOINTMENT_ID]
+//
+//  Used by the Patient Portal booking page AND the admin Add / Edit
+//  Appointment modal (assets/js/appointments.js) — same rules for both.
+//  exclude: staff editing an appointment (owner / admin of its branch) —
+//  that appointment doesn't block its own time (controllers/booking_staff.php).
 //
 //  Start times for one branch and day, built from the branch's
 //  open/close time. When services are given, each start time is checked
@@ -18,10 +23,14 @@
 
 header('Content-Type: application/json');
 require_once __DIR__ . '/../controllers/branch_config.php';
+require_once __DIR__ . '/../controllers/booking_staff.php';
+require_once __DIR__ . '/../controllers/appointment_lifecycle.php';
+aptSweepNoShows();   // ended, never-checked-in appointments → no_show (throttled, server-side)
 
 $date       = trim($_GET['date'] ?? '');
 $branchId   = (int)($_GET['branch'] ?? 0);
 $serviceIds = cleanServiceIds($_GET['services'] ?? '');
+$exclude    = bookingStaffExclude((int)($_GET['exclude'] ?? 0));
 
 if (!isValidIsoDate($date)) {
     echo json_encode(['error' => 'Invalid date.']);
@@ -55,7 +64,7 @@ if ($reason) {
     exit;
 }
 
-$ranges = getBookedRanges($branchId, $date, $date);
+$ranges = getBookedRanges($branchId, $date, $date, $exclude);
 if (isset($ranges['__error'])) {
     http_response_code(500);
     echo json_encode(['error' => 'Could not load time slots.']);

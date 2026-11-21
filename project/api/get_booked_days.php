@@ -1,7 +1,8 @@
 <?php
 // =============================================================
 //  api/get_booked_days.php
-//  GET ?start=YYYY-MM-DD&end=YYYY-MM-DD&branch=ID[&services=1,2,3]
+//  GET ?start=YYYY-MM-DD&end=YYYY-MM-DD&branch=ID[&services=1,2,3][&exclude=APPOINTMENT_ID]
+//  (exclude: see api/get_timeslots.php — staff editing an appointment only)
 //
 //  Dates in [start, end) where the branch is open but no start time is
 //  left for the visit (sum of the chosen services' durations; 30 minutes
@@ -13,11 +14,13 @@
 
 header('Content-Type: application/json');
 require_once __DIR__ . '/../controllers/branch_config.php';
+require_once __DIR__ . '/../controllers/booking_staff.php';
 
 $start      = trim($_GET['start'] ?? '');
 $end        = trim($_GET['end']   ?? '');
 $branchId   = (int)($_GET['branch'] ?? 0);
 $serviceIds = cleanServiceIds($_GET['services'] ?? '');
+$exclude    = bookingStaffExclude((int)($_GET['exclude'] ?? 0));
 
 $branch = getBookingBranch($branchId);
 if (!$branch || !isValidIsoDate($start) || !isValidIsoDate($end) || $end <= $start) {
@@ -37,7 +40,7 @@ if ($visit['error']) {
     exit;
 }
 
-$ranges = getBookedRanges($branchId, $from->format('Y-m-d'), $lastDay);
+$ranges = getBookedRanges($branchId, $from->format('Y-m-d'), $lastDay, $exclude);
 if (isset($ranges['__error'])) {
     echo json_encode(['fully_booked' => []]);
     exit;

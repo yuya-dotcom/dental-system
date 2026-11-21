@@ -1,13 +1,8 @@
 <?php
 // =============================================================
 //  api/appointment_crud.php
-//  Handles: add, edit, delete appointments
+//  Handles: delete appointments (add / edit live in api/appointments.php)
 //  Called via fetch() from appointments-schedule.php
-//
-//  FIXED: Removed orphaned code that was outside functions
-//         (the log_action calls after editAppointment and
-//          deleteAppointment were unreachable dead code and
-//          caused PHP parse errors).
 // =============================================================
 session_start();
 require_once __DIR__ . '/../dbconfig.php';
@@ -23,117 +18,17 @@ $input  = json_decode(file_get_contents('php://input'), true) ?? [];
 $action = $input['action'] ?? $_POST['action'] ?? '';
 
 switch ($action) {
-    case 'add':    echo json_encode(addAppointment($input));    break;
-    case 'edit':   echo json_encode(editAppointment($input));   break;
+    // Add / edit live in ONE place: api/appointments.php (POST / PUT) — branch
+    // from the session, CONFIRMED status, the Patient Portal's availability
+    // rules, password re-check for edits. These old actions skipped all of that
+    // and are no longer used by any page, so they are refused.
+    case 'add':
+    case 'edit':
+        http_response_code(410);
+        echo json_encode(['success' => false, 'message' => 'Please use Appointments → Add / Edit Appointment.']);
+        break;
     case 'delete': echo json_encode(deleteAppointment($input)); break;
     default:       echo json_encode(['success' => false, 'message' => 'Invalid action.']);
-}
-
-// ─────────────────────────────────────────────────────────────
-//  ADD
-// ─────────────────────────────────────────────────────────────
-function addAppointment(array $d): array
-{
-    $required = ['patient_id', 'branch_id', 'appointment_date', 'appointment_time', 'status'];
-    foreach ($required as $f) {
-        if (empty($d[$f])) return ['success' => false, 'message' => "Field '{$f}' is required."];
-    }
-
-    // Validate status value
-    $allowedStatuses = ['pending', 'confirmed', 'checked_in', 'completed', 'cancelled'];
-    if (!in_array($d['status'], $allowedStatuses)) {
-        return ['success' => false, 'message' => 'Invalid status value.'];
-    }
-    if (!canAccessBranch((int)$d['branch_id'])) apiDeny(403, 'You can only manage appointments in your own branch.');
-
-    $payload = [
-        'patient_id'       => (int)$d['patient_id'],
-        'branch_id'        => (int)$d['branch_id'],
-        'dentist_id'       => !empty($d['dentist_id']) ? (int)$d['dentist_id'] : null,
-        'service_id'       => !empty($d['service_id']) ? (int)$d['service_id'] : null,
-        'appointment_date' => $d['appointment_date'],
-        'appointment_time' => $d['appointment_time'],
-        'appointment_type' => $d['appointment_type'] ?? 'Consultation',
-        'notes'            => !empty($d['notes']) ? $d['notes'] : null,
-        'status'           => $d['status'],
-        'payment_status'   => $d['payment_status'] ?? 'unpaid',
-    ];
-
-    $result = supabase_request('appointments', 'POST', $payload);
-
-    if ($result['error']) {
-        return ['success' => false, 'message' => $result['error']];
-    }
-    if (!empty($result['data'][0])) notif_appointment($result['data'][0]);
-
-    // Log to universal audit trail
-    $patientName = getPatientNameForAudit((int)$d['patient_id']);
-    logActivity(
-        'appointment-schedules',
-        'INSERT',
-        $result['data'][0]['appointment_id'] ?? $d['patient_id'],
-        $patientName,
-        'New appointment added for ' . $patientName .
-            ' on ' . $d['appointment_date'] . ' at ' . $d['appointment_time']
-    );
-
-    return ['success' => true, 'message' => 'Appointment added successfully.'];
-}
-
-// ─────────────────────────────────────────────────────────────
-//  EDIT
-// ─────────────────────────────────────────────────────────────
-function editAppointment(array $d): array
-{
-    if (empty($d['appointment_id'])) {
-        return ['success' => false, 'message' => 'Missing appointment ID.'];
-    }
-
-    // Validate status value
-    $allowedStatuses = ['pending', 'confirmed', 'checked_in', 'completed', 'cancelled'];
-    if (!empty($d['status']) && !in_array($d['status'], $allowedStatuses)) {
-        return ['success' => false, 'message' => 'Invalid status value.'];
-    }
-    // Current branch (from the database) and the target branch must both be the user's
-    requireAppointmentBranch((int)$d['appointment_id']);
-    if (!canAccessBranch((int)($d['branch_id'] ?? 0))) apiDeny(403, 'You can only manage appointments in your own branch.');
-
-    $payload = [
-        'patient_id'       => (int)$d['patient_id'],
-        'branch_id'        => (int)$d['branch_id'],
-        'dentist_id'       => !empty($d['dentist_id']) ? (int)$d['dentist_id'] : null,
-        'service_id'       => !empty($d['service_id']) ? (int)$d['service_id'] : null,
-        'appointment_date' => $d['appointment_date'],
-        'appointment_time' => $d['appointment_time'],
-        'appointment_type' => $d['appointment_type'] ?? 'Consultation',
-        'notes'            => !empty($d['notes']) ? $d['notes'] : null,
-        'status'           => $d['status'],
-        'payment_status'   => $d['payment_status'] ?? 'unpaid',
-        'updated_at'       => date('c'),
-    ];
-
-    $before = notif_appt_snapshot((int)$d['appointment_id']);
-    $result = supabase_request(
-        'appointments', 'PATCH', $payload,
-        'appointment_id=eq.' . (int)$d['appointment_id']
-    );
-
-    if ($result['error']) {
-        return ['success' => false, 'message' => $result['error']];
-    }
-    notif_appointment($result['data'][0] ?? (int)$d['appointment_id'], $before);
-
-    // Log to universal audit trail
-    $patientName = getPatientNameForAudit((int)$d['patient_id']);
-    logActivity(
-        'appointment-schedules',
-        'UPDATE',
-        (int)$d['appointment_id'],
-        $patientName,
-        'Appointment updated' . (!empty($d['status']) ? ' — status: ' . $d['status'] : '')
-    );
-
-    return ['success' => true, 'message' => 'Appointment updated successfully.'];
 }
 
 // ─────────────────────────────────────────────────────────────

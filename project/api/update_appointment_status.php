@@ -41,6 +41,28 @@ requireAppointmentBranch($appointmentId);   // the appointment's real branch
 // ── Fetch current state BEFORE update (for rich audit log) ──
 $info = getAppointmentInfoForAudit($appointmentId);
 
+// ── Cancel: same shared write as api/appointments.php (reason required;
+//    who / when / why recorded — controllers/appointment_lifecycle.php) ──
+if ($newStatus === 'cancelled') {
+    require_once __DIR__ . '/../controllers/appointment_lifecycle.php';
+    [$reason, $rErr] = aptCleanCancelReason($body['reason'] ?? '');
+    if ($rErr) {
+        echo json_encode(['success' => false, 'code' => $rErr, 'message' => 'Please enter the reason for cancelling this appointment (up to ' . APT_CANCEL_REASON_MAX . ' characters).']);
+        exit;
+    }
+    $c = aptCancel($appointmentId, [
+        'type' => 'staff', 'user_id' => (int)($_SESSION['user_id'] ?? 0),
+        'name' => (string)($_SESSION['full_name'] ?? 'Staff'), 'role' => (string)($_SESSION['role'] ?? ''),
+    ], $reason, ['pending', 'confirmed', 'checked_in']);
+    if ($c['ok']) {
+        logActivity('appointment-schedules', 'UPDATE', $appointmentId, $info['patient_name'],
+            'Appointment status changed from ' . ucfirst(str_replace('_', ' ', (string)$c['prev'])) . ' to Cancelled — Reason: ' . $reason);
+    }
+    echo json_encode($c['ok'] ? ['success' => true, 'message' => 'The appointment has been cancelled.']
+                              : ['success' => false, 'code' => $c['code'], 'message' => $c['message']]);
+    exit;
+}
+
 // ── Perform the update ───────────────────────────────────────
 $result = updateAppointmentStatus($appointmentId, $newStatus);
 

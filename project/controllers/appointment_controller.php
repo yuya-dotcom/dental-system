@@ -51,7 +51,9 @@ function appointmentScheduleQuery(int $page, int $branchId, string $status, stri
     $q = [
         'select=appointment_id,appointment_code,appointment_date,appointment_time,'
             . 'status,payment_status,patient_id,branch_id,notes,'
-            . 'patients(patient_code,full_name,contact_number),branches(branch_name),services(service_name)',
+            . 'patients(patient_code,full_name,contact_number),branches(branch_name),services(service_name),'
+            // every chosen service, embedded: no separate appointment_services round trip
+            . 'appointment_services(sort_order,services(service_name))',
         // Default: soonest appointment first
         $order,
         'limit='  . APT_PER_PAGE,
@@ -103,7 +105,8 @@ function appointmentRecordsQuery(int $page, int $branchId, string $status, strin
 
     $q = [
         'select=appointment_id,appointment_code,appointment_date,appointment_time,'
-            . 'status,payment_status,patient_id,patients(full_name),branches(branch_name),services(service_name)',
+            . 'status,payment_status,patient_id,patients(full_name,patient_code),branches(branch_name),services(service_name),'
+            . 'appointment_services(sort_order,services(service_name))',   // embedded: no extra round trip
         // Default: soonest appointment first
         $order,
         'limit='  . APT_PER_PAGE,
@@ -123,7 +126,11 @@ function appointmentRecordsQuery(int $page, int $branchId, string $status, strin
  */
 function updateAppointmentStatus(int $appointmentId, string $newStatus): array
 {
-    $allowed = ['confirmed', 'completed', 'cancelled', 'no_show'];
+    // Same rules as api/appointments.php (PATCH): only a pending appointment is
+    // confirmed here. Completing goes through Active Treatments → Finish; no-show
+    // is automatic (appointment_lifecycle.php); cancelling needs a reason and
+    // goes through aptCancel() (api/update_appointment_status.php).
+    $allowed = ['confirmed'];
 
     if ($appointmentId < 1 || !in_array($newStatus, $allowed, true)) {
         return ['success' => false, 'message' => 'Invalid input.'];
@@ -135,11 +142,14 @@ function updateAppointmentStatus(int $appointmentId, string $newStatus): array
         'appointments',
         'PATCH',
         ['status' => $newStatus, 'updated_at' => date('c')],
-        'appointment_id=eq.' . $appointmentId
+        'appointment_id=eq.' . $appointmentId . '&status=in.(pending,confirmed)'
     );
 
     if ($result['error']) {
         return ['success' => false, 'message' => 'Update failed: ' . $result['error']];
+    }
+    if (empty($result['data'][0])) {
+        return ['success' => false, 'message' => 'This appointment can no longer be confirmed. Please refresh the list.'];
     }
 
     notif_appointment($result['data'][0] ?? $appointmentId, $before);
@@ -177,53 +187,12 @@ function updateAppointmentStatus(int $appointmentId, string $newStatus): array
  */
 function expireOverdueAppointments(int $branchId = 0): int
 {
-    $nowDate = date('Y-m-d');   // e.g. 2026-09-28
-    $nowTime = date('H:i:s');   // e.g. 09:30:00
-
-    // PostgREST OR filter:
-    //   appointment_date < today
-    //   OR (appointment_date = today AND appointment_time < now)
-    $orFilter = 'or=(appointment_date.lt.' . $nowDate
-              . ',and(appointment_date.eq.' . $nowDate
-              . ',appointment_time.lt.'     . $nowTime . '))';
-
-    $filterParts = [
-        $orFilter,
-        'status=in.(pending,confirmed)',   // only unhandled appointments
-    ];
-
-    if ($branchId > 0) {
-        $filterParts[] = 'branch_id=eq.' . $branchId;
-    }
-
-    $result = supabase_request(
-        'appointments',
-        'PATCH',
-        [
-            'status'     => 'no_show',
-            'updated_at' => date('c'),
-        ],
-        implode('&', $filterParts)
-    );
-
-    if ($result['error']) {
-        // Fail silently — the page still loads normally.
-        // Errors here are non-critical (network blip, etc.).
-        return 0;
-    }
-
-    // PATCH returns the updated rows (return=representation) → notify each patient
-    foreach ((is_array($result['data']) ? $result['data'] : []) as $row) {
-        if (is_array($row)) notif_appointment($row, ['status' => 'pending'] + $row);
-    }
-
-    // Best-effort count from Content-Range header (e.g. "0-4/5" → 5)
-    $cr = $result['headers']['content-range'] ?? '';
-    if ($cr && str_contains($cr, '/')) {
-        return (int) explode('/', $cr)[1];
-    }
-
-    return 0;
+    // One rule for every caller (pages, APIs, portal, cron): see
+    // controllers/appointment_lifecycle.php → aptSweepNoShows(). It covers all
+    // branches, waits until the booked visit has ENDED (Asia/Manila), skips
+    // appointments that were checked in, and is throttled + idempotent.
+    require_once __DIR__ . '/appointment_lifecycle.php';
+    return count(aptSweepNoShows());
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -321,63 +290,6 @@ if (!function_exists('buildPageResult')) {
             'to'           => min($offset + $perPage, $total),
         ];
     }
-}
-
-// ─────────────────────────────────────────────────────────────
-//  BOOKING FUNCTIONS (used by api/book_appointment.php)
-// ─────────────────────────────────────────────────────────────
-
-/**
- * Check if a time slot is still available at a branch on a date.
- * Returns true if slot is free, false if taken.
- */
-function isSlotAvailable(string $date, string $time, int $branchId): bool
-{
-    $result = supabase_request('appointments', 'GET', [], implode('&', [
-        'appointment_date=eq.' . $date,
-        'appointment_time=eq.' . $time,
-        'branch_id=eq.'        . $branchId,
-        'status=neq.cancelled',
-        'status=neq.no_show',
-        'select=appointment_id',
-    ]));
-
-    // If query errored, treat as unavailable to be safe
-    if ($result['error']) return false;
-
-    return empty($result['data']);
-}
-
-/**
- * Create a new appointment row.
- * Returns ['appointment_code' => string, 'error' => string|null]
- */
-function createAppointment(int $patientId, int $branchId, string $date, string $time, ?int $serviceId): array
-{
-    $payload = [
-        'patient_id'       => $patientId,
-        'branch_id'        => $branchId,
-        'appointment_date' => $date,
-        'appointment_time' => $time,
-        'appointment_type' => 'Consultation',
-        'status'           => 'pending',
-        'payment_status'   => 'unpaid',
-    ];
-    if ($serviceId) $payload['service_id'] = $serviceId;
-
-    $result = supabase_request('appointments', 'POST', $payload);
-
-    if ($result['status'] === 409) {
-        return ['appointment_code' => null, 'error' => 'That time slot was just taken. Please choose another time.'];
-    }
-
-    if ($result['error'] || empty($result['data'][0])) {
-        return ['appointment_code' => null, 'error' => 'Could not save appointment. Please try again.'];
-    }
-
-    notif_appointment($result['data'][0]);
-
-    return ['appointment_code' => $result['data'][0]['appointment_code'], 'error' => null];
 }
 
 // ─────────────────────────────────────────────────────────────

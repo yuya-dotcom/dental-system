@@ -1,0 +1,299 @@
+/* =============================================================
+   assets/css/appointments-records.css — appointments-records.php
+   The Analytics / Dashboard design language (assets/css/analytics.css:
+   tokens, pills, icon chips) applied to the records list and to the
+   Appointment Details modal. The table and modal rules are the shared
+   design for every records page: other pages add .an-page.ar-page to the
+   main content, .ar-table to the list table and .ar-detail-modal to their
+   View Details modal (see the end of this file).
+   ============================================================= */
+
+/* ── Extra pill / chip tones used here ─────────────────────── */
+.an-pill.violet { background: #f1ebfa; color: #7246b5; }
+.an-pill.slate  { background: #eef2f7; color: #475569; }
+html.app-skin-dark .an-pill.violet { background: rgba(169, 139, 224, .14); color: #bda4ec; }
+html.app-skin-dark .an-pill.slate  { background: #1c2740; color: #a3afc2; }
+
+/* ── Quick status chips ────────────────────────────────────── */
+.ar-quick { display: flex; gap: .4rem; flex-wrap: wrap; padding: .9rem 1.5rem; border-bottom: 1px solid var(--an-line-soft); }
+.ar-quick-btn { display: inline-flex; align-items: center; gap: .45rem; height: 30px; padding: 0 .8rem; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+  color: var(--an-muted); background: var(--an-surface); border: 1px solid var(--an-line); transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
+.ar-quick-btn:hover { color: var(--an-ink); border-color: #c9d3e1; }
+.ar-quick-btn.is-active { background: var(--an-primary); border-color: var(--an-primary); color: #fff; }
+.ar-quick-btn:focus-visible { outline: 2px solid var(--an-primary); outline-offset: 2px; }
+.ar-qdot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.ar-qdot.t-warn   { background: #e29a1c; }
+.ar-qdot.t-info   { background: #185fa5; }
+.ar-qdot.t-violet { background: #8b5cc7; }
+.ar-qdot.t-up     { background: #1f9d63; }
+.ar-qdot.t-down   { background: #d23f3f; }
+.ar-qdot.t-slate  { background: #94a3b8; }
+.ar-quick-btn.is-active .ar-qdot { box-shadow: 0 0 0 2px rgba(255, 255, 255, .85); }
+html.app-skin-dark .ar-quick-btn:hover { border-color: #334155; }
+
+/* ── Table ─────────────────────────────────────────────────── */
+.ar-page .ar-table thead th { font-size: 11.5px; font-weight: 600; letter-spacing: .01em; text-transform: none; color: var(--an-muted); background: var(--an-tint);
+  padding-top: .7rem; padding-bottom: .7rem; border-bottom: 1px solid var(--an-line); }
+.ar-page .ar-table thead th a { color: inherit; }
+.ar-page .ar-table tbody td { padding-top: .8rem; padding-bottom: .8rem; vertical-align: middle; border-bottom: 1px solid var(--an-line-soft); }
+.ar-page .ar-table tbody tr { transition: background-color .12s ease; }
+.ar-page .ar-table tbody tr:hover td { background: var(--an-tint); }
+.ar-page .ar-table tbody tr.is-today td:first-child { box-shadow: inset 3px 0 0 var(--an-primary); }
+.ar-page .ar-table td:first-child, .ar-page .ar-table th:first-child { padding-left: 1.5rem; }
+.ar-page .ar-table td:last-child, .ar-page .ar-table th:last-child { padding-right: 1.5rem; }
+
+/* Date / time */
+.ar-when { display: flex; align-items: center; gap: .8rem; }
+.ar-datechip { width: 44px; height: 46px; border-radius: 10px; flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--an-surface); border: 1px solid var(--an-line); overflow: hidden; line-height: 1; }
+.ar-datechip .m { width: 100%; text-align: center; font-size: 10px; font-weight: 700; color: #fff; background: var(--an-hist); padding: 3px 0; letter-spacing: .02em; }
+.ar-datechip .d { font-size: 17px; font-weight: 700; color: var(--an-ink); padding-top: 4px; font-variant-numeric: tabular-nums; }
+.ar-when-date { font-size: 13px; font-weight: 600; color: var(--an-ink); white-space: nowrap; }
+.ar-when-time { font-size: 12px; color: var(--an-muted); margin-top: .15rem; display: flex; align-items: center; gap: .35rem; white-space: nowrap; }
+.ar-when-time i { font-size: 11px; }
+
+/* Patient */
+.ar-who { display: flex; align-items: center; gap: .75rem; min-width: 0; }
+.ar-avatar { width: 36px; height: 36px; border-radius: 50%; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12.5px; font-weight: 700; letter-spacing: .02em; }
+.ar-who-name { display: block; font-size: 13.5px; font-weight: 600; color: var(--an-ink); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ar-who-name:hover { color: var(--an-primary); text-decoration: underline; text-underline-offset: 3px; }
+.ar-who-code { font-size: 11.5px; color: var(--an-muted); margin-top: .1rem; font-variant-numeric: tabular-nums; }
+
+/* Branch / service */
+.ar-branch { display: inline-flex; align-items: center; gap: .55rem; font-size: 13px; color: var(--an-ink); white-space: nowrap; }
+.ar-service { font-size: 13px; color: var(--an-ink); }
+
+/* Status pill with a dot */
+.ar-status { font-size: 12px; padding: .25rem .65rem; gap: .4rem; }
+.ar-sdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+
+/* Actions: quick View + more */
+.ar-actions { display: inline-flex; align-items: center; gap: .4rem; justify-content: flex-end; }
+/* The ⋮ trigger and its menu: assets/css/es-actions.css (shared by every module) */
+
+/* Empty state */
+.ar-page td.ar-empty { text-align: center; padding: 3rem 1rem !important; }
+.ar-empty .an-ico { margin-bottom: .75rem; }
+.ar-empty-title { font-size: 15px; font-weight: 700; color: var(--an-ink); }
+.ar-empty-text { font-size: 13px; color: var(--an-muted); margin-top: .25rem; }
+
+/* Footer + pagination */
+.ar-foot { padding: .9rem 1.5rem; border-top: 1px solid var(--an-line-soft); background: transparent; }
+.ar-foot-count { font-size: 12.5px; color: var(--an-muted); display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.ar-foot-count b { color: var(--an-ink); font-weight: 600; }
+.ar-clear { display: inline-flex; align-items: center; gap: .3rem; color: var(--an-bad); font-weight: 600; }
+.ar-page .pagination-common-style a { border-radius: 8px !important; }
+.ar-page .pagination-common-style a.active { background: var(--an-primary) !important; border-color: var(--an-primary) !important; color: #fff !important; }
+
+/* Phones (Appointment Records table only — .ar-cards-sm; wider tables on other pages scroll instead): rows keep date + patient + status; branch / service drop to save width */
+@media (max-width: 767.98px) {
+  .ar-quick { padding: .75rem 1rem; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .ar-quick::-webkit-scrollbar { display: none; }
+  .ar-quick-btn { flex: 0 0 auto; }
+  /* Each appointment becomes a compact card: patient + actions, then when / status / branch */
+  .ar-page .ar-table.ar-cards-sm thead { display: none; }
+  .ar-page .ar-table.ar-cards-sm, .ar-page .ar-table.ar-cards-sm tbody { display: block; width: 100%; min-width: 0 !important; }
+  .ar-page .ar-table.ar-cards-sm tbody td { min-width: 0 !important; width: auto !important; }
+  .ar-page .ar-table.ar-cards-sm tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "who act" "when status" "branch branch";
+    gap: .55rem .75rem; padding: .9rem 1rem; border-bottom: 1px solid var(--an-line-soft); }
+  .ar-page .ar-table.ar-cards-sm tbody td { display: block; padding: 0 !important; border: 0 !important; background: transparent !important; }
+  .ar-page .ar-table.ar-cards-sm tbody td:nth-child(1) { grid-area: when; }
+  .ar-page .ar-table.ar-cards-sm tbody td:nth-child(2) { grid-area: who; }
+  .ar-page .ar-table.ar-cards-sm tbody td:nth-child(3) { grid-area: branch; }
+  .ar-page .ar-table.ar-cards-sm tbody td:nth-child(4) { grid-area: status; align-self: center; text-align: right; }
+  .ar-page .ar-table.ar-cards-sm tbody td:nth-child(5) { grid-area: act; }
+  .ar-page .ar-table.ar-cards-sm tbody td.ar-empty { grid-column: 1 / -1; }
+  .ar-page .ar-table.ar-cards-sm tbody tr.is-today { box-shadow: inset 3px 0 0 var(--an-primary); }
+  .ar-page .ar-table.ar-cards-sm tbody tr.is-today td:first-child { box-shadow: none; }
+  .ar-page .ar-table.ar-cards-sm tbody tr:hover td { background: transparent !important; }
+  .ar-datechip { display: none; }
+  .ar-when-date { font-size: 12.5px; }
+  .ar-branch, .ar-service { font-size: 12px; color: var(--an-muted); }
+  .ar-avatar { width: 34px; height: 34px; font-size: 11.5px; }
+  .ar-foot { padding: .8rem 1rem; }
+}
+
+/* =============================================================
+   Appointment Details modal (#aptRecordModal) — and every other
+   View Details modal that carries .ar-detail-modal
+   ============================================================= */
+:is(#aptRecordModal, .ar-detail-modal) .modal-content { border: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 24px 64px rgba(15, 23, 42, .22); }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-header { padding: 1.25rem 1.75rem; border-bottom: 1px solid var(--an-line-soft); background: var(--an-surface); align-items: center; }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-icon { width: 44px; height: 44px; border-radius: 12px; background: #e8f0fb; color: #185fa5; font-size: 19px; display: inline-flex; align-items: center; justify-content: center; }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-title { font-size: 18px; font-weight: 700; color: var(--an-ink); }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-meta { font-size: 12.5px; color: var(--an-muted); margin-top: .2rem; }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-code { display: inline-flex; align-items: center; padding: .1rem .55rem; margin-left: .25rem; border-radius: 6px; background: var(--an-tint);
+  border: 1px solid var(--an-line); color: var(--an-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-header .btn-close { align-self: center; width: 36px; height: 36px; border-radius: 10px; background-size: 12px; opacity: .55; }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-header .btn-close:hover { opacity: 1; background-color: var(--an-tint); }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-body { background: var(--an-tint); }
+:is(#aptRecordModal, .ar-detail-modal) #arContent { padding: 1.25rem 1.75rem 1.5rem; }
+
+/* Summary: four tiles like the Analytics KPI cards */
+:is(#aptRecordModal, .ar-detail-modal) .ar-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; background: none; border: 0; border-radius: 0; overflow: visible; margin-bottom: 1rem; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-sum-item { background: var(--an-surface); border: 1px solid var(--an-line); border-radius: 12px; padding: .9rem 1rem; gap: .75rem; align-items: center; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-sum-status { flex-direction: column; align-items: flex-start; justify-content: center; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-sum-icon { width: 38px; height: 38px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; margin: 0; flex: 0 0 auto; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-sum-item:nth-child(2) .ar-sum-icon { background: #e8f0fb; color: #185fa5; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-sum-item:nth-child(3) .ar-sum-icon { background: #e2f4ee; color: #1f8566; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-sum-item:nth-child(4) .ar-sum-icon { background: #f1ebfa; color: #7246b5; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-sum-label { font-size: 11.5px; font-weight: 600; color: var(--an-muted); margin-bottom: .15rem; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-sum-value { font-size: 13.5px; font-weight: 700; color: var(--an-ink); line-height: 1.35; }
+
+/* Information cards */
+:is(#aptRecordModal, .ar-detail-modal) .ar-cards-grid { padding: 0; gap: 1rem; background: none; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-card { background: var(--an-surface); border: 1px solid var(--an-line); border-radius: 12px; padding: 0; box-shadow: 0 1px 2px rgba(30, 47, 69, .04); overflow: hidden; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-card-header { margin: 0; padding: .85rem 1.1rem; border-bottom: 1px solid var(--an-line-soft); background: none; gap: .65rem; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-card-icon { width: 32px; height: 32px; border-radius: 9px; font-size: 15px; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-card-title { font-size: 13.5px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--an-ink); }
+:is(#aptRecordModal, .ar-detail-modal) .ar-tone-blue   .ar-card-icon { background: #e8f0fb; color: #185fa5; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-tone-violet .ar-card-icon { background: #f1ebfa; color: #7246b5; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-tone-teal   .ar-card-icon { background: #e2f4ee; color: #1f8566; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-tone-amber  .ar-card-icon { background: var(--an-warn-bg); color: var(--an-warn); }
+:is(#aptRecordModal, .ar-detail-modal) .ar-tone-red    .ar-card-icon { background: var(--an-bad-bg); color: var(--an-bad); }
+:is(#aptRecordModal, .ar-detail-modal) .ar-cancel-card { border-color: #f3c7c7; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-cancel-card .ar-card-header { background: #fff7f7; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-card-fields { padding: .35rem 1.1rem .6rem; row-gap: 0; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-card-field { grid-template-columns: 132px minmax(0, 1fr); padding: .55rem 0; border-bottom: 1px dashed var(--an-line-soft); align-items: center; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-card-field:last-child { border-bottom: 0; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-card-label { font-size: 12px; font-weight: 500; color: var(--an-muted); opacity: 1; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-card-label::after { content: none !important; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-card-value { font-size: 13px; color: var(--an-ink); font-weight: 500; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-card-value.text-muted { color: var(--an-muted) !important; }
+
+/* Status / payment badges → pills with a dot */
+:is(#aptRecordModal, .ar-detail-modal) .badge { display: inline-flex; align-items: center; gap: .4rem; border-radius: 999px; font-size: 11.5px; font-weight: 600; padding: .28rem .65rem; letter-spacing: 0; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-sum-status .badge { font-size: 12.5px; padding: .35rem .8rem; }
+
+/* Tabs: segmented pills (same as the Analytics tab bar) */
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-tabs-wrap { margin-top: 1rem; background: var(--an-surface); border: 1px solid var(--an-line); border-radius: 12px; overflow: hidden; }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-tabs { display: flex; flex-wrap: nowrap; gap: .25rem; padding: .45rem; margin: 0; border-bottom: 1px solid var(--an-line-soft); background: var(--an-tint);
+  overflow-x: auto; scrollbar-width: none; }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-tabs::-webkit-scrollbar { display: none; }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-tabs .nav-link { border: 0; border-radius: 8px; padding: .5rem .85rem; font-size: 12.5px; font-weight: 600; color: var(--an-muted); background: transparent;
+  white-space: nowrap; display: inline-flex; align-items: center; gap: .35rem; margin: 0; }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-tabs .nav-link:hover { color: var(--an-ink); background: rgba(52, 84, 209, .06); }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-tabs .nav-link.active { background: var(--an-surface); color: var(--an-primary); box-shadow: 0 1px 3px rgba(30, 47, 69, .1); border: 0; }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-tabs .nav-link::after { display: none; }
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-tab-content { padding: 0; background: var(--an-surface); }
+:is(#aptRecordModal, .ar-detail-modal) #arTabTimeline { padding: 1.25rem 1.5rem; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-tab-inner { padding: 1rem 1.25rem; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-tab-empty, :is(#aptRecordModal, .ar-detail-modal) .ar-timeline-empty { text-align: center; padding: 1.5rem 1rem; font-size: 13px; color: var(--an-muted); }
+:is(#aptRecordModal, .ar-detail-modal) .ar-notes-box { background: var(--an-tint); border: 1px solid var(--an-line-soft); border-radius: 10px; padding: .9rem 1rem; font-size: 13px; color: var(--an-ink); }
+
+/* Detail tables in the tabs */
+:is(#aptRecordModal, .ar-detail-modal) .ar-detail-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--an-line); border-radius: 10px; overflow: hidden; font-size: 13px; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-detail-table th { background: var(--an-tint); color: var(--an-muted); font-weight: 600; font-size: 12px; text-transform: none; letter-spacing: 0; width: 34%; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-detail-table th, :is(#aptRecordModal, .ar-detail-modal) .ar-detail-table td { padding: .6rem .85rem; border-bottom: 1px solid var(--an-line-soft); }
+:is(#aptRecordModal, .ar-detail-modal) .ar-detail-table thead th { width: auto; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-detail-table td { color: var(--an-ink); }
+:is(#aptRecordModal, .ar-detail-modal) .ar-detail-table tr:last-child th, :is(#aptRecordModal, .ar-detail-modal) .ar-detail-table tr:last-child td { border-bottom: 0; }
+
+/* Timeline */
+:is(#aptRecordModal, .ar-detail-modal) .ar-tl-item:not(.ar-tl-last)::before { background: var(--an-line); }
+:is(#aptRecordModal, .ar-detail-modal) .ar-tl-dot { border-radius: 10px; box-shadow: 0 0 0 4px var(--an-surface); }
+:is(#aptRecordModal, .ar-detail-modal) .ar-tl-label { font-size: 13px; color: var(--an-ink); }
+:is(#aptRecordModal, .ar-detail-modal) .ar-tl-sub { font-size: 12px; color: var(--an-muted); }
+:is(#aptRecordModal, .ar-detail-modal) .ar-tl-date { font-size: 11.5px; color: var(--an-muted); opacity: .85; }
+
+/* Loading / error */
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-loading, :is(#aptRecordModal, .ar-detail-modal) .apt-record-error { background: var(--an-tint); min-height: 320px; }
+
+/* Footer: primary (Print) left of Close */
+:is(#aptRecordModal, .ar-detail-modal) .apt-record-footer { padding: .9rem 1.75rem; border-top: 1px solid var(--an-line-soft); background: var(--an-surface); gap: .6rem; justify-content: flex-end; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-foot-note { margin-right: auto; font-size: 12px; color: var(--an-muted); display: inline-flex; align-items: center; gap: .4rem; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-btn { height: 40px; padding: 0 1.1rem; border-radius: 10px; font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; }
+:is(#aptRecordModal, .ar-detail-modal) .ar-btn.btn-primary { background: var(--an-primary); border-color: var(--an-primary); }
+:is(#aptRecordModal, .ar-detail-modal) .ar-btn-ghost { background: var(--an-surface); border: 1px solid var(--an-line); color: var(--an-ink); }
+:is(#aptRecordModal, .ar-detail-modal) .ar-btn-ghost:hover { background: var(--an-tint); }
+
+/* Dark skin */
+html.app-skin-dark :is(#aptRecordModal, .ar-detail-modal) .apt-record-icon, html.app-skin-dark :is(#aptRecordModal, .ar-detail-modal) .ar-sum-item:nth-child(2) .ar-sum-icon, html.app-skin-dark :is(#aptRecordModal, .ar-detail-modal) .ar-tone-blue .ar-card-icon { background: rgba(79, 143, 214, .14); color: #7fb0e6; }
+html.app-skin-dark :is(#aptRecordModal, .ar-detail-modal) .ar-sum-item:nth-child(3) .ar-sum-icon, html.app-skin-dark :is(#aptRecordModal, .ar-detail-modal) .ar-tone-teal .ar-card-icon { background: rgba(52, 179, 138, .14); color: #5cc9a5; }
+html.app-skin-dark :is(#aptRecordModal, .ar-detail-modal) .ar-sum-item:nth-child(4) .ar-sum-icon, html.app-skin-dark :is(#aptRecordModal, .ar-detail-modal) .ar-tone-violet .ar-card-icon { background: rgba(169, 139, 224, .14); color: #bda4ec; }
+html.app-skin-dark :is(#aptRecordModal, .ar-detail-modal) .ar-cancel-card { border-color: rgba(240, 114, 114, .35); }
+html.app-skin-dark :is(#aptRecordModal, .ar-detail-modal) .ar-cancel-card .ar-card-header { background: rgba(240, 114, 114, .06); border-bottom: 1px solid rgba(240, 114, 114, .2) !important; }
+html.app-skin-dark :is(#aptRecordModal, .ar-detail-modal) .apt-record-tabs .nav-link.active { background: #1c2740; color: #9db1f5; }
+
+/* Phones / tablets */
+@media (max-width: 991.98px) {
+  :is(#aptRecordModal, .ar-detail-modal) .ar-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :is(#aptRecordModal, .ar-detail-modal) .ar-cards-grid { padding: 0; }
+}
+@media (max-width: 575.98px) {
+  :is(#aptRecordModal, .ar-detail-modal) .apt-record-header { padding: 1rem 1.1rem; }
+  :is(#aptRecordModal, .ar-detail-modal) #arContent { padding: 1rem 1rem 1.25rem; }
+  :is(#aptRecordModal, .ar-detail-modal) .ar-summary { grid-template-columns: minmax(0, 1fr); gap: .5rem; }
+  :is(#aptRecordModal, .ar-detail-modal) .ar-card-field { grid-template-columns: minmax(0, 1fr); row-gap: .1rem; }
+  :is(#aptRecordModal, .ar-detail-modal) .ar-foot-note { display: none; }
+  :is(#aptRecordModal, .ar-detail-modal) .apt-record-footer { padding: .8rem 1rem; }
+  :is(#aptRecordModal, .ar-detail-modal) .ar-btn { flex: 1 1 0; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ar-quick-btn, .ar-act, .ar-page .ar-table tbody tr { transition: none; }
+}
+
+/* =============================================================
+   The same design on the other records pages (Schedule, Treatments,
+   Patients, Billing, Service Catalog, Vouchers, Feedback, Audit,
+   Notifications). Their tables also carry .rec-table (es-records.css);
+   the rules below win inside .ar-page so both look like Appointment Records.
+   ============================================================= */
+/* Cell padding comes from the theme (.table-responsive .table tr td: 15px, first / last 30px)
+   exactly as on Appointment Records; only the text size / colour is set here. */
+.ar-page .ar-table.rec-table tbody td { font-size: .875rem; color: var(--an-ink); }
+.ar-page .ar-table tbody tr.rec-empty-row:hover td { background: transparent; }
+.ar-page .ar-table .ar-empty .an-ico { margin-inline: auto; }
+/* Status pills and the older soft badges in a cell: one size */
+.ar-page .ar-table tbody td .badge { border-radius: 999px; font-size: 12px; font-weight: 600; padding: .25rem .65rem; letter-spacing: 0; }
+.ar-page .rec-status { font-size: 12px; font-weight: 600; padding: .25rem .65rem; gap: .4rem; }
+.ar-page .rec-status::before { width: 6px; height: 6px; }
+.ar-page .ar-table .rec-pill { font-size: 12px; font-weight: 500; color: var(--an-ink); background: var(--an-tint); border: 1px solid var(--an-line-soft); }
+.ar-page .ar-table .rec-code { font-size: 11.5px; color: var(--an-muted); background: var(--an-tint); }
+.ar-page .ar-table .rec-strong, .ar-page .ar-table .rec-link { font-size: 13.5px; font-weight: 600; color: var(--an-ink); }
+.ar-page .ar-table .rec-link:hover { color: var(--an-primary); }
+.ar-page .ar-table .rec-icon-text { font-size: 13px; color: var(--an-ink); }
+/* Card header: same title row as Appointment Records */
+.ar-page .card-header .card-title .rec-card-sub { font-size: 12.5px; color: var(--an-muted); margin-top: .2rem; }
+/* Summary tiles (Feedback, Notification Log) in the dashboard tokens */
+.ar-page .rec-stat { border-color: var(--an-line); border-radius: 12px; }
+.ar-page .rec-stat-value { color: var(--an-ink); }
+.ar-page .rec-stat-label, .ar-page .rec-stat-hint { color: var(--an-muted); }
+/* Non-table empty panels (Service Catalog) in the same look as .ar-empty */
+.ar-page .rec-empty-icon { width: 38px; height: 38px; border-radius: 10px; font-size: 17px; margin-bottom: .75rem; background: #eef2f7; color: #475569; }
+.ar-page .rec-empty-icon.rec-empty-icon-danger { background: var(--an-bad-bg); color: var(--an-bad); }
+.ar-page .rec-empty-title { font-size: 15px; color: var(--an-ink); }
+.ar-page .rec-empty-text { font-size: 13px; color: var(--an-muted); }
+
+/* View Details modals other than #aptRecordModal: body padding, card tints, buttons.
+   #ar-detail-weight matches nothing; it only gives these rules the same ID weight as
+   custom.css's :is(#viewAppointmentModal, .es-detail-modal) defaults so they win. */
+:is(.ar-detail-modal, #ar-detail-weight) .ar-view-body { padding: 1.25rem 1.75rem 1.5rem; }
+:is(.ar-detail-modal, #ar-detail-weight) .ar-summary { margin-bottom: 1rem; }
+:is(.ar-detail-modal, #ar-detail-weight) .ar-cards-grid > .ar-card:not([class*="ar-tone-"]):nth-of-type(4n+1) .ar-card-icon { background: #e8f0fb; color: #185fa5; }
+:is(.ar-detail-modal, #ar-detail-weight) .ar-cards-grid > .ar-card:not([class*="ar-tone-"]):nth-of-type(4n+2) .ar-card-icon { background: #f1ebfa; color: #7246b5; }
+:is(.ar-detail-modal, #ar-detail-weight) .ar-cards-grid > .ar-card:not([class*="ar-tone-"]):nth-of-type(4n+3) .ar-card-icon { background: #e2f4ee; color: #1f8566; }
+:is(.ar-detail-modal, #ar-detail-weight) .ar-cards-grid > .ar-card:not([class*="ar-tone-"]):nth-of-type(4n+4) .ar-card-icon { background: var(--an-warn-bg); color: var(--an-warn); }
+:is(.ar-detail-modal, #ar-detail-weight) .apt-record-footer .btn { height: 40px; padding: 0 1.1rem; border-radius: 10px; font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; }
+:is(.ar-detail-modal, #ar-detail-weight) .apt-record-footer .btn-light { background: var(--an-surface); border: 1px solid var(--an-line); color: var(--an-ink); }
+:is(.ar-detail-modal, #ar-detail-weight) .apt-record-footer .btn-light:hover { background: var(--an-tint); }
+:is(.ar-detail-modal, #ar-detail-weight) .apt-record-footer .btn-primary { background: var(--an-primary); border-color: var(--an-primary); }
+:is(.ar-detail-modal, #ar-detail-weight) .apt-record-footer .rec-foot-spacer { display: none; }
+@media (max-width: 575.98px) {
+  :is(.ar-detail-modal, #ar-detail-weight) .ar-view-body { padding: 1rem 1rem 1.25rem; }
+  :is(.ar-detail-modal, #ar-detail-weight) .apt-record-footer .btn { flex: 1 1 0; justify-content: center; }
+}
+html.app-skin-dark :is(.ar-detail-modal, #ar-detail-weight) .ar-cards-grid > .ar-card:not([class*="ar-tone-"]) .ar-card-icon { background: rgba(79, 143, 214, .14); color: #7fb0e6; }
+
+/* Patient Records: its tables (Overview / Treatments / Billing / Files …) use the
+   Appointment Records header and row style; the page layout stays its own. */
+.ar-page .pr-table thead th { font-size: 11.5px; font-weight: 600; letter-spacing: .01em; text-transform: none; color: var(--an-muted);
+  background: var(--an-tint); padding-top: .7rem; padding-bottom: .7rem; border-bottom: 1px solid var(--an-line) !important; }
+.ar-page .pr-table tbody td { padding-top: .8rem; padding-bottom: .8rem; font-size: .875rem; color: var(--an-ink); border-bottom: 1px solid var(--an-line-soft); }
+.ar-page .pr-table tbody tr { transition: background-color .12s ease; }
+.ar-page .pr-table tbody tr:hover td { background: var(--an-tint); }
+.ar-page .pr-table .pr-strong { font-weight: 600; color: var(--an-ink); }
+.ar-page .pr-table .pr-sub { font-size: 12px; color: var(--an-muted); }
+.ar-page .pr-table td .badge { border-radius: 999px; font-size: 12px; font-weight: 600; padding: .25rem .65rem; }
+.ar-page .pr-table-wrap { border-color: var(--an-line); }

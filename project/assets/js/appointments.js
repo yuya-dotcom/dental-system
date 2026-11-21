@@ -21,6 +21,36 @@ function updateStatus(appointmentId, status, code) {
     const cfg = labels[status];
     if (!cfg) return;
 
+    // Cancelling asks for the reason (required) — it is stored with who
+    // cancelled and when, and shown in Appointment Records → Cancellation Information.
+    if (status === 'cancelled') {
+        Swal.fire({
+            icon:     'warning',
+            iconHtml: `<i class="${cfg.icon} es-swal-glyph"></i>`,
+            title:    cfg.title,
+            html:     `<p class="es-swal-text">${cfg.text}</p>` +
+                      `<span class="es-swal-chip"><i class="feather-calendar"></i> ${_esc(code)}</span>` +
+                      '<label class="es-swal-label apt-cancel-label" for="swal2-textarea">Reason for cancellation <span class="text-danger">*</span></label>',
+            input:            'textarea',
+            inputPlaceholder: 'e.g. Patient called to reschedule; dentist unavailable…',
+            inputAttributes:  { maxlength: '500', 'aria-label': 'Reason for cancellation' },
+            inputValidator:   v => {
+                const t = String(v || '').trim();
+                if (!t) return 'Please enter the reason for cancelling.';
+                if (t.length > 500) return 'Please keep the reason under 500 characters.';
+            },
+            showCancelButton:  true,
+            confirmButtonText: cfg.btn,
+            cancelButtonText:  'Go Back',
+            buttonsStyling:    false,
+            customClass:       Object.assign({}, ES_SWAL_TONE(cfg.tone), { input: 'es-swal-input apt-cancel-reason' }),
+        }).then(result => {
+            if (!result.isConfirmed) return;
+            _patchStatus(appointmentId, status, code, String(result.value || '').trim());
+        });
+        return;
+    }
+
     Swal.fire({
         icon:     'question',
         iconHtml: `<i class="${cfg.icon} es-swal-glyph"></i>`,
@@ -30,7 +60,6 @@ function updateStatus(appointmentId, status, code) {
         showCancelButton:  true,
         confirmButtonText: cfg.btn,
         cancelButtonText:  'Go Back',
-        reverseButtons:    true,
         focusCancel:       status === 'cancelled',
         buttonsStyling:    false,
         customClass:       ES_SWAL_TONE(cfg.tone),
@@ -40,11 +69,13 @@ function updateStatus(appointmentId, status, code) {
     });
 }
 
-function _patchStatus(appointmentId, status, code) {
+function _patchStatus(appointmentId, status, code, reason) {
+    const body = { status };
+    if (status === 'cancelled') body.reason = reason || '';
     fetch(`api/appointments.php?id=${appointmentId}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ status }),
+        body:    JSON.stringify(body),
     })
     .then(r => r.json())
     .then(res => {
@@ -65,7 +96,7 @@ function _patchStatus(appointmentId, status, code) {
                 timerProgressBar:  true,
                 buttonsStyling:    false,
                 customClass:       ES_SWAL_TONE(done[2]),
-            }).then(() => location.reload());
+            }).then(() => esRefresh());
         } else {
             _statusError(res.message || 'Could not update the appointment status.');
         }
@@ -73,11 +104,11 @@ function _patchStatus(appointmentId, status, code) {
     .catch(() => _statusError('Network error. Please check your connection and try again.'));
 }
 
-function _statusError(message) {
+function _statusError(message, title) {
     Swal.fire({
         icon:     'error',
         iconHtml: '<i class="feather-alert-circle es-swal-glyph"></i>',
-        title:    'Update Failed',
+        title:    title || 'Update Failed',
         html:     `<p class="es-swal-text">${_esc(message)}</p>`,
         confirmButtonText: 'Okay',
         buttonsStyling:    false,
@@ -316,7 +347,7 @@ function confirmCompletion() {
                 : `<strong>${_completionCode}</strong> marked as completed.`,
             timer: 2200,
             showConfirmButton: false,
-        }).then(() => location.reload());
+        }).then(() => esRefresh());
     })
     .catch(err => {
         btn.disabled  = false;
@@ -328,255 +359,344 @@ function confirmCompletion() {
 
 
 // ── Add Appointment Modal — Mini Calendar ────────────────────
+// ══════════════════════════════════════════════════════════════
+//  ADD / EDIT APPOINTMENT — date + time from the shared availability
+//  Same source of truth as the Patient Portal booking page:
+//    api/get_booked_days.php  fully booked days (for the visit length)
+//    api/get_timeslots.php    every start time of the day, available or not
+//  Both apply controllers/branch_config.php: branch hours and open days,
+//  visit length = the chosen services, no overlap with active bookings.
+//  Edit passes &exclude=<id> so the appointment doesn't block its own time.
+//  Branch open days come from window.APT_BOOKING_BRANCHES (same rules, PHP).
+// ══════════════════════════════════════════════════════════════
 (function () {
     'use strict';
 
     let _adminCal = null;
+    let _branchId = '';
+    let _calEl = null;
+    let _slotReq = 0;
+
+    const $id = (id) => document.getElementById(id);
+    const _editId = () => ($id('apt_id')?.value || '').trim();
+    const _svcIds = () => (typeof _aptServices !== 'undefined' ? _aptServices.map(s => s.id) : []);
+    const _rules = (b) => (window.APT_BOOKING_BRANCHES || {})[String(b)] || null;
+    const _qs = (extra) => {
+        const p = new URLSearchParams(extra);
+        const svcs = _svcIds();
+        if (svcs.length) p.set('services', svcs.join(','));
+        if (_editId()) p.set('exclude', _editId());
+        return p.toString();
+    };
+    const _iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const _tomorrow = () => { const t = new Date(); t.setDate(t.getDate() + 1); return _iso(t); };
 
     // ── Destroy calendar when modal closes ───────────────────
-    const _modal = document.getElementById('appointmentModal');
+    const _modal = $id('appointmentModal');
     if (_modal) {
         _modal.addEventListener('hidden.bs.modal', _destroyAdminCal);
+        // Edit loads the appointment so fast that the calendar can be built while
+        // the modal is still fading in (no width yet) → size it once it's shown
+        _modal.addEventListener('shown.bs.modal', () => { if (_adminCal) _adminCal.updateSize(); });
     }
 
     // ── Branch change → render calendar + load dentists ──────
-    const _branchSel = document.getElementById('apt_branch');
+    const _branchSel = $id('apt_branch');
     if (_branchSel) {
         _branchSel.addEventListener('change', function () {
             const branchId = this.value;
             _resetDateTime();
-
             if (!branchId) {
                 _destroyAdminCal();
                 _showPlaceholder();
-                const sel = document.getElementById('apt_dentist');
+                const sel = $id('apt_dentist');
                 sel.innerHTML = '<option value=""> Select a branch first </option>';
                 sel.disabled  = true;
                 return;
             }
-
             _loadDentistsByBranch(branchId);
             _initAdminCal(branchId);
         });
     }
+    $id('aptSlotsRefresh')?.addEventListener('click', () => window._aptRefreshSlots());
+
+    function _isOpenDay(dateStr) {
+        const r = _rules(_branchId);
+        if (!r) return true;   // unknown → let the server decide
+        if (!r.active) return false;
+        // Date override (Branch Records → Schedule Exceptions) beats the weekly days
+        const ex = (r.exceptions || {})[dateStr];
+        if (ex) return !!ex.open;
+        return r.days.includes(new Date(dateStr + 'T00:00:00').getDay());
+    }
 
     function _initAdminCal(branchId) {
-        const wrap = document.getElementById('adminCalendarWrap');
+        const wrap = $id('adminCalendarWrap');
         if (!wrap) return;
-
         _destroyAdminCal();
+        _branchId = String(branchId);
 
-        wrap.className    = 'rounded-3 border';
-        wrap.style.cssText = 'padding: 0.5rem 0.25rem;';
-        wrap.innerHTML    = '';
-
+        wrap.className     = 'rounded-3 border apt-cal';
+        wrap.style.cssText = 'padding: 0.35rem 0.25rem;';
+        wrap.innerHTML     = '';
         const calEl = document.createElement('div');
         wrap.appendChild(calEl);
+        _calEl = calEl;
+
+        // Bookable from tomorrow (portal rule). An edit may keep an earlier saved day.
+        const preset = window._aptEditPreset;
+        let start = _tomorrow();
+        if (preset && preset.date && preset.date < start) start = preset.date;
 
         _adminCal = new FullCalendar.Calendar(calEl, {
             initialView:         'dayGridMonth',
             headerToolbar:       { left: 'prev', center: 'title', right: 'next' },
             fixedWeekCount:      false,
             showNonCurrentDates: false,
-            hiddenDays:          [0, 1],
             height:              'auto',
-            validRange: {
-                start: (() => {
-                    const t = new Date();
-                    t.setDate(t.getDate() + 1);
-                    return t.toISOString().split('T')[0];
-                })()
+            validRange:          { start },
+            dayCellClassNames(arg) {
+                const d = _iso(arg.date);
+                const isPreset = preset && preset.date === d;
+                return !_isOpenDay(d) && !isPreset ? ['fc-day-closed'] : [];
             },
-
+            dayCellDidMount(arg) {
+                const d = _iso(arg.date);
+                if (arg.el.classList.contains('fc-day-closed')) {
+                    const ex = ((_rules(_branchId) || {}).exceptions || {})[d];
+                    arg.el.setAttribute('title', 'Branch closed' + (ex && ex.reason ? ' — ' + ex.reason : ''));
+                }
+                if (preset && preset.date === d && d < _tomorrow()) arg.el.setAttribute('title', 'Saved date of this appointment');
+            },
             datesSet(info) {
-                _markFullyBooked(info.startStr, info.endStr, branchId, calEl);
-                _markPresetDay(calEl);
+                _markFullyBooked(info.startStr.slice(0, 10), info.endStr.slice(0, 10));
+                _markPresetDay();
             },
-
             dateClick(info) {
-                if (info.dayEl.classList.contains('fc-day-fully-booked')) return;
+                const isPreset = preset && preset.date === info.dateStr;
+                if (!isPreset && (info.dayEl.classList.contains('fc-day-fully-booked') || info.dayEl.classList.contains('fc-day-closed'))) return;
 
-                calEl.querySelectorAll('.fc-day-selected')
-                     .forEach(el => el.classList.remove('fc-day-selected'));
+                calEl.querySelectorAll('.fc-day-selected').forEach(el => el.classList.remove('fc-day-selected'));
                 info.dayEl.classList.add('fc-day-selected');
 
-                document.getElementById('apt_date').value               = info.dateStr;
+                $id('apt_date').value = info.dateStr;
                 document.querySelector('#appointmentModal [data-err-for="apt_date"]')?.replaceChildren();
-                document.getElementById('apt_time').value               = '';
-                document.getElementById('aptDateTimeSummary').style.display = 'none';
+                $id('apt_time').value = '';
+                $id('aptDateTimeSummary').style.display = 'none';
 
-                const preset   = window._aptEditPreset;
-                const keepTime = preset && preset.date === info.dateStr ? preset.time : null;
+                const keepTime = isPreset ? preset.time : null;
                 if (keepTime) {   // back on the saved day → restore the saved time
-                    document.getElementById('apt_time').value = keepTime;
+                    $id('apt_time').value = keepTime;
                     _showSummary(info.dateStr, keepTime);
                 }
-                _loadTimeSlots(info.dateStr, branchId, keepTime);
+                _loadTimeSlots(info.dateStr, keepTime);
             }
         });
-
         _adminCal.render();
 
         // Edit mode: show the appointment's saved date + time as selected.
-        const preset = window._aptEditPreset;
         if (preset && preset.date) {
-            document.getElementById('apt_date').value = preset.date;
-            document.getElementById('apt_time').value = preset.time;
+            $id('apt_date').value = preset.date;
+            $id('apt_time').value = preset.time;
             _adminCal.gotoDate(preset.date);
-            _markPresetDay(calEl);
+            _markPresetDay();
             _showSummary(preset.date, preset.time);
-            _loadTimeSlots(preset.date, branchId, preset.time);
+            _loadTimeSlots(preset.date, preset.time);
         }
     }
 
     // Highlight the edit preset day (only while it is still the chosen date).
-    function _markPresetDay(calEl) {
+    function _markPresetDay() {
         const preset = window._aptEditPreset;
-        if (!preset || document.getElementById('apt_date').value !== preset.date) return;
-        const dayEl = calEl.querySelector(`[data-date="${preset.date}"]`);
+        if (!_calEl || !preset || $id('apt_date').value !== preset.date) return;
+        const dayEl = _calEl.querySelector(`[data-date="${preset.date}"]`);
         if (dayEl) dayEl.classList.add('fc-day-selected');
     }
 
-    function _markFullyBooked(startStr, endStr, branchId, calEl) {
-        fetch(`api/get_booked_days.php?start=${startStr}&end=${endStr}&branch=${branchId}`)
+    function _markFullyBooked(startStr, endStr) {
+        if (!_calEl || !_branchId) return;
+        const calEl = _calEl;
+        fetch('api/get_booked_days.php?' + _qs({ start: startStr, end: endStr, branch: _branchId }), { cache: 'no-store' })
             .then(r => r.json())
             .then(data => {
-                if (!data.fully_booked) return;
-                data.fully_booked.forEach(dateStr => {
+                calEl.querySelectorAll('.fc-day-fully-booked').forEach(el => { el.classList.remove('fc-day-fully-booked'); el.removeAttribute('title'); });
+                (data.fully_booked || []).forEach(dateStr => {
                     const dayEl = calEl.querySelector(`[data-date="${dateStr}"]`);
-                    if (dayEl) {
-                        dayEl.classList.add('fc-day-fully-booked');
-                        dayEl.setAttribute('title', 'Fully booked');
-                    }
+                    if (dayEl) { dayEl.classList.add('fc-day-fully-booked'); dayEl.setAttribute('title', 'Fully booked'); }
                 });
             })
             .catch(() => {});
     }
 
-    function _loadTimeSlots(dateStr, branchId, keepTime) {
-        const wrap = document.getElementById('adminTimeSlots');
-        const grid = document.getElementById('adminTimeSlotsGrid');
-        wrap.style.display = '';
-        grid.innerHTML = `
+    // quiet: background re-check (no spinner — the current list stays until the answer arrives)
+    function _loadTimeSlots(dateStr, keepTime, quiet) {
+        const grid = $id('adminTimeSlotsGrid');
+        const req  = ++_slotReq;
+        $id('aptSlotsRefresh').hidden = false;
+        if (!quiet) grid.innerHTML = `
             <div class="slot-loading">
                 <div class="spinner-border spinner-border-sm text-primary"></div>
                 Loading available times…
             </div>`;
 
-        fetch(`api/get_timeslots.php?date=${dateStr}&branch=${branchId}`)
+        fetch('api/get_timeslots.php?' + _qs({ date: dateStr, branch: _branchId }), { cache: 'no-store' })
             .then(r => r.json())
             .then(data => {
+                if (req !== _slotReq) return;   // a newer request is on its way
                 if (data.error) throw new Error(data.error);
-                _renderSlots(dateStr, data.booked || [], keepTime);
+                _renderSlots(dateStr, data, keepTime);
             })
-            .catch(() => {
+            .catch((e) => {
+                if (req !== _slotReq || quiet) return;   // a failed background check keeps the list shown
                 grid.innerHTML = `
                     <div class="slot-empty text-danger">
-                        <i class="feather-alert-circle me-1"></i>Failed to load time slots. Please try again.
+                        <i class="feather-alert-circle me-1"></i>${_esc(e && e.message ? e.message : 'Failed to load time slots.')} Please try again.
                     </div>`;
             });
     }
 
-    function _renderSlots(dateStr, bookedTimes, keepTime) {
-        const grid  = document.getElementById('adminTimeSlotsGrid');
-        const slots = _genSlots();
-        // The appointment being edited occupies its own slot — don't show it as booked.
-        if (keepTime) {
-            bookedTimes = bookedTimes.filter(t => t !== keepTime);
-            if (!slots.includes(keepTime)) { slots.push(keepTime); slots.sort(); }
-        }
-        const available = slots.filter(s => !bookedTimes.includes(s));
+    const _UNAVAILABLE = {
+        past:     'Appointments can be booked from tomorrow onward.',
+        closed:   'The branch is closed on this day.',
+        inactive: 'This branch is not taking appointments right now.',
+        invalid:  'Please choose a valid date.',
+    };
+
+    function _renderSlots(dateStr, data, keepTime) {
+        const grid  = $id('adminTimeSlotsGrid');
+        const slots = Array.isArray(data.slots) ? data.slots : [];
+        const timeEl = $id('apt_time');
         grid.innerHTML = '';
+
+        if (data.unavailable) {
+            const preset = window._aptEditPreset;
+            const keeps = keepTime && preset && preset.date === dateStr;
+            grid.innerHTML = `<div class="slot-empty"><i class="feather-info me-1"></i>${_UNAVAILABLE[data.unavailable] || 'No times on this day.'}` +
+                (keeps ? `<br><span class="apt-slot-keep">This appointment keeps its saved time (${_fmtTime(keepTime)}). Pick another date to reschedule it.</span>` : '') +
+                `</div>`;
+            if (!keeps) { timeEl.value = ''; $id('aptDateTimeSummary').style.display = 'none'; }
+            return;
+        }
 
         const legend = document.createElement('div');
         legend.className = 'slot-legend';
         legend.innerHTML = `
-            <span>
-                <span class="legend-dot" style="background:#e8f0fe;border:1.5px solid rgba(13,110,253,0.3);"></span>
-                Available
-            </span>
-            <span>
-                <span class="legend-dot" style="background:#f1f4f8;border:1px solid #dee2e6;"></span>
-                Booked
-            </span>`;
+            <span><span class="legend-dot" style="background:#e8f0fe;border:1.5px solid rgba(13,110,253,0.3);"></span>Available</span>
+            <span><span class="legend-dot" style="background:#f1f4f8;border:1px solid #dee2e6;"></span>Booked / doesn't fit</span>
+            <span class="slot-visit">Visit: ${_esc(data.duration_label || '')}</span>`;
         grid.appendChild(legend);
 
         const btnGrid = document.createElement('div');
         btnGrid.className = 'slot-grid';
+        let available = 0, keptOk = false;
 
-        slots.forEach(time => {
-            const isBooked = bookedTimes.includes(time);
-            const btn      = document.createElement('button');
-            btn.type       = 'button';
-            btn.className  = `slot-btn ${isBooked ? 'slot-btn-booked' : 'slot-btn-available'}`;
-            btn.textContent = _fmtTime(time);
-            btn.disabled   = isBooked;
-            btn.title      = isBooked ? 'Already booked' : 'Click to select';
-            if (keepTime && time === keepTime) {
+        slots.forEach(s => {
+            const ok  = !!s.available;
+            if (ok) available++;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `slot-btn ${ok ? 'slot-btn-available' : 'slot-btn-booked'}`;
+            btn.textContent = s.label || _fmtTime(s.time);
+            btn.disabled = !ok;
+            btn.dataset.time = s.time;
+            btn.title = ok ? `${s.label} – ${s.ends}` : (s.reason === 'closing' ? 'Would end after closing time' : 'Already booked');
+            if (ok && keepTime && s.time === keepTime) {
                 btn.classList.add('selected');
-                btn.title = 'Current booked time';
+                btn.title = 'Current time of this appointment';
+                keptOk = true;
             }
-
-            if (!isBooked) {
+            if (ok) {
                 btn.addEventListener('click', () => {
-                    btnGrid.querySelectorAll('.slot-btn-available.selected').forEach(b => {
-                        b.classList.remove('selected');
-                    });
+                    btnGrid.querySelectorAll('.slot-btn-available.selected').forEach(b => b.classList.remove('selected'));
                     btn.classList.add('selected');
-
-                    document.getElementById('apt_time').value = time;
+                    timeEl.value = s.time;
                     document.querySelector('#appointmentModal [data-err-for="apt_time"]')?.replaceChildren();
-                    _showSummary(dateStr, time);
+                    _showSummary(dateStr, s.time);
                 });
             }
-
             btnGrid.appendChild(btn);
         });
-
         grid.appendChild(btnGrid);
+
+        // The chosen time no longer fits (taken meanwhile, or a longer visit now)
+        if (timeEl.value && !keptOk && !slots.some(s => s.available && s.time === timeEl.value)) {
+            const was = timeEl.value;
+            timeEl.value = '';
+            $id('aptDateTimeSummary').style.display = 'none';
+            const note = document.createElement('p');
+            note.className = 'apt-slot-warn';
+            note.innerHTML = `<i class="feather-alert-triangle me-1"></i>${_fmtTime(was)} is no longer available for this visit. Please pick another time.`;
+            grid.insertBefore(note, btnGrid);
+        }
 
         const info = document.createElement('p');
         info.className   = 'slot-count';
-        info.textContent = `${available.length} of ${slots.length} slots available`;
+        info.textContent = `${available} of ${slots.length} start times available`;
         grid.appendChild(info);
     }
+
+    // Services changed (visit length), dentist changed, Refresh pressed, or the
+    // periodic re-check → ask the server again (same API as the Patient Portal)
+    window._aptRefreshSlots = function (quiet) {
+        if (!_adminCal || !_branchId) return;
+        const v = _adminCal.view;
+        _markFullyBooked(_iso(v.activeStart), _iso(v.activeEnd));
+        const date = $id('apt_date').value;
+        if (date) _loadTimeSlots(date, $id('apt_time').value || null, quiet === true);
+    };
+
+    // The assigned dentist changed → availability is checked again. (Availability
+    // is per branch, exactly as in the Patient Portal; there is no per-dentist
+    // schedule, so the same rules apply whichever dentist is chosen.)
+    $id('apt_dentist')?.addEventListener('change', () => window._aptRefreshSlots(true));
+
+    // While the form is open, re-check every 30 s so bookings made meanwhile
+    // (Patient Portal or another staff member) show up; a time that was taken
+    // is unselected with a note (see _renderSlots). Paused while the tab is hidden.
+    let _pollTimer = null;
+    if (_modal) {
+        _modal.addEventListener('shown.bs.modal', () => {
+            clearInterval(_pollTimer);
+            _pollTimer = setInterval(() => { if (!document.hidden) window._aptRefreshSlots(true); }, 30000);
+        });
+        _modal.addEventListener('hidden.bs.modal', () => { clearInterval(_pollTimer); _pollTimer = null; });
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && _pollTimer) window._aptRefreshSlots(true);
+    });
 
     function _showSummary(dateStr, time) {
         const display = new Date(dateStr + 'T00:00:00')
             .toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-        document.getElementById('aptDateTimeText').textContent = `${display} at ${_fmtTime(time)}`;
-        const el = document.getElementById('aptDateTimeSummary');
-        el.style.display = 'flex';
-    }
-
-    function _genSlots() {
-        const s = [];
-        for (let h = 9; h <= 17; h++) {
-            s.push(`${String(h).padStart(2, '0')}:00`);
-            if (h < 17) s.push(`${String(h).padStart(2, '0')}:30`);
-        }
-        return s;
+        $id('aptDateTimeText').textContent = `${display} at ${_fmtTime(time)}`;
+        $id('aptDateTimeSummary').style.display = 'flex';
     }
 
     function _fmtTime(t) {
-        return new Date(`1970-01-01T${t}:00`)
+        return new Date(`1970-01-01T${String(t).slice(0, 5)}:00`)
             .toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
     }
 
+    function _slotsPlaceholder() {
+        $id('adminTimeSlotsGrid').innerHTML =
+            '<div class="slot-empty apt-slots-placeholder"><i class="feather-clock"></i><br>Choose a date to see the available times.</div>';
+        $id('aptSlotsRefresh').hidden = true;
+    }
+    window._aptSlotsPlaceholder = _slotsPlaceholder;
+
     function _resetDateTime() {
-        document.getElementById('apt_date').value                   = '';
-        document.getElementById('apt_time').value                   = '';
-        document.getElementById('adminTimeSlots').style.display     = 'none';
-        document.getElementById('aptDateTimeSummary').style.display = 'none';
-        document.getElementById('adminTimeSlotsGrid').innerHTML      = '';
+        $id('apt_date').value = '';
+        $id('apt_time').value = '';
+        $id('aptDateTimeSummary').style.display = 'none';
+        _slotsPlaceholder();
     }
 
     function _showPlaceholder() {
-        const wrap = document.getElementById('adminCalendarWrap');
+        const wrap = $id('adminCalendarWrap');
         if (!wrap) return;
-        wrap.className    = 'rounded-3 border';
+        wrap.className     = 'rounded-3 border';
         wrap.style.cssText = '';
-        wrap.innerHTML    = `
+        wrap.innerHTML     = `
             <div class="slot-empty">
                 <svg width="30" height="30" viewBox="0 0 32 32" fill="none" style="margin-bottom:6px;opacity:0.3;">
                     <rect x="3" y="5" width="26" height="22" rx="3" stroke="#6b7a8d" stroke-width="1.5"/>
@@ -591,8 +711,8 @@ function confirmCompletion() {
             try { _adminCal.destroy(); } catch (_) {}
             _adminCal = null;
         }
+        _calEl = null;
     }
-
 })();
 
 // ── Filter dentists by selected branch ───────────────────────
@@ -739,6 +859,11 @@ document.addEventListener('click', e => {
     }
 });
 
+// Visit length follows the services → the open times are re-checked
+function _aptServicesChanged() {
+    if (typeof window._aptRefreshSlots === 'function') window._aptRefreshSlots();
+}
+
 window.aptAddService = function () {
     if (_aptPickerSelId === null) return;
     const id = _aptPickerSelId;
@@ -760,11 +885,13 @@ window.aptAddService = function () {
 
     _aptResetPicker();
     _aptRenderChips();
+    _aptServicesChanged();
 };
 
 window.aptRemoveService = function (id) {
     _aptServices = _aptServices.filter(s => s.id !== id);
     _aptRenderChips();
+    _aptServicesChanged();
 };
 
 function _aptResetPicker() {
@@ -841,6 +968,89 @@ function _aptLoadExistingServices(aptServices) {
 
 
 // ── Add / Edit Appointment ───────────────────────────────────
+// ── Bootstrap 5.0 keeps focus inside an open modal; let a SweetAlert shown on
+//    top of it (password prompt, save confirmation) take the keyboard.
+document.addEventListener('focusin', function (e) {
+    if (e.target && e.target.closest && e.target.closest('.swal2-container')) e.stopImmediatePropagation();
+}, true);
+
+// ══════════════════════════════════════════════════════════════
+//  EDIT APPOINTMENT — the signed-in owner / admin re-enters THEIR password
+//  api/verify_staff_password.php checks it on the server (bcrypt, like the
+//  sign-in) and allows editing that one appointment for 15 minutes; the
+//  save (PUT) is refused without it. Primary action left, Cancel right.
+//  Resolves true only after a successful check.
+// ══════════════════════════════════════════════════════════════
+async function verifyAdminPassword(appointmentId) {
+    const r = await Swal.fire({
+        icon: 'question',
+        iconHtml: '<i class="feather-lock es-swal-glyph"></i>',
+        title: 'Confirm Your Password',
+        html: '<p class="es-swal-text">For security, enter <strong>your own account password</strong> to edit this appointment.</p>',
+        input: 'password',
+        inputPlaceholder: 'Your password',
+        inputAttributes: { autocomplete: 'current-password', 'aria-label': 'Your account password', autocapitalize: 'off', autocorrect: 'off', maxlength: '200' },
+        showCancelButton: true,
+        confirmButtonText: '<i class="feather-unlock"></i> Verify &amp; Continue',
+        cancelButtonText: 'Cancel',
+        reverseButtons: false,          // primary left, Cancel right
+        focusConfirm: false,
+        showLoaderOnConfirm: true,
+        allowOutsideClick: () => !Swal.isLoading(),
+        buttonsStyling: false,
+        // Same look as the other admin alerts: compact, equal-width buttons and
+        // a standard-height field (assets/css/es-swal.css → .es-swal-input)
+        customClass: Object.assign({}, ES_SWAL_CLASS, {
+            popup: 'es-swal-popup es-swal-popup-pw',
+            input: 'es-swal-input',
+            validationMessage: 'es-swal-validation',
+            actions: 'es-swal-actions es-swal-actions-compact',
+        }),
+        preConfirm: async (pw) => {
+            if (!pw) { Swal.showValidationMessage('Please enter your password.'); return false; }
+            let res, j;
+            try {
+                res = await fetch('api/verify_staff_password.php', {
+                    method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: pw, appointment_id: parseInt(appointmentId, 10) }),
+                });
+                j = await res.json().catch(() => ({}));
+            } catch (e) {
+                Swal.showValidationMessage("We couldn't reach the server. Please check your connection and try again.");
+                return false;
+            }
+            if (res.status === 401) { location.href = 'login.php'; return false; }
+            if (!j.success) {
+                const inp = Swal.getInput(); if (inp) { inp.value = ''; inp.focus(); }
+                Swal.showValidationMessage(j.message || 'Your password could not be verified.');
+                return false;
+            }
+            return true;
+        },
+    });
+    return r.isConfirmed && r.value === true;
+}
+window.verifyAdminPassword = verifyAdminPassword;
+
+// Summary for the "Save changes?" confirmation
+function _aptEditSummary(date, time) {
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const sel = (id) => {
+        const el = document.getElementById(id);
+        if (el && el.tagName !== 'SELECT') {   // fixed branch (hidden field): its name is in the header chip
+            return (document.querySelector('#appointmentModal .apt-branch-chip')?.textContent || '').trim();
+        }
+        return el && el.selectedIndex >= 0 ? el.options[el.selectedIndex].text.trim() : '';
+    };
+    const when = new Date(date + 'T00:00:00').toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) +
+        ' at ' + new Date('1970-01-01T' + time.slice(0, 5) + ':00').toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
+    const svcs = (typeof _aptServices !== 'undefined' && _aptServices.length) ? _aptServices.map(s => s.name).join(', ') : 'None selected';
+    const row = (k, v) => `<div class="apt-confirm-row"><span>${k}</span><strong>${esc(v)}</strong></div>`;
+    return '<p class="es-swal-text">You are about to update this appointment:</p><div class="apt-confirm-sum">' +
+        row('Patient', sel('apt_patient')) + row('Branch', sel('apt_branch')) + row('Schedule', when) + row('Services', svcs) + '</div>';
+}
+
 async function saveAppointment() {
     const errBox  = document.getElementById('modalError');
     const btn     = document.getElementById('modalSaveBtn');
@@ -853,41 +1063,73 @@ async function saveAppointment() {
     const dentist = document.getElementById('apt_dentist').value;
     const date    = document.getElementById('apt_date').value;
     const time    = document.getElementById('apt_time').value;
-    const status  = document.getElementById('apt_status').value;
-    const payment = document.getElementById('apt_payment').value;
     const notes   = document.getElementById('apt_notes').value.trim();
+    // Branch-assigned account: the server uses the account's own branch
+    const fixedBranch = !!document.querySelector('#apt_branch[data-fixed-branch]');
 
     if (!branch)  return _showModalError('Please select a branch.', 'apt_branch');
     if (!patient) return _showModalError('Please select a patient.', 'apt_patient');
     if (!date)    return _showModalError('Please select a date.', 'apt_date');
     if (!time)    return _showModalError('Please select a time slot.', 'apt_time');
 
+    // Edit: confirm first (primary left, Cancel right). Cancel → back to the
+    // form with every change still in place.
+    if (id) {
+        const c = await Swal.fire({
+            icon: 'question',
+            iconHtml: '<i class="feather-save"></i>',
+            title: 'Save Changes?',
+            html: _aptEditSummary(date, time),
+            showCancelButton: true,
+            confirmButtonText: '<i class="feather-save me-1"></i> Save Changes',
+            cancelButtonText: 'Keep Editing',
+            reverseButtons: false,
+            focusCancel: true,
+            buttonsStyling: false,
+            customClass: ES_SWAL_CLASS,
+        });
+        if (!c.isConfirmed) return;
+    }
+
     btn.disabled  = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving…';
 
     const payload = {
-        branch_id:        parseInt(branch),
         patient_id:       parseInt(patient),
-        dentist_id:       dentist ? parseInt(dentist)  : null,
         service_ids:      _aptServices.map(s => s.id),  // ← multi-service array
         appointment_date: date,
         appointment_time: time,
     };
-    // Status / payment / notes are only set when creating; edits keep stored values.
-    if (!id) Object.assign(payload, { status, payment_status: payment, notes: notes || null });
+    if (!fixedBranch) payload.branch_id = parseInt(branch);   // owner only
+    // Notes / dentist are only set when creating; an edit keeps the stored
+    // values (the dentist is not part of the edit form). Status is always
+    // Confirmed for a new appointment and payment is recorded in Billing —
+    // both are decided by the server, never sent from here.
+    if (!id) Object.assign(payload, { dentist_id: dentist ? parseInt(dentist) : null, notes: notes || null });
 
     try {
         const url    = id ? `api/appointments.php?id=${id}` : 'api/appointments.php';
         const method = id ? 'PUT' : 'POST';
 
-        const res  = await fetch(url, {
+        const send = () => fetch(url, {
             method,
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify(payload),
-        });
-        const json = await res.json();
+        }).then(async r => ({ res: r, json: await r.json().catch(() => ({})) }));
+        let { res, json } = await send();
 
-        if (!res.ok || !json.success) throw new Error(json.message || 'Could not save appointment.');
+        // Password permission expired (15 min) → ask again, then send once more
+        if (id && json.code === 'REVERIFY') {
+            if (!(await verifyAdminPassword(id))) throw new Error('Changes not saved: your password was not confirmed.');
+            ({ res, json } = await send());
+        }
+        if (!res.ok || !json.success) {
+            // A time that was just taken: refresh the open times right away
+            if (json.code && json.code.startsWith('SLOT_') && typeof window._aptRefreshSlots === 'function') window._aptRefreshSlots();
+            const e = new Error(json.message || 'Could not save appointment.');
+            e.field = json.field;
+            throw e;
+        }
 
         bootstrap.Modal.getInstance(document.getElementById('appointmentModal'))?.hide();
 
@@ -897,10 +1139,10 @@ async function saveAppointment() {
             text:  json.message || 'The appointment has been saved successfully.',
             timer: 1800,
             showConfirmButton: false,
-        }).then(() => location.reload());
+        }).then(() => esRefresh());
 
     } catch (err) {
-        _showModalError(err.message);
+        _showModalError(err.message, err.field);
     } finally {
         btn.disabled  = false;
         btn.innerHTML = '<i class="feather-save me-1"></i> ' + (id ? 'Save Changes' : 'Save Appointment');
@@ -1112,7 +1354,7 @@ async function submitCheckIn() {
         const data = await res.json();
 
         if (data.success) {
-            // Button stays disabled: the page reloads, so check-in can't be sent twice
+            // Button stays disabled until the list refresh (esRefresh restores the modal), so check-in can't be sent twice
             bootstrap.Modal.getInstance(document.getElementById('checkInModal')).hide();
             Swal.fire({
                 icon:     'success',
@@ -1124,7 +1366,7 @@ async function submitCheckIn() {
                 showConfirmButton: false,
                 customClass:       ES_SWAL_TONE('success'),
             });
-            setTimeout(() => location.reload(), 2200);
+            setTimeout(() => esRefresh(), 2200);
         } else {
             btn.disabled  = false;
             btn.innerHTML = '<i class="feather-user-check me-1"></i> Confirm Check-In';

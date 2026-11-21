@@ -166,7 +166,7 @@ switch ($action) {
                 $lastNum  = (int) preg_replace('/[^0-9]/', '', $lastCode);
                 $trtCode  = $prefix . str_pad($lastNum + 1, $padLen, '0', STR_PAD_LEFT);
 
-                supabase_request('treatments', 'POST', [
+                $newTrt = supabase_request('treatments', 'POST', [
                     'treatment_code' => $trtCode,
                     'appointment_id' => (int) $appointmentId,
                     'patient_id'     => (int) ($aptData['patient_id'] ?? 0),
@@ -177,6 +177,10 @@ switch ($action) {
                     'created_at'     => date('c'),
                     'updated_at'     => date('c'),
                 ]);
+                if (!empty($newTrt['data'][0]['treatment_id'])) {
+                    require_once __DIR__ . '/../controllers/staff_notifications.php';
+                    staffn_treatment((int)$newTrt['data'][0]['treatment_id'], null);   // staff bell: new treatment record
+                }
             }
         }
         // ── End treatment auto-create ─────────────────────────────────────
