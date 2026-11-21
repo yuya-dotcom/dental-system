@@ -1,0 +1,4 @@
+branch_id,branch_name,operating_days,status
+1,Caloocan City,"[1, 2, 3, 4, 5, 6]",active
+2,Mandaluyong City,"[1, 2, 3, 4, 5, 6]",active
+3,Quezon City,"[1, 2, 3, 4, 5, 6]",active

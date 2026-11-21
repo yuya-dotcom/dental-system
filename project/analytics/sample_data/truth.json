@@ -1,0 +1,54 @@
+{
+  "note": "SIMULATED data for development/demo only - not clinic records.",
+  "seed": 2026,
+  "start": "2026-05-16",
+  "end": "2026-11-11",
+  "days": 180,
+  "base_per_open_day": {
+    "3": 12.0,
+    "2": 9.0,
+    "1": 7.0
+  },
+  "weekday_multipliers": {
+    "Mon": 1.1,
+    "Tue": 0.85,
+    "Wed": 0.9,
+    "Thu": 0.95,
+    "Fri": 1.05,
+    "Sat": 1.35,
+    "Sun": 1.0
+  },
+  "trend_per_week": 0.004,
+  "payment": {
+    "median": 1500.0,
+    "sigma": 0.6,
+    "step": 50.0,
+    "min": 300.0
+  },
+  "items": [
+    {
+      "name": "SIM Gloves (pair)",
+      "units_per_appointment": 2.0
+    },
+    {
+      "name": "SIM Mask",
+      "units_per_appointment": 1.0
+    },
+    {
+      "name": "SIM Anesthetic cartridge",
+      "units_per_appointment": 0.3
+    },
+    {
+      "name": "SIM Composite syringe",
+      "units_per_appointment": 0.15
+    },
+    {
+      "name": "SIM Cotton roll pack",
+      "units_per_appointment": 0.5
+    }
+  ],
+  "swap": {
+    "open_sunday": "2026-09-27",
+    "closed_monday": "2026-09-28"
+  }
+}

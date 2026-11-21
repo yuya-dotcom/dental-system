@@ -1,0 +1,3 @@
+branch_id,exception_date,is_open,reason
+3,2026-09-27,True,SIM swap
+3,2026-09-28,False,SIM swap

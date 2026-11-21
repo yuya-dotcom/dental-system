@@ -4,90 +4,56 @@ define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']);
 require_once __DIR__ . '/controllers/auth_controller.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
 // =============================================================
-//  analytics.php — Dental Analytics
-//  Business logic: controllers/dashboard_controller.php
+//  analytics.php — Analytics dashboard
+//
+//  Dashboard = what is happening today. Analytics = how the clinics did
+//  over time, how they compare, and what the forecast expects.
+//  Tabs: Overview · Appointments · Revenue · Inventory · Forecast
+//
+//  Data (both read-only, both loaded by JS after the page paints):
+//    • api/dashboard_stats.php  — the Dashboard's own endpoint (monthly
+//      trends, statuses, billing, stock, top services).
+//      assets/js/analytics-history.js renders Overview / Appointments /
+//      Revenue / Inventory from it.
+//    • api/forecast_data.php    — stored forecast runs (Python job).
+//      assets/js/forecast-charts.js renders the Forecast tab and shares
+//      read-only summaries with the other tabs (window.ESForecast).
+//  Both endpoints enforce branch scope themselves (owner: every branch,
+//  admin / dentist: own branch only); this page only mirrors it in the UI.
+//  Typography: the theme's Inter only (same as dashboard.php).
 // =============================================================
-require_once __DIR__ . '/controllers/dashboard_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/admin_batch.php';
 
-// Performance: all queries below run in two parallel waves over one
-// connection (controllers/admin_batch.php) instead of ~30 sequential ones,
-// and the computed figures are kept for 60 s per user (the card's Refresh
-// button, analytics.php?refresh=1, always recomputes). The navbar bell is
-// still fetched fresh on every load.
-$_analytics = empty($_GET['refresh']) ? admin_cache_get('analytics_v2', 60) : null;
-
-if ($_analytics === null) {
-    $count = ['Prefer: count=exact'];
-    $bf    = dashboardBranchFilter();   // '' for the owner, '&branch_id=eq.N' for admins / dentists
-
-    // ── Wave 1: stat cards + 6-month trend + top services + branches ──
-    $specs  = dashboardStatsSpecs(false);   // the dashboard's today-list isn't shown here
-    $months = [];
-    for ($i = 5; $i >= 0; $i--) {
-        $start = date('Y-m-01', strtotime("-$i months"));
-        $end   = date('Y-m-t',  strtotime("-$i months"));
-        $months[$i] = date('M Y', strtotime("-$i months"));
-        $specs["m{$i}_total"] = admin_q('appointments',
-            'select=status&appointment_date=gte.' . $start . '&appointment_date=lte.' . $end . '&limit=0' . $bf, $count);
-        $specs["m{$i}_done"]  = admin_q('appointments',
-            'select=status&status=eq.completed&appointment_date=gte.' . $start . '&appointment_date=lte.' . $end . '&limit=0' . $bf, $count);
-    }
-    $specs['top_services'] = admin_q('appointments', 'select=services(service_name)&service_id=not.is.null&limit=200' . $bf);
-
-    $res   = admin_prefetch($specs, ['navbar', 'branches']);
-    $stats = dashboardStatsFrom($res);
-
-    // ── Appointments per month (last 6 months) ───────────────────
-    $monthlyData = [];
-    foreach ($months as $i => $label) {
-        $monthlyData[] = ['label' => $label, 'total' => _countFromHeader($res["m{$i}_total"]), 'completed' => _countFromHeader($res["m{$i}_done"])];
-    }
-
-    // ── Top services ─────────────────────────────────────────────
-    $svcCounts = [];
-    if (is_array($res['top_services']['data'])) {
-        foreach ($res['top_services']['data'] as $row) {
-            $name = $row['services']['service_name'] ?? 'Unknown';
-            $svcCounts[$name] = ($svcCounts[$name] ?? 0) + 1;
-        }
-    }
-    arsort($svcCounts);
-    $topServices = array_slice($svcCounts, 0, 6, true);
-
-    // ── Wave 2: per-branch appointment counts (needs the branch list) ──
-    $branches = getAllBranches();
-    // Admins / dentists: only their own branch's bar (owner: every branch)
-    $scope    = scopedBranch(0);
-    if ($scope !== 0) $branches = array_values(array_filter($branches, fn($b) => (int)$b['branch_id'] === $scope));
-    $bSpecs   = [];
-    foreach ($branches as $bi => $b) {
-        $bSpecs[$bi] = admin_q('appointments', 'select=appointment_id&branch_id=eq.' . $b['branch_id'] . '&limit=0', $count);
-    }
-    $bRes        = admin_sb_many($bSpecs);
-    $branchStats = [];
-    foreach ($branches as $bi => $b) {
-        $branchStats[] = ['name' => $b['branch_name'], 'count' => _countFromHeader($bRes[$bi])];
-    }
-
-    $_analytics = compact('stats', 'monthlyData', 'topServices', 'branchStats');
-    admin_cache_set('analytics_v2', $_analytics);
-} else {
-    // Served from the 60 s cache: only the navbar bell still needs a query
-    admin_prefetch([], ['navbar']);
-}
+$scope = scopedBranch(0);   // 0 = owner (every branch), > 0 = own branch
+admin_prefetch([], ['navbar', 'branches']);
 admin_release_session();
-['stats' => $stats, 'monthlyData' => $monthlyData, 'topServices' => $topServices, 'branchStats' => $branchStats] = $_analytics;
-$maxBranch = max(array_column($branchStats, 'count') ?: [1]);
 
-// JSON for ApexCharts
-$chartLabels    = json_encode(array_column($monthlyData, 'label'));
-$chartTotal     = json_encode(array_column($monthlyData, 'total'));
-$chartCompleted = json_encode(array_column($monthlyData, 'completed'));
+// ?fsrc=simulated opens the clearly-labelled demo forecast; default is live data.
+$fcSource   = ($_GET['fsrc'] ?? '') === 'simulated' ? 'simulated' : 'live';
+$fcOwner    = isOwner();
+$fcBranches = [];
+foreach (getAllBranches() as $b) {   // came with the prefetch wave above
+    if ($scope === 0 || (int)$b['branch_id'] === $scope) $fcBranches[(int)$b['branch_id']] = $b['branch_name'];
+}
+ksort($fcBranches);
+$anMulti = $fcOwner && count($fcBranches) > 1;
+$anConfig = [
+    'owner'     => $fcOwner,
+    'multi'     => $anMulti,
+    'branches'  => (object)$fcBranches,        // id => name, in branch_id order (fixes each clinic's colour)
+    'scopeName' => $anMulti ? null : (implode(', ', $fcBranches) ?: null),
+];
+$tabs = [
+    'overview'     => ['feather-grid', 'Overview'],
+    'appointments' => ['feather-calendar', 'Appointments'],
+    'revenue'      => ['feather-credit-card', 'Revenue'],
+    'inventory'    => ['feather-package', 'Inventory'],
+    'forecast'     => ['feather-trending-up', 'Forecast'],
+];
 ?>
 <!DOCTYPE html>
-<html lang="zxx">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -96,6 +62,10 @@ $chartCompleted = json_encode(array_column($monthlyData, 'completed'));
     <link rel="stylesheet" type="text/css" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
+    <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
+    <link rel="stylesheet" href="assets/css/analytics.css?v=8">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -114,184 +84,69 @@ $chartCompleted = json_encode(array_column($monthlyData, 'completed'));
                 </div>
                 <div class="page-header-right ms-auto">
                     <div class="page-header-right-items">
-                        <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-                            <span class="text-muted small"><i class="feather-calendar me-1"></i><?= $stats['today_label'] ?></span>
+                        <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end page-header-right-items-wrapper">
+                            <?php if ($anMulti): ?>
+                            <!-- One clinic filter for every tab (history + forecast) -->
+                            <select id="fcBranch" class="js-custom-select dash-branch" data-cs-filter aria-label="Clinic">
+                                <option value="all">All clinics</option>
+                                <?php foreach ($fcBranches as $bid => $bname): ?>
+                                <option value="<?= (int)$bid ?>"><?= htmlspecialchars($bname) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <?php else: ?>
+                            <span class="dash-where"><i class="feather-map-pin" aria-hidden="true"></i><span class="dash-where-branch"><?= htmlspecialchars(implode(', ', $fcBranches) ?: '—') ?></span></span>
+                            <?php endif; ?>
+                            <button type="button" class="dash-refresh" id="anRefresh" title="Reload the figures"><i class="feather-refresh-cw"></i><span>Refresh</span></button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="main-content">
-                <div class="row">
+            <div class="main-content an-page">
 
-                    <!-- ── STAT CARDS ROW ── -->
-                    <div class="col-xxl-3 col-md-6">
-                        <div class="card stretch stretch-full">
-                            <div class="card-body text-center py-4">
-                                <div class="fs-1 fw-bold text-primary mb-1"><?= $stats['total_appointments'] ?></div>
-                                <div class="fs-13 fw-semibold text-dark">Total Appointments</div>
-                                <div class="fs-12 text-muted mt-1"><?= $stats['completed_appointments'] ?> completed · <?= $stats['pending_appointments'] ?> pending</div>
-                            </div>
-                        </div>
+                <!-- Section tabs + what the figures compare -->
+                <div class="an-bar">
+                    <div class="an-tabs" role="tablist" aria-label="Analytics sections">
+                        <?php foreach ($tabs as $key => [$icon, $label]): ?>
+                        <button type="button" class="an-tab" role="tab" id="anTab-<?= $key ?>" aria-controls="<?= $key === 'forecast' ? 'forecast' : 'anPane-' . $key ?>" data-an-tab="<?= $key ?>"><i class="<?= $icon ?>" aria-hidden="true"></i><span><?= $label ?></span></button>
+                        <?php endforeach; ?>
                     </div>
-                    <div class="col-xxl-3 col-md-6">
-                        <div class="card stretch stretch-full">
-                            <div class="card-body text-center py-4">
-                                <div class="fs-1 fw-bold text-success mb-1"><?= $stats['total_patients'] ?></div>
-                                <div class="fs-13 fw-semibold text-dark">Total Patients</div>
-                                <div class="fs-12 text-muted mt-1">+<?= $stats['new_patients_month'] ?> new in <?= $stats['month_label'] ?></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-xxl-3 col-md-6">
-                        <div class="card stretch stretch-full">
-                            <div class="card-body text-center py-4">
-                                <div class="fs-1 fw-bold text-warning mb-1"><?= $stats['active_treatments'] ?></div>
-                                <div class="fs-13 fw-semibold text-dark">Active Treatments</div>
-                                <div class="fs-12 text-muted mt-1"><?= $stats['completed_treatments'] ?> completed all-time</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-xxl-3 col-md-6">
-                        <div class="card stretch stretch-full">
-                            <div class="card-body text-center py-4">
-                                <div class="fs-1 fw-bold text-danger mb-1">₱<?= number_format($stats['total_revenue'], 0) ?></div>
-                                <div class="fs-13 fw-semibold text-dark">Total Revenue</div>
-                                <div class="fs-12 text-muted mt-1">₱<?= number_format($stats['month_revenue'], 0) ?> this month</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ── APPOINTMENTS TREND CHART ── -->
-                    <div class="col-xxl-8">
-                        <div class="card stretch stretch-full">
-                            <div class="card-header">
-                                <h5 class="card-title">Appointments — Last 6 Months</h5>
-                                <div class="card-header-action">
-                                    <div class="card-header-btn">
-                                        <div data-bs-toggle="tooltip" title="Refresh">
-                                            <a href="analytics.php?refresh=1" class="avatar-text avatar-xs bg-warning"></a>
-                                        </div>
-                                        <div data-bs-toggle="tooltip" title="Maximize/Minimize">
-                                            <a href="javascript:void(0);" class="avatar-text avatar-xs bg-success" data-bs-toggle="expand"></a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                <div id="apt-trend-chart"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ── TOP SERVICES ── -->
-                    <div class="col-xxl-4">
-                        <div class="card stretch stretch-full">
-                            <div class="card-header">
-                                <h5 class="card-title">Top Services Booked</h5>
-                            </div>
-                            <div class="card-body p-0">
-                                <?php if (empty($topServices)): ?>
-                                    <div class="text-center py-5 text-muted">
-                                        <i class="feather-bar-chart-2 fs-3 mb-2 d-block"></i>
-                                        No booking data yet.
-                                    </div>
-                                <?php else: ?>
-                                    <?php $maxSvc = max($topServices); ?>
-                                    <?php foreach ($topServices as $svcName => $svcCount): ?>
-                                    <div class="px-4 py-3 border-bottom">
-                                        <div class="d-flex justify-content-between mb-1">
-                                            <span class="fs-13 fw-semibold text-dark"><?= htmlspecialchars($svcName) ?></span>
-                                            <span class="fs-12 text-muted"><?= $svcCount ?> booking<?= $svcCount !== 1 ? 's' : '' ?></span>
-                                        </div>
-                                        <div class="progress ht-4 rounded">
-                                            <div class="progress-bar bg-primary"
-                                                style="width:<?= round(($svcCount / $maxSvc) * 100) ?>%"></div>
-                                        </div>
-                                    </div>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ── PER-BRANCH BREAKDOWN ── -->
-                    <div class="col-xxl-6">
-                        <div class="card stretch stretch-full">
-                            <div class="card-header">
-                                <h5 class="card-title">Appointments by Branch</h5>
-                            </div>
-                            <div class="card-body p-0">
-                                <?php if (empty($branchStats)): ?>
-                                    <div class="text-center py-5 text-muted">No branch data.</div>
-                                <?php else: ?>
-                                    <?php foreach ($branchStats as $b): ?>
-                                    <div class="px-4 py-3 border-bottom">
-                                        <div class="d-flex justify-content-between mb-1">
-                                            <span class="fs-13 fw-semibold text-dark"><?= htmlspecialchars($b['name']) ?></span>
-                                            <span class="fs-12 text-muted"><?= $b['count'] ?> appointment<?= $b['count'] !== 1 ? 's' : '' ?></span>
-                                        </div>
-                                        <div class="progress ht-4 rounded">
-                                            <div class="progress-bar bg-success"
-                                                style="width:<?= $maxBranch > 0 ? round(($b['count'] / $maxBranch) * 100) : 0 ?>%"></div>
-                                        </div>
-                                    </div>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ── INVOICE SUMMARY ── -->
-                    <div class="col-xxl-6">
-                        <div class="card stretch stretch-full">
-                            <div class="card-header">
-                                <h5 class="card-title">Revenue Summary</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row g-3">
-                                    <div class="col-6">
-                                        <div class="p-3 border border-dashed rounded text-center">
-                                            <div class="fs-12 text-muted mb-1">This Month</div>
-                                            <div class="fs-5 fw-bold text-success">₱<?= number_format($stats['month_revenue'], 0) ?></div>
-                                            <div class="progress mt-2 ht-3">
-                                                <div class="progress-bar bg-success" style="width:70%"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="p-3 border border-dashed rounded text-center">
-                                            <div class="fs-12 text-muted mb-1">Total Collected</div>
-                                            <div class="fs-5 fw-bold text-primary">₱<?= number_format($stats['total_revenue'], 0) ?></div>
-                                            <div class="progress mt-2 ht-3">
-                                                <div class="progress-bar bg-primary" style="width:85%"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="p-3 border border-dashed rounded text-center">
-                                            <div class="fs-12 text-muted mb-1">Outstanding Balance</div>
-                                            <div class="fs-5 fw-bold text-danger">₱<?= number_format($stats['unpaid_balance'], 0) ?></div>
-                                            <div class="progress mt-2 ht-3">
-                                                <div class="progress-bar bg-danger" style="width:<?= $stats['total_revenue'] > 0 ? min(100, round(($stats['unpaid_balance'] / ($stats['total_revenue'] + $stats['unpaid_balance'])) * 100)) : 0 ?>%"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="p-3 border border-dashed rounded text-center">
-                                            <div class="fs-12 text-muted mb-1">Completion Rate</div>
-                                            <div class="fs-5 fw-bold text-warning"><?= $stats['total_appointments'] > 0 ? round(($stats['completed_appointments'] / $stats['total_appointments']) * 100) : 0 ?>%</div>
-                                            <div class="progress mt-2 ht-3">
-                                                <div class="progress-bar bg-warning" style="width:<?= $stats['total_appointments'] > 0 ? round(($stats['completed_appointments'] / $stats['total_appointments']) * 100) : 0 ?>%"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
+                    <div class="an-context" id="anContext" aria-live="polite"></div>
                 </div>
+
+                <?php foreach (['overview', 'appointments', 'revenue', 'inventory'] as $key): ?>
+                <div id="anPane-<?= $key ?>" class="an-pane" role="tabpanel" aria-labelledby="anTab-<?= $key ?>" hidden></div>
+                <?php endforeach; ?>
+
+                <!-- Forecast: rendered by assets/js/forecast-charts.js from api/forecast_data.php -->
+                <div id="forecast" class="an-pane" role="tabpanel" aria-labelledby="anTab-forecast" hidden>
+                    <div class="card an-toolbar-card">
+                        <div class="card-body an-toolbar">
+                            <select id="fcMetric" class="js-custom-select" data-cs-filter aria-label="What to forecast">
+                                <option value="appointments">Appointments</option>
+                                <option value="sales">Revenue</option>
+                                <option value="inventory">Inventory</option>
+                            </select>
+                            <select id="fcPeriod" class="js-custom-select" data-cs-filter aria-label="Forecast period">
+                                <?php foreach ([7, 14] as $p): /* replaced by the run's horizon once loaded */ ?>
+                                <option value="<?= $p ?>"<?= $p === 14 ? ' selected' : '' ?>>Next <?= $p ?> days</option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="an-seg" role="group" aria-label="Data source">
+                                <button type="button" data-src="live" aria-pressed="<?= $fcSource === 'live' ? 'true' : 'false' ?>">Clinic records</button>
+                                <button type="button" data-src="simulated" aria-pressed="<?= $fcSource === 'simulated' ? 'true' : 'false' ?>">Demo data</button>
+                            </div>
+                            <span class="an-status" id="fcStatus"></span>
+                            <?php if ($fcOwner): ?>
+                            <button type="button" class="dash-refresh is-primary" id="fcRunBtn" data-source="<?= $fcSource ?>"
+                                    title="Retrain and re-check every model on the recorded history"><i class="feather-play"></i><span>Run forecast</span></button>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div id="fcNotice"></div>
+                    <div id="fcApp"></div>
+                </div>
+
             </div>
         </div>
 
@@ -303,26 +158,20 @@ $chartCompleted = json_encode(array_column($monthlyData, 'completed'));
     </main>
 
     <script src="assets/vendors/js/vendors.min.js"></script>
+    <!-- SweetAlert2 v11 (self-hosted, same build as every other admin page): replaces the
+         v9 bundled in vendors.min.js, whose result has no isConfirmed (Sign Out never ran) -->
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
     <script src="assets/vendors/js/apexcharts.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
     <script>
-    // ── Appointments trend chart ──────────────────────────────
-    const aptChart = new ApexCharts(document.querySelector('#apt-trend-chart'), {
-        chart:  { type: 'bar', height: 280, toolbar: { show: false }, fontFamily: 'inherit' },
-        colors: ['#3454d1', '#28a745'],
-        series: [
-            { name: 'Total',     data: <?= $chartTotal ?> },
-            { name: 'Completed', data: <?= $chartCompleted ?> },
-        ],
-        xaxis: { categories: <?= $chartLabels ?> },
-        yaxis: { labels: { formatter: v => Math.round(v) } },
-        plotOptions: { bar: { columnWidth: '55%', borderRadius: 4 } },
-        dataLabels: { enabled: false },
-        legend: { position: 'top' },
-        grid: { borderColor: '#f0f0f0' },
-    });
-    aptChart.render();
+        window.ES_FORECAST_SOURCE = <?= json_encode($fcSource) ?>;
+        window.ES_ANALYTICS = <?= json_encode($anConfig, JSON_HEX_TAG | JSON_HEX_AMP) ?>;
     </script>
+    <script src="assets/js/forecast-charts.js?v=17"></script>
+    <script src="assets/js/analytics-history.js?v=5"></script>
 </body>
 </html>
