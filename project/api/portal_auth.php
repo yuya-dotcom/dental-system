@@ -475,23 +475,35 @@ $accountId = $_SESSION['portal_account_id'];
 // its own TLS handshake). The payload per key is identical to the single action.
 if ($action === 'bootstrap') {
     $aid = (int)$accountId;
-    // Ended, never-checked-in appointments show as No Show (server-side, throttled)
-    require_once __DIR__ . "/../controllers/appointment_lifecycle.php";
-    aptSweepNoShows();
+    $loaders = [
+        'dashboard_summary'   => fn() => pl_dashboard_summary($aid, $dashCache),
+        'get_profile'         => fn() => pl_profile($aid),
+        'get_treatments'      => fn() => pl_treatments($aid),
+        'get_billing'         => fn() => pl_billing($aid),
+        'get_dental_chart'    => fn() => pl_dental_chart($aid),
+        'get_files'           => fn() => pl_files($aid),
+        'get_waivers'         => fn() => pl_waivers($aid),
+        'contact_status'      => fn() => pl_contact_status($aid),
+        'check_questionnaire' => fn() => pl_check_questionnaire($aid),
+        'appointments'        => fn() => pl_appointments($aid),
+        'feedback_status'     => fn() => pl_feedback_status($aid),
+    ];
+    // Optional 'sections': only those loaders run. Hosts without curl_multi
+    // (InfinityFree) run every query one after another, so the browser asks for
+    // the first screen in a few smaller requests that run side by side
+    // (the session is already closed above) instead of one ~30-query request.
+    $want = $input['sections'] ?? null;
+    if (is_array($want)) $loaders = array_intersect_key($loaders, array_flip(array_filter($want, 'is_string')));
+    if (!$loaders) { echo json_encode(['success' => false, 'message' => 'No sections requested.']); exit; }
+
+    // Ended, never-checked-in appointments show as No Show (server-side, throttled,
+    // and safe when two requests try at once — the second simply skips it)
+    if (isset($loaders['appointments']) || isset($loaders['dashboard_summary'])) {
+        require_once __DIR__ . "/../controllers/appointment_lifecycle.php";
+        aptSweepNoShows();
+    }
     getPatientId($aid);   // resolve + cache once, instead of once per loader
-    echo json_encode(['success' => true] + portal_run([
-        'dashboard_summary'   => pl_dashboard_summary($aid, $dashCache),
-        'get_profile'         => pl_profile($aid),
-        'get_treatments'      => pl_treatments($aid),
-        'get_billing'         => pl_billing($aid),
-        'get_dental_chart'    => pl_dental_chart($aid),
-        'get_files'           => pl_files($aid),
-        'get_waivers'         => pl_waivers($aid),
-        'contact_status'      => pl_contact_status($aid),
-        'check_questionnaire' => pl_check_questionnaire($aid),
-        'appointments'        => pl_appointments($aid),
-        'feedback_status'     => pl_feedback_status($aid),
-    ]));
+    echo json_encode(['success' => true] + portal_run(array_map(fn($f) => $f(), $loaders)));
     exit;
 }
 

@@ -23,18 +23,28 @@ function cacheIsFresh(key) {
   return !!_cache[key] && Date.now() - (_cacheTime[key] || 0) < REVALIDATE_MS;
 }
 
+// Requests already on their way, by cache key: opening a section while its
+// background prefetch is still loading waits for that same request.
+const _inflight = {};
+
 async function php(path, body) {
   const key = JSON.stringify(body);
   if (_cache[key]) return _cache[key];
+  if (_inflight[key]) return _inflight[key];
 
-  const data = await fetch(path, {
+  const req = fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  }).then((r) => r.json());
-
-  cacheSet(key, data);
-  return data;
+  })
+    .then((r) => r.json())
+    .then((data) => {
+      cacheSet(key, data);
+      return data;
+    })
+    .finally(() => delete _inflight[key]);
+  _inflight[key] = req;
+  return req;
 }
 
 function clearCache(...actions) {
@@ -2085,25 +2095,34 @@ document.addEventListener("visibilitychange", async () => {
 document.getElementById("contactGateModal")?.addEventListener("shown.bs.modal", watchContactStatus);
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-// One 'bootstrap' request returns every section's data (the server runs the
-// queries in parallel). Each part is stored under the same cache key as its
-// single action, so the section loaders below work unchanged. If bootstrap
-// fails, fall back to the individual calls.
-const BOOT_SECTIONS = ["dashboard_summary", "get_profile", "get_treatments", "get_billing",
-  "get_dental_chart", "get_files", "get_waivers"];
+// The first screen comes from a few 'bootstrap' requests sent side by side,
+// each asking for some sections. Hosts without parallel curl (InfinityFree)
+// run every query of a request one after another, so one big request took
+// ~12 s there; split, the slowest group decides. Each part is stored under the
+// same cache key as its single action, so the section loaders work unchanged.
+// The other sections are prefetched in the background once the first screen
+// is drawn. A group that fails falls back to the individual calls.
+const BOOT_GROUPS = [
+  ["dashboard_summary", "contact_status", "check_questionnaire", "feedback_status"],
+  ["get_profile"],
+  ["appointments"],
+];
+const BOOT_SECTIONS = ["dashboard_summary", "get_profile"];   // needed before the dashboard draws
+const LATER_SECTIONS = ["get_treatments", "get_billing", "get_dental_chart", "get_files", "get_waivers"];
 window.portalBootData = null; // read by the appointments script in portal-dashboard.php
 
 async function preloadAll() {
-  let boot = null;
-  try {
-    boot = await fetch(API, {
+  const parts = await Promise.all(BOOT_GROUPS.map((sections) =>
+    fetch(API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "bootstrap" }),
-    }).then((r) => r.json());
-  } catch (e) {
-    boot = null;
-  }
+      body: JSON.stringify({ action: "bootstrap", sections }),
+    })
+      .then((r) => r.json())
+      .catch(() => null),
+  ));
+  const ok = parts.filter((p) => p && p.success);
+  const boot = ok.length ? Object.assign({}, ...ok) : null;
 
   if (boot && boot.success) {
     window.portalBootData = boot;
@@ -2135,6 +2154,10 @@ async function preloadAll() {
 
   // Check if first login — show questionnaire if not yet answered
   checkAndShowQuestionnaire(boot && boot.check_questionnaire);
+
+  // Warm the other tabs in the background (not awaited). Opening one of them
+  // meanwhile reuses the request already on its way (php() in-flight map).
+  LATER_SECTIONS.forEach((a) => php(API, { action: a }).catch(() => {}));
 }
 
 // Awaited by the appointments script in portal-dashboard.php (it uses the

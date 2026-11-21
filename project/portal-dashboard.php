@@ -2333,7 +2333,7 @@ session_write_close();
             return _phDataPromise;
         }
     </script>
-    <script src="assets/js/portal-dashboard.js?v=29"></script>
+    <script src="assets/js/portal-dashboard.js?v=30"></script>
     <script src="assets/js/portal-notify.js?v=1"></script>
 
     <script>
