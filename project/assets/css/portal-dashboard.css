@@ -3898,3 +3898,40 @@ html {
 @media (max-width: 575.98px) {
   .ew-full-btn { padding: 0 0.6rem; }
 }
+
+/* =============================================================
+   Settings page (page-settings): Contact Verification, Password,
+   Notifications (.pn-card, portal-notify.css) and Download My Records.
+   Same look as the Notifications card so the four read as one set.
+   ============================================================= */
+.set-layout { max-width: 760px; display: flex; flex-direction: column; gap: 1rem; }
+.set-card { padding: 1.1rem 1.1rem .6rem; }
+.set-layout .pn-card { margin-top: 0; }
+.set-head { display: flex; align-items: flex-start; gap: .7rem; margin-bottom: .6rem; }
+.set-head-ico { width: 34px; height: 34px; border-radius: 9px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 15px; background: #e6f3fb; color: #0279BC; }
+.set-head-ico.green { background: #e7f7ee; color: #15803d; }
+.set-head-ico.violet { background: #f1ecfd; color: #6d28d9; }
+.set-title { font-size: .95rem; font-weight: 700; margin: 0; color: #0b3a57; }
+.set-sub { font-size: .78rem; color: #6b7a90; margin: .15rem 0 0; line-height: 1.4; }
+.set-row { display: flex; align-items: center; gap: .7rem; padding: .7rem 0; border-top: 1px solid var(--border, #e5e7eb); }
+.set-row-end { justify-content: flex-start; }
+.set-ico { width: 28px; flex: 0 0 auto; text-align: center; color: #6b7a90; font-size: 15px; }
+.set-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.set-txt .t { font-size: .86rem; font-weight: 600; color: #1f2d3d; }
+.set-txt .d { font-size: .78rem; color: #6b7a90; line-height: 1.35; margin-top: .1rem; overflow-wrap: anywhere; }
+.set-act { flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; }
+.set-btn { display: inline-flex; align-items: center; gap: .45rem; border: 0; border-radius: 9px; padding: .5rem .9rem; min-height: 38px;
+  font-size: .82rem; font-weight: 600; background: #0279BC; color: #fff; cursor: pointer; transition: background-color .15s ease; }
+.set-btn:hover { background: #02679f; }
+.set-btn:focus-visible { outline: 2px solid #0279BC; outline-offset: 2px; }
+.set-btn:disabled, .set-btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+.set-btn-light { background: #eef4f9; color: #0b3a57; }
+.set-btn-light:hover { background: #e1ecf5; }
+.set-btn[hidden] { display: none; }
+.set-card .contact-rule-note { margin: .2rem 0 .5rem; }
+@media (max-width: 575.98px) {
+  .set-row { flex-wrap: wrap; }
+  .set-act { width: 100%; padding-left: calc(28px + .7rem); }
+  .set-row-end .set-btn { flex: 1 1 auto; justify-content: center; }
+}

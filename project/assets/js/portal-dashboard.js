@@ -418,6 +418,7 @@ function showPage(page, linkEl) {
     files: "My Files",
     waivers: "Waivers",
     profile: "My Profile",
+    settings: "Settings",
     feedback: "Give Feedback",
   };
   document.getElementById("topbarTitle").textContent = titles[page] || page;
@@ -431,6 +432,8 @@ function showPage(page, linkEl) {
   if (page === "files") loadFiles();
   if (page === "waivers") loadWaivers();
   if (page === "profile") loadProfile();
+  // Settings shows verification + password state, which come with the profile data
+  if (page === "settings") loadProfile();
   closeSidebar();
   // A new section starts at its top (otherwise phones keep the old scroll position)
   window.scrollTo({ top: 0, behavior: "auto" });
@@ -2005,10 +2008,75 @@ function syncContactLock() {
   // Edit form: the (i) icon is always shown; its message follows the status
   setInfoTip(document.getElementById("pfContactTip"), locked
     ? "Verified numbers can't be edited here. Use Change Number to confirm a new one by SMS."
-    : "Verify phone number.", "About your contact number: ");
+    : "After saving, verify this number in Settings.", "About your contact number: ");
   const inFieldBtn = document.getElementById("pfContactChangeWrap");
   if (inFieldBtn) inFieldBtn.hidden = !locked;
   syncVerifyTips();
+  syncSettingsContact();
+}
+
+// Settings › Contact Verification: the email and number being verified (they
+// are edited in My Profile), and "Add in My Profile" while there is no number.
+function syncSettingsContact() {
+  const email = document.getElementById("pf_email")?.value.trim() || "";
+  const phone = document.getElementById("pf_contact")?.value.trim() || "";
+  const ev = document.getElementById("setEmailValue");
+  const pv = document.getElementById("setPhoneValue");
+  if (ev) ev.textContent = email || "—";
+  if (pv) pv.textContent = phone ? "+63 " + phone : "No mobile number yet";
+  const add = document.getElementById("setPhoneAdd");
+  if (add) add.hidden = !!phone;
+}
+
+// ── Settings › Download My Records ───────────────────────────────────────────
+// Fetched (not a plain link) so a failure shows a portal message instead of a
+// JSON page; the PDF is built on the server from this account's data only.
+async function downloadMyRecords(btn) {
+  if (btn) btn.disabled = true;
+  Swal.fire({
+    title: "Preparing your records…",
+    html: '<p class="es-swal-text">This can take a few seconds.</p>',
+    allowOutsideClick: false,
+    showConfirmButton: false,
+    customClass: ES_SWAL_CLASS,
+    didOpen: () => Swal.showLoading(),
+  });
+  try {
+    const res = await fetch("api/portal_records_pdf.php", { cache: "no-store" });
+    const type = res.headers.get("Content-Type") || "";
+    if (!res.ok || !type.includes("application/pdf")) {
+      let msg = "We couldn't create the PDF right now. Please try again.";
+      try { msg = (await res.json()).message || msg; } catch (e) { /* not JSON */ }
+      if (res.status === 401) { location.href = "portal-login.php?expired=1"; return; }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const name = (res.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || "EssenciaSmile-Records.pdf";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    Swal.close();
+  } catch (e) {
+    Swal.fire({
+      icon: "error",
+      title: "Download Failed",
+      html: '<p class="es-swal-text">' + escapeHtmlText(e.message) + "</p>",
+      confirmButtonText: "OK",
+      buttonsStyling: false,
+      customClass: ES_SWAL_CLASS,
+    });
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function escapeHtmlText(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
 // Sets an (i) icon's message (data-tip + accessible name), also when its
@@ -2272,7 +2340,7 @@ window.portalBoot = preloadAll();
 // Used by the booking confirmation's "View My Appointments" button.
 window.addEventListener("load", () => {
   const page = location.hash.slice(1);
-  const allowed = ["appointments", "treatments", "dentalchart", "billing", "files", "waivers", "profile"];
+  const allowed = ["appointments", "treatments", "dentalchart", "billing", "files", "waivers", "profile", "settings"];
   if (allowed.includes(page) && document.getElementById("page-" + page)) showPage(page, null);
 
   // ?verify_contact=1 — back from the scheduling page or "Refresh status":

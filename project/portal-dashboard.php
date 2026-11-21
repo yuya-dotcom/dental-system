@@ -58,7 +58,7 @@ session_write_close();
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/portal-login.css?v=11">
     <link rel="stylesheet" href="assets/css/odontogram.css?v=3">
-    <link rel="stylesheet" href="assets/css/portal-dashboard.css?v=25">
+    <link rel="stylesheet" href="assets/css/portal-dashboard.css?v=26">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <!-- Installable app + Web Push (assets/js/portal-notify.js, sw.js) -->
@@ -123,6 +123,9 @@ session_write_close();
             <div class="nav-section-label mt-2">Account</div>
             <a class="nav-link-item" href="#" onclick="showPage('profile',this)">
                 <i class="fa-solid fa-user-circle"></i> Profile
+            </a>
+            <a class="nav-link-item" href="#" onclick="showPage('settings',this)">
+                <i class="fa-solid fa-gear"></i> Settings
             </a>
         </nav>
 
@@ -679,6 +682,131 @@ session_write_close();
              Left: summary card + section navigation (shared by view & edit)
              Right: view panel (read-only) or edit panel (form)
         ══════════════════════════════════════════════════ -->
+        <!-- ══ SETTINGS ═══════════════════════════════════════════════════════
+             Account settings, each in one place only: contact verification
+             (status + Verify buttons; the numbers themselves are edited in My
+             Profile), Change Password, notification channels, and a PDF of the
+             patient's own records (api/portal_records_pdf.php). -->
+        <div class="page-body" id="page-settings">
+            <div class="set-layout">
+
+                <!-- Contact Verification -->
+                <section class="prof-card set-card" aria-labelledby="setVerifyTitle">
+                    <div class="set-head">
+                        <span class="set-head-ico green" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></span>
+                        <div>
+                            <h3 class="set-title" id="setVerifyTitle">Contact Verification</h3>
+                            <p class="set-sub">Verify your email or mobile number to book appointments</p>
+                        </div>
+                    </div>
+                    <div class="set-row">
+                        <span class="set-ico" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
+                        <div class="set-txt">
+                            <span class="t">Email</span>
+                            <span class="d" id="setEmailValue">—</span>
+                        </div>
+                        <div class="set-act">
+                            <span id="emailVerifiedBadge" style="display:none;">
+                                <span class="prof-badge prof-badge-ok"><i class="fa-solid fa-circle-check"></i> Verified</span>
+                            </span>
+                            <span id="emailVerifyBtnWrap" style="display:none;">
+                                <button type="button" class="set-btn" onclick="sendVerificationEmail(this)" aria-label="Verify email: send a verification link">
+                                    <i class="fa-solid fa-envelope" aria-hidden="true"></i><span>Verify Email</span>
+                                </button>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="set-row">
+                        <span class="set-ico" aria-hidden="true"><i class="fa-solid fa-mobile-screen"></i></span>
+                        <div class="set-txt">
+                            <span class="t">Mobile Number</span>
+                            <span class="d" id="setPhoneValue">—</span>
+                        </div>
+                        <div class="set-act">
+                            <span id="phoneVerifiedBadge" style="display:none;">
+                                <span class="prof-badge prof-badge-ok"><i class="fa-solid fa-circle-check"></i> Verified</span>
+                            </span>
+                            <span id="phoneVerifyBtnWrap" style="display:none;">
+                                <button type="button" class="set-btn" onclick="startPhoneVerification()" aria-label="Verify number by SMS">
+                                    <i class="fa-solid fa-mobile-screen" aria-hidden="true"></i><span>Verify Number</span>
+                                </button>
+                            </span>
+                            <button type="button" class="set-btn set-btn-light" id="setPhoneAdd" hidden onclick="showPage('profile', null); enterEditMode();">
+                                <i class="fa-solid fa-plus" aria-hidden="true"></i><span>Add in My Profile</span>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="contact-rule-note" id="contactRuleNote" style="display:none;"></p>
+                </section>
+
+                <!-- Password -->
+                <section class="prof-card set-card" aria-labelledby="setPwTitle">
+                    <div class="set-head">
+                        <span class="set-head-ico blue" aria-hidden="true"><i class="fa-solid fa-key"></i></span>
+                        <div>
+                            <h3 class="set-title" id="setPwTitle">Password</h3>
+                            <p class="set-sub">Change the password you use to sign in with your email</p>
+                        </div>
+                    </div>
+                    <!-- Disabled for Google-only accounts (no password): syncPasswordControls() -->
+                    <div class="set-row set-row-end">
+                        <button type="button" class="set-btn" id="profPwBtn" onclick="openChangePassword()">
+                            <i class="fa-solid fa-key" aria-hidden="true"></i><span>Change Password</span>
+                        </button>
+                        <button type="button" class="info-tip" id="profPwTip" hidden
+                            data-tip="You don't have a password because you signed in with Google."
+                            aria-label="Why is Change Password unavailable? You don't have a password because you signed in with Google.">
+                            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Notification settings (assets/js/portal-notify.js → api/portal_notification_settings.php) -->
+                <section class="prof-card pn-card set-card" id="pnCard" aria-labelledby="pnTitle" hidden>
+                    <div class="pn-head">
+                        <span class="pn-head-ico" aria-hidden="true"><i class="fa-solid fa-bell"></i></span>
+                        <div>
+                            <h3 class="pn-title" id="pnTitle">Notifications</h3>
+                            <p class="pn-sub">Appointment confirmations, changes and reminders</p>
+                        </div>
+                    </div>
+                    <div class="pn-row">
+                        <span class="pn-ico" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
+                        <label class="pn-txt" for="pnEmail"><span class="t">Email</span><span class="d" id="pnEmailNote">To your verified email address</span></label>
+                        <input type="checkbox" class="pn-switch" id="pnEmail" role="switch">
+                    </div>
+                    <div class="pn-row">
+                        <span class="pn-ico" aria-hidden="true"><i class="fa-solid fa-comment-sms"></i></span>
+                        <label class="pn-txt" for="pnSms"><span class="t">SMS</span><span class="d" id="pnSmsNote">Text messages to your mobile number</span></label>
+                        <input type="checkbox" class="pn-switch" id="pnSms" role="switch">
+                    </div>
+                    <div class="pn-row">
+                        <span class="pn-ico" aria-hidden="true"><i class="fa-solid fa-mobile-screen-button"></i></span>
+                        <label class="pn-txt" for="pnPush"><span class="t">Push on this device</span><span class="d" id="pnPushNote">Alerts even when the portal is closed</span></label>
+                        <input type="checkbox" class="pn-switch" id="pnPush" role="switch">
+                    </div>
+                    <p class="pn-hint" id="pnHint" hidden></p>
+                </section>
+
+                <!-- Download My Records -->
+                <section class="prof-card set-card" aria-labelledby="setRecTitle">
+                    <div class="set-head">
+                        <span class="set-head-ico violet" aria-hidden="true"><i class="fa-solid fa-file-arrow-down"></i></span>
+                        <div>
+                            <h3 class="set-title" id="setRecTitle">Download My Records</h3>
+                            <p class="set-sub">A PDF of your details, appointments, treatments, invoices and payments</p>
+                        </div>
+                    </div>
+                    <div class="set-row set-row-end">
+                        <button type="button" class="set-btn" id="setRecBtn" onclick="downloadMyRecords(this)">
+                            <i class="fa-solid fa-download" aria-hidden="true"></i><span>Download PDF</span>
+                        </button>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+
         <div class="page-body" id="page-profile">
             <div class="prof-layout">
 
@@ -711,17 +839,7 @@ session_write_close();
                         <button type="button" class="prof-btn prof-btn-primary prof-edit-btn" id="profEditBtn" onclick="enterEditMode()">
                             <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> Edit Profile
                         </button>
-                        <!-- Disabled for Google-only accounts (no password): syncPasswordControls() -->
-                        <div class="prof-pw-row">
-                            <button type="button" class="prof-btn prof-btn-light prof-pw-btn" id="profPwBtn" onclick="openChangePassword()">
-                                <i class="fa-solid fa-key" aria-hidden="true"></i> Change Password
-                            </button>
-                            <button type="button" class="info-tip" id="profPwTip" hidden
-                                data-tip="You don't have a password because you signed in with Google."
-                                aria-label="Why is Change Password unavailable? You don't have a password because you signed in with Google.">
-                                <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
-                            </button>
-                        </div>
+                        <!-- Change Password, notifications and contact verification live on Settings (page-settings) -->
                         <div class="prof-editing-note" id="profEditingNote" hidden>
                             <i class="fa-solid fa-pen" aria-hidden="true"></i> Editing — remember to save your changes
                         </div>
@@ -747,33 +865,6 @@ session_write_close();
                                 <i class="fa-solid fa-file-medical fa-fw" aria-hidden="true"></i><span>Medical Conditions</span>
                             </a>
                     </nav>
-
-                    <!-- Notification settings (assets/js/portal-notify.js → api/portal_notification_settings.php) -->
-                    <section class="prof-card pn-card" id="pnCard" aria-labelledby="pnTitle" hidden>
-                        <div class="pn-head">
-                            <span class="pn-head-ico" aria-hidden="true"><i class="fa-solid fa-bell"></i></span>
-                            <div>
-                                <h3 class="pn-title" id="pnTitle">Notifications</h3>
-                                <p class="pn-sub">Appointment confirmations, changes and reminders</p>
-                            </div>
-                        </div>
-                        <div class="pn-row">
-                            <span class="pn-ico" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
-                            <label class="pn-txt" for="pnEmail"><span class="t">Email</span><span class="d" id="pnEmailNote">To your verified email address</span></label>
-                            <input type="checkbox" class="pn-switch" id="pnEmail" role="switch">
-                        </div>
-                        <div class="pn-row">
-                            <span class="pn-ico" aria-hidden="true"><i class="fa-solid fa-comment-sms"></i></span>
-                            <label class="pn-txt" for="pnSms"><span class="t">SMS</span><span class="d" id="pnSmsNote">Text messages to your mobile number</span></label>
-                            <input type="checkbox" class="pn-switch" id="pnSms" role="switch">
-                        </div>
-                        <div class="pn-row">
-                            <span class="pn-ico" aria-hidden="true"><i class="fa-solid fa-mobile-screen-button"></i></span>
-                            <label class="pn-txt" for="pnPush"><span class="t">Push on this device</span><span class="d" id="pnPushNote">Alerts even when the portal is closed</span></label>
-                            <input type="checkbox" class="pn-switch" id="pnPush" role="switch">
-                        </div>
-                        <p class="pn-hint" id="pnHint" hidden></p>
-                    </section>
                 </aside>
 
                 <!-- ── RIGHT: content ── -->
@@ -903,55 +994,16 @@ session_write_close();
                                 <div class="prof-collapse-inner">
                                     <div class="prof-section-body">
                                     <div class="row g-3 prof-fields">
-                                        <!-- Email / Contact Number: unverified → (i) icon beside the label
-                                             (syncVerifyTips) and the verify button inside the field, on the
-                                             right (same as Change Number in the edit form). Verified → the
-                                             "Verified" pill. Status: patient_accounts.is_verified / phone_verified.
-                                             Change Number is only in Edit Profile (inside the Contact Number field). -->
+                                        <!-- Email / Contact Number: values only. Their verification status and
+                                             the Verify buttons are on Settings › Contact Verification;
+                                             Change Number stays in Edit Profile (inside the Contact Number field). -->
                                         <div class="col-md-6">
-                                            <div class="pf-label-row">
-                                                <div class="view-field-label" id="vfEmailLabel">Email Address</div>
-                                                <button type="button" class="info-tip" id="vfEmailTip" hidden data-tip="" aria-label="Email address status">
-                                                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
-                                                </button>
-                                            </div>
-                                            <div class="prof-value-row">
-                                                <div class="view-field-value" id="vf_email">—</div>
-                                                <span id="emailVerifiedBadge" style="display:none;">
-                                                    <span class="prof-badge prof-badge-ok">
-                                                        <i class="fa-solid fa-circle-check"></i> Verified
-                                                    </span>
-                                                </span>
-                                                <span id="emailVerifyBtnWrap" class="prof-field-action-wrap" style="display:none;">
-                                                    <button type="button" class="prof-field-action" onclick="sendVerificationEmail(this)" aria-label="Verify email: send a verification link">
-                                                        <i class="fa-solid fa-envelope" aria-hidden="true"></i><span>Verify Email</span>
-                                                    </button>
-                                                </span>
-                                            </div>
+                                            <div class="view-field-label" id="vfEmailLabel">Email Address</div>
+                                            <div class="view-field-value" id="vf_email">—</div>
                                         </div>
                                         <div class="col-md-6">
-                                            <div class="pf-label-row">
-                                                <div class="view-field-label" id="vfPhoneLabel">Contact Number</div>
-                                                <button type="button" class="info-tip" id="vfPhoneTip" hidden data-tip="" aria-label="Contact number status">
-                                                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
-                                                </button>
-                                            </div>
-                                            <div class="prof-value-row">
-                                                <div class="view-field-value" id="vf_contact">—</div>
-                                                <span id="phoneVerifiedBadge" style="display:none;">
-                                                    <span class="prof-badge prof-badge-ok">
-                                                        <i class="fa-solid fa-circle-check"></i> Verified
-                                                    </span>
-                                                </span>
-                                                <span id="phoneVerifyBtnWrap" class="prof-field-action-wrap" style="display:none;">
-                                                    <button type="button" class="prof-field-action" onclick="startPhoneVerification()" aria-label="Verify number by SMS">
-                                                        <i class="fa-solid fa-mobile-screen" aria-hidden="true"></i><span>Verify Number</span>
-                                                    </button>
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="col-12">
-                                            <p class="contact-rule-note" id="contactRuleNote" style="display:none;"></p>
+                                            <div class="view-field-label" id="vfPhoneLabel">Contact Number</div>
+                                            <div class="view-field-value" id="vf_contact">—</div>
                                         </div>
                                         <div class="col-md-6">
                                             <div class="view-field-label">Home Phone</div>
@@ -2339,7 +2391,7 @@ session_write_close();
             return _phDataPromise;
         }
     </script>
-    <script src="assets/js/portal-dashboard.js?v=31"></script>
+    <script src="assets/js/portal-dashboard.js?v=32"></script>
     <script src="assets/js/portal-notify.js?v=1"></script>
 
     <script>

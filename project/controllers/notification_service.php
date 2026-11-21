@@ -475,7 +475,7 @@ function notify_email_html(string $heading, string $intro, array $rows, ?string 
 </td></tr>
 <tr><td align="center" style="padding:22px 32px 26px 32px;"><a href="{$portal}" target="_blank" style="display:inline-block;padding:12px 28px;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;background-color:#0279BC;">Open the Patient Portal</a></td></tr>
 <tr><td style="padding:16px 32px 24px 32px;border-top:1px solid #eef2f7;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a94a6;text-align:center;">
-This is an automated message from EssenciaSmile Dental Clinic. You can change how we contact you in the Patient Portal under Profile &gt; Notifications.<br>&copy; {$year} EssenciaSmile</td></tr>
+This is an automated message from EssenciaSmile Dental Clinic. You can change how we contact you in the Patient Portal under Settings &gt; Notifications.<br>&copy; {$year} EssenciaSmile</td></tr>
 </table></td></tr></table></body></html>
 HTML;
 }

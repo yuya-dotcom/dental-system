@@ -2,7 +2,7 @@
    assets/js/portal-notify.js — Patient Portal notification settings
    + Web Push on this device.
 
-   • Profile › Notifications card: Email / SMS / Push switches
+   • Settings › Notifications card: Email / SMS / Push switches
      (api/portal_notification_settings.php).
    • Push permission is ONLY requested after the patient switches push
      on (or taps "Turn on" in the Appointments banner) — never on load.
