@@ -1,0 +1,296 @@
+/* =============================================================
+   assets/css/es-admin.css — admin portal: AJAX feedback, filter
+   panels and responsive fixes (pairs with assets/js/es-ajax.js).
+   Colours follow the existing admin palette (#185fa5 primary).
+   ============================================================= */
+
+/* ── Top progress bar ───────────────────────────────────────── */
+.es-topbar {
+  position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 2000;
+  pointer-events: none; opacity: 0; transition: opacity .2s;
+  background: linear-gradient(90deg, transparent 0, #185fa5 30%, #4f8fd6 60%, transparent 100%);
+  background-size: 50% 100%; background-repeat: no-repeat;
+}
+.es-topbar.on { opacity: 1; animation: es-bar 1s linear infinite; }
+@keyframes es-bar { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+
+/* ── Spinner primitive ──────────────────────────────────────── */
+.es-spin {
+  display: inline-block; width: 16px; height: 16px; flex: 0 0 auto;
+  border: 2px solid rgba(24, 95, 165, .25); border-top-color: #185fa5; border-radius: 50%;
+  animation: es-rot .7s linear infinite;
+}
+@keyframes es-rot { to { transform: rotate(360deg); } }
+
+/* ── "Processing…" pill ─────────────────────────────────────── */
+.es-processing {
+  position: fixed; top: 14px; left: 50%; z-index: 2001;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border-radius: 999px;
+  background: #fff; color: #1a1a2e; font-size: .8125rem; font-weight: 600;
+  box-shadow: 0 6px 20px rgba(10, 35, 66, .16); border: 1px solid #e5e7eb;
+  transform: translate(-50%, -150%); opacity: 0; pointer-events: none;
+  transition: transform .2s ease, opacity .2s ease;
+}
+.es-processing.on { transform: translate(-50%, 0); opacity: 1; }
+
+/* ── Toasts ─────────────────────────────────────────────────── */
+.es-toast-box {
+  position: fixed; right: 16px; bottom: 16px; z-index: 2002;
+  display: flex; flex-direction: column; gap: 8px; max-width: min(380px, calc(100vw - 32px));
+}
+.es-toast {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 12px 11px 14px; border-radius: 8px; background: #fff; color: #1a1a2e;
+  font-size: .8125rem; line-height: 1.4; border: 1px solid #e5e7eb; border-left: 4px solid #185fa5;
+  box-shadow: 0 8px 24px rgba(10, 35, 66, .14);
+  animation: es-toast-in .2s ease; transition: opacity .3s, transform .3s;
+}
+.es-toast > i { font-size: 1rem; margin-top: 1px; color: #185fa5; }
+.es-toast > span { flex: 1 1 auto; }
+.es-toast-success { border-left-color: #1a7a5e; } .es-toast-success > i { color: #1a7a5e; }
+.es-toast-error   { border-left-color: #dc3545; } .es-toast-error > i   { color: #dc3545; }
+.es-toast.out { opacity: 0; transform: translateY(6px); }
+.es-toast-x { border: 0; background: transparent; color: #9da6b0; font-size: 1.1rem; line-height: 1; padding: 0 2px; cursor: pointer; }
+.es-toast-x:hover { color: #1a1a2e; }
+@keyframes es-toast-in { from { opacity: 0; transform: translateY(8px); } }
+
+/* ── Region being refreshed ─────────────────────────────────── */
+.es-region { position: relative; }
+.es-region.es-busy > .card-body,
+.es-region.es-busy > .card-footer { opacity: .5; pointer-events: none; transition: opacity .15s; }
+/* The filter toolbar is never dimmed, hidden or collapsed while records load */
+/* Spinner centred in the VISIBLE part of the results area (card body): es-ajax.js sets
+   --es-spin-x / --es-spin-y (px, relative to the region) while it is busy and
+   keeps them in step with scrolling; without JS values it falls back to the
+   region's middle. Absolutely positioned → no layout shift. */
+.es-region.es-busy::after {
+  content: ''; position: absolute; left: var(--es-spin-x, 50%); top: var(--es-spin-y, 50%); z-index: 20; pointer-events: none;
+  width: 30px; height: 30px; margin: -15px 0 0 -15px;
+  border: 3px solid rgba(24, 95, 165, .2); border-top-color: #185fa5; border-radius: 50%;
+  animation: es-rot .7s linear infinite;
+}
+
+/* ── Busy button (save / confirm in progress) ───────────────── */
+.es-btn-busy { position: relative; pointer-events: none; color: transparent !important; }
+.es-btn-busy > * { visibility: hidden; }
+.es-btn-busy::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px;
+  border: 2px solid rgba(255, 255, 255, .45); border-top-color: #fff; border-radius: 50%;
+  animation: es-rot .7s linear infinite;
+}
+.btn-light.es-btn-busy::after, .btn-outline-primary.es-btn-busy::after, .btn-light-brand.es-btn-busy::after,
+.btn-outline-secondary.es-btn-busy::after, .btn-white.es-btn-busy::after {
+  border-color: rgba(24, 95, 165, .25); border-top-color: #185fa5;
+}
+
+/* ── Show / Hide Filters ────────────────────────────────────── */
+/* Filters are HIDDEN by default; es-ajax.js wraps each .list-toolbar in a
+   collapsible panel and adds the Show/Hide toggle to its card header. Unless
+   the user opened them on this page, html.es-ft-hidden is set by an inline
+   script at the top of <body> (partials/sidebar.php) BEFORE the toolbar is
+   parsed, so the filters never flash in and then collapse. es-ajax.js removes
+   the class once the panels carry the state themselves. */
+html.es-ft-hidden .list-toolbar:not([data-es-no-collapse]) { display: none; }
+.es-ft-wrap { display: flex; align-items: center; margin-left: auto; margin-right: 10px; }
+.es-ft-wrap.es-ft-standalone { justify-content: flex-end; margin: 0; padding: 10px 20px 0; }
+.es-filter-toggle {
+  display: inline-flex !important; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px !important;
+  border: 1.2px solid #e5e7eb !important; border-radius: 5px !important;
+  background: #fff !important; color: #185fa5 !important;
+  font-size: .8125rem !important; font-weight: 500 !important; white-space: nowrap;
+  transition: border-color .18s, background .18s;
+}
+.es-filter-toggle:hover, .es-filter-toggle.active { border-color: #185fa5 !important; background: #e8f0fb !important; }
+.es-filter-toggle i { font-size: .85rem; }
+.es-filter-toggle .es-ft-caret { font-size: .8rem; transition: transform .2s ease; }
+.es-filter-toggle[aria-expanded="true"] .es-ft-caret { transform: rotate(180deg); }
+/* Label typography matches the header action buttons (.6rem); the label keeps a fixed
+   width so the button is the same size in both states. */
+.es-filter-toggle .es-ft-label { font-size: 11px; display: inline-block; text-align: center; line-height: 1; }
+.es-filter-toggle[aria-expanded="false"] .es-ft-label { min-width: 115.6px; }   /* "SHOW FILTERS" at 11px */
+.es-filter-toggle[aria-expanded="true"]  .es-ft-label { min-width: 103.6px; }   /* "HIDE FILTERS" at 11px */
+.es-ft-count {
+  display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px;
+  background: #185fa5; color: #fff; font-size: .6875rem; line-height: 18px; text-align: center;
+}
+.es-filter-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s ease; }
+.es-filter-panel.open { grid-template-rows: 1fr; }
+.es-filter-panel.no-anim { transition: none; }
+.es-filter-inner { min-height: 0; overflow: hidden; }
+.es-filter-panel.settled .es-filter-inner { overflow: visible; }   /* floating dropdowns / pickers after opening */
+.es-filter-panel:not(.open) .list-toolbar { border-bottom-color: transparent; }
+
+/* Card headers that carry the toggle: keep title + controls on one line, wrap when narrow */
+.card > .card-header:has(.es-ft-wrap) { flex-wrap: wrap; gap: 8px; }
+
+/* ── Responsive: admin portal ───────────────────────────────── */
+
+/* Page header actions (Add / Create buttons, header filters).
+   The theme turns these into an off-canvas panel below 768px that needs a
+   toggle button the admin pages never render — so on phones the buttons were
+   unreachable. Show them inline instead. */
+@media (max-width: 767.98px) {
+  .nxl-container .nxl-content .page-header { flex-wrap: wrap; gap: 8px; height: auto; min-height: 0; padding-top: 12px; padding-bottom: 12px; }
+  .nxl-container .nxl-content .page-header .page-header-left { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; }
+  .nxl-container .nxl-content .page-header .page-header-right { flex: 1 1 100%; margin-left: 0 !important; }
+  .nxl-container .nxl-content .page-header .page-header-right .page-header-right-items {
+    position: static; width: auto; height: auto; opacity: 1; visibility: visible; transform: none;
+    background: transparent; border: 0; box-shadow: none; display: block; z-index: auto;
+  }
+  .nxl-container .nxl-content .page-header .page-header-right .page-header-right-items .page-header-right-items-wrapper {
+    flex-direction: row; flex-wrap: wrap; justify-content: flex-start; align-items: center; padding: 0; height: auto;
+  }
+  .nxl-container .nxl-content .page-header .page-header-right .page-header-right-items .page-header-right-close-toggle { display: none; }
+  .page-header-right-items-wrapper .hdr-btn { flex: 1 1 auto; justify-content: center; }
+  .page-header .breadcrumb { display: none; }   /* the sidebar already shows where you are */
+}
+
+/* Tables: scroll sideways inside their card instead of widening the page.
+   Row menus use Popper's fixed strategy, so they are not clipped. */
+/* Up to 1199px: a laptop with the sidebar open leaves ~750px for a card, which wide
+   tables (e.g. Discount Vouchers) overflowed — they scroll inside the card instead. */
+@media (max-width: 1199.98px) {
+  .card .table-responsive { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+}
+@media (max-width: 991.98px) {
+  .card > .card-body[style*="overflow:visible"] { overflow: visible; }
+  .card .table-responsive > .table { margin-bottom: 0; }
+  .card .table th, .card .table td { white-space: nowrap; }
+  .card .table td .text-wrap, .card .table td.text-wrap { white-space: normal; }
+}
+
+/* Never let the content column push the page wider than the screen */
+.nxl-container { max-width: 100%; }
+.nxl-container .nxl-content { min-width: 0; }
+@media (max-width: 991.98px) {
+  html, body { overflow-x: hidden; }
+  .main-content { min-width: 0; }
+  .main-content > .row { --bs-gutter-x: 1rem; }
+}
+
+@media (max-width: 575.98px) {
+  .nxl-container .nxl-content .main-content { padding-left: 10px; padding-right: 10px; }
+  .card > .card-header { padding: 12px 14px; }
+  .card > .card-header .card-title { font-size: .95rem; }
+  .card > .card-footer { padding: 10px 14px; }
+  .card > .card-footer > p { flex: 1 1 100%; }
+  .pagination-common-style { flex-wrap: wrap; }
+  .pagination-common-style li a, .pagination-common-style li span { min-width: 34px; height: 34px; }
+  .es-ft-wrap { margin-right: 0; margin-left: 0; }
+  .card-header-action { margin-left: auto; }
+  /* Modals: full width with a small margin, footer buttons stack nicely */
+  .modal-dialog:not(.modal-fullscreen):not([class*="modal-fullscreen-"]) { margin: .5rem; max-width: calc(100vw - 1rem); }
+  .modal-footer { flex-wrap: wrap; gap: 6px; }
+  .modal-footer > .btn { flex: 1 1 auto; }
+  /* Notification bell: fit the screen */
+  .nxl-notifications-menu { min-width: 0 !important; width: calc(100vw - 20px) !important; max-width: none !important; }
+  .es-toast-box { left: 16px; right: 16px; max-width: none; }
+}
+
+/* Calendars (FullCalendar) stay usable on phones: compact toolbar, scrollable grid */
+@media (max-width: 767.98px) {
+  .fc .fc-toolbar { flex-wrap: wrap; gap: 6px; }
+  .fc .fc-toolbar-title { font-size: 1.05rem; }
+  .fc .fc-button { padding: .25rem .5rem; font-size: .78rem; }
+  .fc .fc-view-harness { min-height: 320px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .es-filter-panel, .es-filter-toggle .es-ft-caret, .es-processing, .es-toast { transition: none; }
+  .es-topbar.on { animation: none; background: #185fa5; }
+}
+
+/* =============================================================
+   Staff UI consistency + responsive pass (2026-11-19)
+   Shared by every staff page (owner / admin / dentist). Portal pages
+   don't load this file.
+   ============================================================= */
+
+/* Readable buttons: the theme draws buttons at 9–10px; 11px everywhere on staff pages */
+.nxl-container .btn { font-size: 11px; }
+.nxl-container .btn-sm, .nxl-container .btn-group-sm > .btn { font-size: 11px; }
+.nxl-container .hdr-btn { font-size: 11px !important; }
+.nxl-container .an-fc-tag { font-size: 11px; }
+.nxl-container .btn:focus-visible { box-shadow: 0 0 0 3px rgba(24, 95, 165, .25); outline: none; }
+
+/* List table headers: one style on every page. The theme's ".table-responsive .table thead th"
+   (10px uppercase) out-ranked .rec-table on the inventory pages. */
+.nxl-container .table-responsive .rec-table thead th,
+.nxl-container .table-responsive .rec-table thead th a {
+  font-size: .78rem; text-transform: none; letter-spacing: normal; font-weight: 600; color: #475569;
+}
+
+/* Tablets and phones: comfortable tap targets */
+@media (max-width: 991.98px) {
+  .nxl-header .nxl-head-mobile-toggler,
+  .nxl-header #nxl-lavel-mega-menu-open,
+  .nxl-header .nxl-navigation-toggle a {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 40px; min-height: 40px;
+  }
+  .nxl-header .nxl-head-link { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+  .nxl-container .btn-sm, .nxl-container .btn-group-sm > .btn { min-height: 36px; }
+  .nxl-container .nav-tabs .nav-link, .nxl-container .nav-pills .nav-link, .nxl-container .ar-quick-btn { min-height: 36px; display: inline-flex; align-items: center; }
+  .nxl-container .table .dropdown > [data-bs-toggle="dropdown"] { min-width: 36px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
+  .nxl-container .dropdown-menu .dropdown-item { padding-top: .55rem; padding-bottom: .55rem; }
+  .nxl-container [role="tablist"] > a[role="tab"] { min-height: 36px; display: inline-flex; align-items: center; }
+  .nxl-container .table thead .th-sort { display: inline-flex; align-items: center; min-height: 32px; }
+}
+
+/* Phones */
+@media (max-width: 575.98px) {
+  /* Detail / record modals: custom.css gave them max-width:100% AND a margin, so they
+     sat 8px past the right edge. Same margin as every other modal. */
+  :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal, .modal) .modal-dialog.apt-record-dialog {
+    max-width: calc(100vw - 1rem); margin: .5rem; width: auto;
+  }
+  .modal-header, .modal-body { padding-left: 1rem; padding-right: 1rem; }
+  .modal-footer > .btn, .modal-footer .btn { min-height: 42px; }
+  .form-control, .form-select { min-height: 42px; font-size: 16px; }   /* 16px: iOS doesn't zoom into the field */
+  .nxl-container textarea.form-control { min-height: 84px; }
+
+  /* ── Phone card tables (assets/js/es-responsive.js adds .es-stack + data-label) ── */
+  .nxl-container .table-responsive:has(> table.es-stack) { overflow: visible !important; }
+  .nxl-container table.es-stack { display: block; width: 100%; min-width: 0 !important; }
+  .nxl-container table.es-stack thead { display: none; }
+  .nxl-container table.es-stack tbody { display: block; }
+  .nxl-container table.es-stack tbody tr {
+    display: block; position: relative; padding: 12px 14px; border-bottom: 1px solid #eef2f7; background: transparent;
+  }
+  .nxl-container table.es-stack tbody tr:last-child { border-bottom: 0; }
+  /* Label floats left, the cell's own content stays together on the right */
+  .nxl-container table.es-stack tbody td {
+    display: block; width: auto !important; min-width: 0 !important; max-width: none !important;
+    padding: 5px 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important;
+    position: static !important; text-align: right; white-space: normal !important; font-size: .84rem; overflow-wrap: anywhere;
+  }
+  .nxl-container table.es-stack tbody td::before {
+    content: attr(data-label); float: left; max-width: 42%; margin-right: 12px; padding-top: 2px; text-align: left;
+    font-size: 11px; font-weight: 600; color: #94a3b8; letter-spacing: .02em; text-transform: uppercase; line-height: 1.5;
+  }
+  .nxl-container table.es-stack tbody td::after { content: ""; display: table; clear: both; }
+  .nxl-container table.es-stack tbody td:not([data-label])::before { content: none; }
+  .nxl-container table.es-stack tbody td > .d-flex,
+  .nxl-container table.es-stack tbody td > .rec-entity { justify-content: flex-end; }
+  .nxl-container table.es-stack tbody td.es-stack-blank { display: none; }   /* only "—": nothing to show */
+  .nxl-container table.es-stack tbody td.es-stack-primary {
+    text-align: left; padding: 0 48px 6px 0 !important; font-size: .9rem;
+  }
+  .nxl-container table.es-stack tbody td.es-stack-primary > .d-flex,
+  .nxl-container table.es-stack tbody td.es-stack-primary > .rec-entity { justify-content: flex-start; }
+  .nxl-container table.es-stack tbody td.es-stack-act {
+    position: absolute !important; top: 8px; right: 8px; padding: 0 !important; width: auto !important;
+  }
+  .nxl-container table.es-stack tbody td.es-stack-full { display: block; text-align: center; padding: 8px 0 !important; }
+  .nxl-container table.es-stack tbody tr:hover td { background: transparent !important; }
+  .nxl-container table.es-stack tbody td .d-flex { min-width: 0; }
+  .nxl-container table.es-stack tbody td .text-truncate { max-width: 100%; }
+
+  /* Nested grids (e.g. Analytics) keep the same narrow gutter as top-level rows, so they
+     never stick out past the 10px page padding. Rows with their own g-* gutter keep it. */
+  .nxl-container .main-content .row:not([class*=" g-"]):not([class*=" gx-"]) { --bs-gutter-x: 1rem; }
+
+  /* Pagination: bigger targets */
+  .nxl-container .pagination .page-link { min-width: 36px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
+}

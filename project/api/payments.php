@@ -100,6 +100,7 @@ if ($method === 'POST') {
     if ($res['status'] < 200 || $res['status'] >= 300) {
         logBillingActivity('INSERT', $invoiceId, getInvoiceInfoForAudit($invoiceId),
             'FAILED — payment of ' . $pmLabel . ' could not be saved: ' . ($res['error'] ?? 'Unknown error'));
+        staffn_payment_failed($invoiceId, $amount, 'save');   // staff bell (critical)
         echo json_encode(['success' => false, 'message' => $res['error'] ?? 'Failed to record payment.']); exit;
     }
 
@@ -118,6 +119,10 @@ if ($method === 'POST') {
     $invSaved = $invUpd['status'] >= 200 && $invUpd['status'] < 300;
     if ($invSaved && !empty($res['data'][0]['payment_id'])) {
         notif_payment_recorded((int)$res['data'][0]['payment_id'], $invoiceId, $amount, $newBalance);
+        staffn_payment((int)$res['data'][0]['payment_id'], $invoiceId, $amount, $method_ ?: null, $newBalance);
+    } elseif (!$invSaved) {
+        // Payment row saved but the invoice balance wasn't: owner / admin must review it
+        staffn_payment_failed($invoiceId, $amount, 'totals', !empty($res['data'][0]['payment_id']) ? (int)$res['data'][0]['payment_id'] : null);
     }
 
     $pmRef = !empty($res['data'][0]['payment_id']) ? ' [payment #' . (int)$res['data'][0]['payment_id'] . ']' : '';
@@ -217,6 +222,7 @@ if ($method === 'DELETE') {
             'Payment #' . $id . ' of ' . auditPeso($pmtAmount) . ' removed; the invoice could not be re-read to reverse its totals.');
     }
 
+    staffn_payment_reversed($id, $invId, $pmtAmount);   // staff bell: refund / reversal of a recorded payment
     echo json_encode(['success' => true, 'message' => 'Payment removed and invoice updated.']);
     exit;
 }

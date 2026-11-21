@@ -6,15 +6,22 @@ require_once __DIR__ . '/../dbconfig.php';
 
 header('Content-Type: application/json');
 
-$action    = $_POST['action'] ?? $_GET['action'] ?? '';
-$patientId = (int)($_POST['patient_id'] ?? $_GET['patient_id'] ?? 0);
+// The page sends form fields (FormData); a JSON body is accepted too. The
+// "Invalid patient." on Delete Waiver came from here: the page posted JSON,
+// which PHP does not put in $_POST, so action and patient_id were both empty.
+$input     = str_contains((string)($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json')
+    ? (json_decode(file_get_contents('php://input'), true) ?: []) : [];
+$action    = (string)($_POST['action'] ?? $input['action'] ?? $_GET['action'] ?? '');
+$patientId = (int)($_POST['patient_id'] ?? $input['patient_id'] ?? $_GET['patient_id'] ?? 0);
 
 if (!$patientId) {
     echo json_encode(['success' => false, 'message' => 'Invalid patient.']); exit;
 }
+requirePatientAccess($patientId);   // non-owners: only patients with an appointment at their branch
 
 // ── GET WAIVERS ───────────────────────────────────────────────
 if ($action === 'get_waivers') {
+    pw_protect_dir();
     $res = supabase_request('waivers', 'GET', [],
         'patient_id=eq.' . $patientId .
         '&order=waiver_id.desc' .
@@ -22,6 +29,62 @@ if ($action === 'get_waivers') {
     );
     echo json_encode(['success' => true, 'waivers' => $res['data'] ?? []]);
     exit;
+}
+
+/** A waiver of THIS patient (patient_id checked in the query), or null. */
+function pw_row(int $patientId, int $waiverId): ?array
+{
+    if ($waiverId <= 0) return null;
+    $r = supabase_request('waivers', 'GET', [],
+        'waiver_id=eq.' . $waiverId . '&patient_id=eq.' . $patientId . '&select=waiver_id,waiver_type,file_path&limit=1');
+    return $r['data'][0] ?? null;
+}
+
+/** Absolute path of a stored waiver file of this patient, or null (no path tricks). */
+function pw_abs(int $patientId, string $rel): ?string
+{
+    if (!preg_match('#^uploads/waivers/(\d+)/([A-Za-z0-9_-]+\.(pdf|png|jpe?g))$#i', $rel, $m) || (int)$m[1] !== $patientId) return null;
+    $base = realpath(__DIR__ . '/../uploads/waivers');
+    $abs  = realpath(__DIR__ . '/../' . $rel);
+    return ($base && $abs && str_starts_with($abs, $base . DIRECTORY_SEPARATOR) && is_file($abs)) ? $abs : null;
+}
+
+/** uploads/ is not deployed with the code: keep the folder closed to direct URLs. */
+function pw_protect_dir(): void
+{
+    $dir = __DIR__ . '/../uploads/waivers';
+    if (is_dir($dir) && !is_file($dir . '/.htaccess')) {
+        @file_put_contents($dir . '/.htaccess', "# Waivers are served only through api/patient_waivers.php (staff) and
+# api/portal_waiver_file.php (patient), which check who may see them.
+Require all denied
+");
+    }
+}
+
+// ── VIEW / DOWNLOAD (stream; Patient Record preview modal) ─────
+if ($action === 'view') {
+    $w   = pw_row($patientId, (int)($_GET['waiver_id'] ?? 0));
+    $abs = $w ? pw_abs($patientId, (string)$w['file_path']) : null;
+    if (!$abs) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        exit('This waiver file is not available on the server.');
+    }
+    $types = ['application/pdf' => 'pdf', 'image/jpeg' => 'jpg', 'image/png' => 'png'];
+    $mime  = (new finfo(FILEINFO_MIME_TYPE))->file($abs) ?: '';
+    if (!isset($types[$mime])) { http_response_code(415); header('Content-Type: text/plain; charset=utf-8'); exit('Unsupported file.'); }
+    $name = trim(preg_replace('/[^A-Za-z0-9_-]+/', '-', (string)($w['waiver_type'] ?? '')), '-') ?: 'Waiver';
+    header('Cache-Control: private, no-store');
+    header('X-Content-Type-Options: nosniff');
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . filesize($abs));
+    header('Content-Disposition: ' . (!empty($_GET['download']) ? 'attachment' : 'inline') . '; filename="' . $name . '.' . $types[$mime] . '"');
+    readfile($abs);
+    exit;
+}
+
+if (in_array($action, ['upload_waiver', 'delete_waiver'], true) && ($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    echo json_encode(['success' => false, 'message' => 'Invalid request.']); exit;
 }
 
 // ── UPLOAD WAIVER ─────────────────────────────────────────────
@@ -53,6 +116,7 @@ if ($action === 'upload_waiver') {
 
     $uploadDir = __DIR__ . '/../uploads/waivers/' . $patientId . '/';
     if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+    pw_protect_dir();
 
     $ext      = $allowed[$mime];
     $fileName = 'waiver_' . bin2hex(random_bytes(12)) . '.' . $ext; // unguessable name
@@ -80,26 +144,25 @@ if ($action === 'upload_waiver') {
 
 // ── DELETE WAIVER ─────────────────────────────────────────────
 if ($action === 'delete_waiver') {
-    $input    = json_decode(file_get_contents('php://input'), true) ?? [];
-    $waiverId = (int)($input['waiver_id'] ?? $_POST['waiver_id'] ?? 0);
-
+    $waiverId = (int)($_POST['waiver_id'] ?? $input['waiver_id'] ?? 0);
     if (!$waiverId) {
         echo json_encode(['success' => false, 'message' => 'Invalid waiver.']); exit;
     }
 
-    $res    = supabase_request('waivers', 'GET', [],
-        'waiver_id=eq.' . $waiverId . '&patient_id=eq.' . $patientId . '&select=file_path'
-    );
-    $waiver = $res['data'][0] ?? null;
-
-    if ($waiver && !empty($waiver['file_path'])) {
-        $fullPath = __DIR__ . '/../' . $waiver['file_path'];
-        if (file_exists($fullPath)) @unlink($fullPath);
+    // The waiver must belong to THIS patient (a waiver id of another patient is "not found")
+    $waiver = pw_row($patientId, $waiverId);
+    if (!$waiver) {
+        echo json_encode(['success' => false, 'message' => 'Waiver not found for this patient.']); exit;
     }
 
-    supabase_request('waivers', 'DELETE', [],
+    $del = supabase_request('waivers', 'DELETE', [],
         'waiver_id=eq.' . $waiverId . '&patient_id=eq.' . $patientId
     );
+    if (($del['status'] ?? 0) < 200 || ($del['status'] ?? 0) >= 300) {
+        echo json_encode(['success' => false, 'message' => 'Could not delete the waiver. Please try again.']); exit;
+    }
+    // Remove the stored file only after the record is gone
+    if ($abs = pw_abs($patientId, (string)($waiver['file_path'] ?? ''))) @unlink($abs);
 
     echo json_encode(['success' => true, 'message' => 'Waiver deleted.']);
     exit;

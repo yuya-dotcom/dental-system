@@ -32,7 +32,7 @@ function receipt_fail(int $status, string $message): void
  * against the invoice's real branch / patient from the database.
  * Returns ['staff' => bool, 'patient_id' => ?int, 'role' => string, 'branch_id' => int].
  */
-function receipt_require_access(): array
+function receipt_require_access(bool $redirectToLogin = true): array
 {
     if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 
@@ -59,6 +59,9 @@ function receipt_require_access(): array
         }
     }
 
+    // Inside the portal's receipt modal (an iframe) a redirect would load the
+    // login page into the modal, so say what happened instead.
+    if (!$redirectToLogin) receipt_fail(401, 'Your session has ended. Please sign in again to view this receipt.');
     header('Location: portal-login.php');
     exit;
 }
@@ -264,9 +267,13 @@ function rcpt_logo(bool $forPdf, bool $allowPdfLogo = true): string
 /**
  * The receipt. $forPdf = true for Dompdf (no screen extras),
  * false for the browser / print view.
+ * $embed = true: the browser view without its toolbar or page backdrop, for
+ * the portal's receipt modal (receipt.php?embed=1, loaded in an iframe; the
+ * modal has its own Print / Download PDF / Close buttons).
  */
-function receipt_html(array $r, bool $forPdf, bool $autoPrint = false, bool $withLogo = true): string
+function receipt_html(array $r, bool $forPdf, bool $autoPrint = false, bool $withLogo = true, bool $embed = false): string
 {
+    $embed = $embed && !$forPdf;
     $this_code     = rcpt_e($r['invoice_code'] !== '' ? $r['invoice_code'] : '—');
     $this_date     = rcpt_date($r['invoice_date']);
     $this_patient  = rcpt_e($r['patient_name'] !== '' ? $r['patient_name'] : '—');
@@ -361,9 +368,17 @@ function receipt_html(array $r, bool $forPdf, bool $autoPrint = false, bool $wit
     .sheet-inner { padding: 0; }
   }';
 
+    if ($embed) {
+        // Sits inside the modal: no grey backdrop, card shadow or toolbar
+        $screenCss .= '
+  body { background: #fff; padding: 0; }
+  .sheet { max-width: none; border-radius: 0; box-shadow: none; }
+  @media (max-width: 600px) { body { padding: 0; } .sheet-inner { padding: 18px 14px; } }';
+    }
+
     $pdfCss = $forPdf ? '@page { margin: 34px 38px; }' : '';
 
-    $toolbar = $forPdf ? '' : '
+    $toolbar = ($forPdf || $embed) ? '' : '
 <div class="toolbar">
   <button type="button" onclick="window.close()">Close</button>
   <a href="generate-receipt-pdf.php?invoice_id=' . (int)$r['invoice_id'] . '">Download PDF</a>
@@ -378,7 +393,7 @@ function receipt_html(array $r, bool $forPdf, bool $autoPrint = false, bool $wit
 
     // Opened from the portal's "Print Receipt": show the print dialog once
     // the logo and fonts have loaded.
-    $autoPrint = (!$forPdf && $autoPrint) ? '<script>
+    $autoPrint = (!$forPdf && !$embed && $autoPrint) ? '<script>
 window.addEventListener("load", function () {
   var go = function () { setTimeout(function () { window.print(); }, 250); };
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(go, go); else go();

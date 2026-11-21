@@ -1,4 +1,5 @@
-// Rebuilds the list URL from every filter control and reloads (page resets to 1).
+// Rebuilds the list URL from every filter control and loads it (page resets to 1).
+// With assets/js/es-ajax.js only the records table is refreshed (no page reload).
 // Besides fieldMap, it always includes the shared toolbar controls rendered by
 // controllers/list_filters.php (sort / search / date range) and any
 // [data-list-param] dropdown, so changing one filter never drops the others.
@@ -16,90 +17,12 @@ window._applyFilters = function applyFilters(page, fieldMap) {
         if (el.dataset.default !== undefined && val === el.dataset.default) continue; // default sort: keep URL clean
         p.set(key, val);
     }
-    window.location.href = page + (p.toString() ? '?' + p.toString() : '');
+    const url = page + (p.toString() ? '?' + p.toString() : '');
+    if (window.esNavigate) window.esNavigate(url); else window.location.href = url;
 };
 
-
-function updateAppointmentStatus(appointmentId, newStatus, code) {
-    const colors = {
-        confirmed: '#1a7a5e',
-        completed: '#0d6efd',
-        cancelled: '#dc3545'
-    };
-    const labels = {
-        confirmed: 'Confirm',
-        completed: 'Mark as Completed',
-        cancelled: 'Cancel'
-    };
-
-    Swal.fire({
-        title: labels[newStatus] + ' Appointment?',
-        html: `Appointment <strong>${code}</strong> will be set to <strong>${newStatus}</strong>.`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: colors[newStatus],
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Yes, proceed',
-    }).then(r => {
-        if (!r.isConfirmed) return;
-        fetch('api/update_appointment_status.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ appointment_id: appointmentId, status: newStatus })
-        })
-        .then(r => r.json())
-        .then(d => {
-            if (d.success) {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Updated!',
-                    text: `${code} is now ${newStatus}.`,
-                    timer: 1800,
-                    showConfirmButton: false
-                }).then(() => location.reload());
-            } else {
-                Swal.fire('Error', d.message || 'Update failed.', 'error');
-            }
-        })
-        .catch(() => Swal.fire('Error', 'Could not connect to server.', 'error'));
-    });
-}
-
-
-function confirmDelete(endpoint, payload, label, noun = 'record') {
-    Swal.fire({
-        title: `Delete ${noun}?`,
-        html: `<strong>${label}</strong> will be permanently deleted.`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc3545',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Yes, delete',
-    }).then(r => {
-        if (!r.isConfirmed) return;
-        fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...payload, action: 'delete' })
-        })
-        .then(r => r.json())
-        .then(d => {
-            if (d.success) {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Deleted!',
-                    text: `${label} has been removed.`,
-                    timer: 1600,
-                    showConfirmButton: false
-                }).then(() => location.reload());
-            } else {
-                Swal.fire('Error', d.message || 'Delete failed.', 'error');
-            }
-        })
-        .catch(() => Swal.fire('Error', 'Could not connect to server.', 'error'));
-    });
-}
-
+// After a successful action: refresh only the records table (falls back to a reload).
+function _esAfterAction() { return window.esRefresh ? window.esRefresh() : location.reload(); }
 
 /* ── Password Toggle (login page) ────────────────────────────── */
 function togglePassword(inputId = 'passwordInput', iconId = 'eyeIcon') {

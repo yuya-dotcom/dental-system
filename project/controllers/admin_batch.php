@@ -158,6 +158,7 @@ function admin_sb_exec(array $reqs): array
         $status = curl_multi_exec($mh, $running);
         if ($running && curl_multi_select($mh, 1.0) === -1) usleep(1000);
     } while ($running && $status === CURLM_OK);
+    foreach ($reqs as $r) es_scache_note($r['method'] ?? 'GET');   // writes invalidate the shared cache
 
     // Per-transfer result codes (curl_errno() is not set for multi transfers)
     $errnos = [];
@@ -208,25 +209,62 @@ function admin_count(array $res): int
 /** The branch dropdown query used by getAllBranches() (branch_controller.php). */
 function admin_branches_spec(): array
 {
-    return admin_q('branches', 'select=branch_id,branch_name&order=branch_name.asc');
+    return admin_scache_mark(admin_q('branches', 'select=branch_id,branch_name&order=branch_name.asc'));
 }
 
 /**
- * The navbar bell's low-stock query (partials/navbar.php). Scoped to the
- * session's branch for non-owners — same rule the navbar always used.
+ * The bell's "Waiting for You" inventory tasks (after the 2026-11-18 migration),
+ * read by staffn_tasks() (controllers/staff_notifications.php). Expiry and low
+ * stock are Notification Center events now.
+ *   trf  transfers waiting for this user: owner → to approve; admin → to send / to receive
+ *   pr   purchase requests waiting for the owner's approval (owner only)
+ *   po   purchase orders whose delivery is due (owner: all; admin: own branch)
+ * Empty before the migration, so pages never query tables that don't exist yet.
  */
-function admin_navbar_spec(): array
+function admin_navbar_extra_specs(): array
 {
-    $filter = '';
-    if (!isOwner()) {
-        // Own branch only; a non-owner without a branch gets -1 (matches nothing)
-        $filter = '&branch_id=eq.' . scopedBranch(0);
+    require_once __DIR__ . '/inventory_v2.php';
+    if (!inv_v2_ready()) return [];
+    $role  = $_SESSION['role'] ?? '';
+    $owner = $role === 'owner';
+    $b     = $owner ? 0 : scopedBranch(0);
+    $bf    = $owner ? '' : '&branch_id=eq.' . $b;
+    $today = date('Y-m-d');
+    $out = [];
+    if ($owner) {
+        $out['trf'] = admin_q('stock_transfers', 'select=transfer_id,transfer_no,status,from_branch_id,to_branch_id&status=eq.pending&order=requested_at.asc&limit=50');
+        $out['pr']  = admin_q('purchase_requests', 'select=pr_id,pr_no,branch_id&status=eq.pending&order=requested_at.asc&limit=50');
+    } elseif ($role === 'admin') {
+        $out['trf'] = admin_q('stock_transfers', 'select=transfer_id,transfer_no,status,from_branch_id,to_branch_id'
+            . '&or=(and(status.eq.approved,from_branch_id.eq.' . $b . '),and(status.eq.in_transit,to_branch_id.eq.' . $b . '))&order=requested_at.asc&limit=50');
     }
-    return admin_q('inventory',
-        'select=item_id,item_code,item_name,stock_quantity,min_stock,status,branches(branch_name)'
-        . '&status=neq.inactive&archived_at=is.null'
-        . $filter
-        . '&order=stock_quantity.asc&limit=1000');
+    if ($role !== 'dentist') {
+        $out['po'] = admin_q('purchase_orders', 'select=po_id,po_no,branch_id,expected_date,suppliers(supplier_name)&status=in.(ordered,partially_received)'
+            . '&expected_date=lte.' . $today . $bf . '&order=expected_date.asc&limit=50');
+    }
+    return array_map('admin_scache_mark', $out);
+}
+
+/**
+ * Marks a spec as SHARED-CACHEABLE (controllers/shared_cache.php): the same
+ * read for every staff user, rarely changing, invalidated by any write.
+ * Only the navbar bell and the branch list are marked.
+ */
+function admin_scache_mark(array $spec): array
+{
+    $GLOBALS['__admin_scache'][admin_memo_key($spec)] = true;
+    return $spec;
+}
+
+function admin_scache_is(array $spec): bool
+{
+    return isset($GLOBALS['__admin_scache'][admin_memo_key($spec)]);
+}
+
+/** A response worth caching: 2xx, no error, rows. */
+function admin_scache_ok(array $r): bool
+{
+    return empty($r['error']) && ($r['status'] ?? 0) >= 200 && ($r['status'] ?? 0) < 300 && is_array($r['data'] ?? null);
 }
 
 /** Memo key: the exact request (table + query + extra headers). */
@@ -250,12 +288,24 @@ function admin_memo_key(array $spec): string
 function admin_prefetch(array $specs = [], array $common = ['navbar', 'branches']): array
 {
     $all = [];
-    if (in_array('navbar', $common, true))   $all['__navbar']   = admin_navbar_spec();
+    // 'navbar': the bell now loads in the browser (api/staff_notifications.php),
+    // so pages no longer prefetch its inventory queries. The key is still accepted.
     if (in_array('branches', $common, true)) $all['__branches'] = admin_branches_spec();
     foreach ($specs as $k => $s) $all[$k] = $s;
 
-    $res = admin_sb_many($all);
-    foreach ($res as $k => $r) $GLOBALS['__admin_memo'][admin_memo_key($all[$k])] = $r;
+    // Shared-cache hits skip the round trip (stamp read BEFORE fetching the misses)
+    $gen = ''; $hits = [];
+    foreach ($all as $k => $s) {
+        if (!admin_scache_is($s)) continue;
+        if ($gen === '') $gen = es_scache_gen();
+        $hit = es_scache_get(admin_memo_key($s), $gen);
+        if (is_array($hit)) $hits[$k] = $hit;
+    }
+    $res = $hits + admin_sb_many(array_diff_key($all, $hits));
+    foreach ($res as $k => $r) {
+        $GLOBALS['__admin_memo'][admin_memo_key($all[$k])] = $r;
+        if (!isset($hits[$k]) && admin_scache_is($all[$k]) && admin_scache_ok($r)) es_scache_set(admin_memo_key($all[$k]), $gen, $r);
+    }
 
     return array_intersect_key($res, $specs);
 }
@@ -270,6 +320,14 @@ function admin_get(string $table, string $query = '', array $headers = []): arra
     if (isset($GLOBALS['__admin_memo'][$key])) {
         $r = $GLOBALS['__admin_memo'][$key];
         unset($GLOBALS['__admin_memo'][$key]);
+        return $r;
+    }
+    if (isset($GLOBALS['__admin_scache'][$key])) {          // shared, write-invalidated cache
+        $gen = es_scache_gen();
+        $hit = es_scache_get($key, $gen);
+        if (is_array($hit)) return $hit;
+        $r = supabase_request($table, 'GET', [], $query, $headers);
+        if (admin_scache_ok($r)) es_scache_set($key, $gen, $r);
         return $r;
     }
     return supabase_request($table, 'GET', [], $query, $headers);

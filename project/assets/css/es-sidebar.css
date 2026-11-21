@@ -1,0 +1,162 @@
+/* =============================================================
+   Collapsed ("mini") staff sidebar — icon rail
+   Loaded by partials/sidebar.php, so it applies to every staff page.
+
+   The theme (theme.min.css, html.minimenu) narrows the sidebar to
+   100px but, on hover, re-expands it to 280px with every label and
+   open submenu showing, and an inline style left by jQuery slideDown
+   can keep a submenu's text visible inside the narrow rail. Here the
+   collapsed rail stays icons-only; labels are shown as tooltips and a
+   group's links open in a flyout (assets/js/es-sidebar.js).
+
+   Desktop only: below 1025px the theme removes .minimenu and uses the
+   off-canvas mobile menu, which is left unchanged.
+   ============================================================= */
+@media (min-width: 1025px) {
+
+    /* No hover-expand: the rail keeps its collapsed width */
+    html.minimenu .nxl-navigation:hover .navbar-content {
+        position: relative !important;
+        width: 100px;
+    }
+
+    /* Labels, arrows, section captions and submenus never render in the rail
+       (!important also beats inline display set by slideDown) */
+    html.minimenu .nxl-navigation .navbar-content .nxl-mtext,
+    html.minimenu .nxl-navigation .navbar-content .nxl-arrow,
+    html.minimenu .nxl-navigation .navbar-content .nxl-caption,
+    html.minimenu .nxl-navigation .navbar-content .nxl-submenu,
+    html.minimenu .nxl-navigation .navbar-content .card {
+        display: none !important;
+    }
+    html.minimenu .nxl-navigation .navbar-content {
+        overflow-x: hidden;
+    }
+
+    /* Icons centered, equal spacing */
+    html.minimenu .nxl-navigation .navbar-content .nxl-navbar > .nxl-item > .nxl-link {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 56px;
+        height: 44px;
+        margin: 0 auto 4px;
+        padding: 0;
+        border-radius: 6px;
+    }
+    html.minimenu .nxl-navigation .navbar-content .nxl-micon {
+        margin: 0;
+        line-height: 1;
+    }
+
+    /* Small logo in the collapsed header (the theme's .logo-sm slot) */
+    html.minimenu .nxl-navigation .m-header {
+        justify-content: center;
+        padding: 15px 0;
+    }
+    html.minimenu .nxl-navigation .m-header .logo-sm {
+        width: 42px;
+        height: auto;
+    }
+}
+
+/* Tooltip (label on hover / keyboard focus) and group flyout */
+.es-nav-tip,
+.es-nav-flyout {
+    position: fixed;
+    z-index: 1090;
+    display: none;
+}
+.es-nav-tip {
+    padding: 5px 10px;
+    border-radius: 5px;
+    background: #283c50;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, .18);
+}
+.es-nav-tip::before {
+    content: "";
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    margin-top: -5px;
+    border: 5px solid transparent;
+    border-left: 0;
+    border-right-color: #283c50;
+}
+.es-nav-tip.show,
+.es-nav-flyout.show {
+    display: block;
+}
+
+.es-nav-flyout {
+    min-width: 200px;
+    padding: 6px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .15);
+}
+.es-nav-flyout .es-nav-flyout-title {
+    padding: 8px 12px 6px;
+    color: #7587a7;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+}
+.es-nav-flyout a {
+    display: block;
+    padding: 8px 12px;
+    border-radius: 5px;
+    color: #283c50;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.es-nav-flyout a:hover,
+.es-nav-flyout a:focus-visible {
+    background: #f1f5f9;
+    outline: none;
+}
+.es-nav-flyout a.active {
+    background: #eef2ff;
+    color: #3454d1;
+}
+
+html.app-skin-dark .es-nav-tip,
+html.app-navigation-dark .es-nav-tip {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+html.app-skin-dark .es-nav-tip::before,
+html.app-navigation-dark .es-nav-tip::before {
+    border-right-color: #e2e8f0;
+}
+html.app-skin-dark .es-nav-flyout,
+html.app-navigation-dark .es-nav-flyout {
+    background: #0f172a;
+    border-color: #1b2436;
+}
+html.app-skin-dark .es-nav-flyout a,
+html.app-navigation-dark .es-nav-flyout a {
+    color: #b1b4c0;
+}
+html.app-skin-dark .es-nav-flyout a:hover,
+html.app-skin-dark .es-nav-flyout a:focus-visible,
+html.app-navigation-dark .es-nav-flyout a:hover,
+html.app-navigation-dark .es-nav-flyout a:focus-visible {
+    background: #1b2436;
+    color: #fff;
+}
+html.app-skin-dark .es-nav-flyout a.active,
+html.app-navigation-dark .es-nav-flyout a.active {
+    background: rgba(52, 84, 209, .2);
+    color: #fff;
+}

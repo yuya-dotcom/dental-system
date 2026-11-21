@@ -60,16 +60,22 @@
 
 /* ── Tabs ── */
 .pr-tabs-wrap { border-bottom: 1px solid var(--pr-border); padding: 0 12px; }
+/* The ten tabs used to sit in one nowrap row that was wider than the card
+   (1191px of tabs in a 1074px card at 1440px), so the strip showed a
+   horizontal scrollbar. They are now compact and wrap onto a second row when
+   they don't fit; only phones keep a swipeable single row (every tab stays
+   reachable there). */
 .pr-tabs {
-    display: flex; flex-wrap: nowrap; gap: 2px;
-    overflow-x: auto; overflow-y: hidden; scrollbar-width: thin;
+    display: flex; flex-wrap: wrap; gap: 0 2px;
     border-bottom: 0 !important; margin: 0 !important;
-    -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 575.98px) {
+    .pr-tabs { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
 }
 .pr-tabs .nav-item { flex: 0 0 auto; }
 .pr-tabs .nav-link {
-    height: 50px; display: inline-flex; align-items: center; gap: 7px;
-    padding: 0 14px; border: 0 !important; border-bottom: 2px solid transparent !important;
+    height: 48px; display: inline-flex; align-items: center; gap: 6px;
+    padding: 0 11px; border: 0 !important; border-bottom: 2px solid transparent !important;
     border-radius: 0; background: transparent !important;
     font-size: .84rem; font-weight: 500; color: var(--pr-muted); white-space: nowrap;
 }
@@ -261,3 +267,37 @@ button.pr-kpi { font: inherit; }
     .pr-odo-save .form-select { flex: 1; }
     .pr-form-foot .btn { width: 100%; }
 }
+
+/* ── Compact header: name, Patient ID and status only ── */
+.pr-head.is-compact { align-items: center; padding: 16px 22px; }
+.pr-head.is-compact .pr-avatar { width: 46px; height: 46px; border-radius: 13px; font-size: 18px; }
+.pr-head.is-compact .pr-head-top { margin-bottom: 0; }
+
+/* ── Patient Details tab ── */
+.pr-details { display: grid; grid-template-columns: minmax(120px, 34%) minmax(0, 1fr); margin: 0; }
+.pr-details > div { display: contents; }
+.pr-details dt, .pr-details dd { padding: 10px 0; border-bottom: 1px solid var(--pr-border); margin: 0; }
+.pr-details > div:last-child dt, .pr-details > div:last-child dd { border-bottom: 0; }
+.pr-details dt { font-size: .8rem; font-weight: 700; color: var(--pr-navy); padding-right: 12px; }   /* labels bold */
+.pr-details dd { font-size: .86rem; font-weight: 400; color: var(--pr-navy); overflow-wrap: anywhere; } /* values normal */
+.pr-details dd.is-empty { color: #94a3b8; font-weight: 400; }
+
+/* ── Print preview modal ── */
+.pr-print-body { position: relative; height: 72vh; background: #f1f5f9; }
+.pr-print-frame { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+.pr-print-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--pr-muted); font-size: .85rem; background: #fff; }
+.pr-print-loading[hidden] { display: none; }
+@media (max-width: 575.98px) { .pr-details { grid-template-columns: minmax(0, 1fr); } .pr-details dt { padding-bottom: 0; border-bottom: 0; } }
+
+/* ── File / waiver preview modal (Files + Waivers Eye icon) ──
+   Fixed-height stage: the page never scrolls, the document fits inside it. */
+.pr-preview-stage { position: relative; height: min(72vh, 860px); background: #f1f5f9; display: flex; align-items: center; justify-content: center; overflow: auto; }
+.pr-preview-stage .pr-print-loading { position: static; }
+.pr-preview-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; margin: auto; }
+.pr-preview-frame { width: 100%; height: 100%; border: 0; display: block; background: #fff; }
+.pr-preview-msg { text-align: center; color: var(--pr-muted); padding: 24px; max-width: 420px; }
+.pr-preview-msg i { font-size: 28px; display: block; margin-bottom: 8px; color: var(--pr-blue); }
+.pr-preview-msg p { margin: 0; font-size: .86rem; }
+.pr-preview-printframe { position: fixed; width: 0; height: 0; border: 0; visibility: hidden; }
+#prPreviewDownload.disabled { pointer-events: none; opacity: .5; }
+@media (max-width: 575.98px) { .pr-preview-stage { height: 62vh; } }

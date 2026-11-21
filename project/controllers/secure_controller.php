@@ -183,3 +183,18 @@ if ($__role !== 'owner'
     exit;
 }
 unset($__role);
+// ── 7. MODULE ACCESS (owner-assigned sidebar modules) ─────────
+//  An admin / dentist account limited by the owner (Account Records →
+//  Sidebar Access) may only open pages of its assigned modules — typing
+//  the URL is refused just like a hidden sidebar link. The default
+//  landing page sends a restricted account to its first allowed page.
+//  See controllers/module_access.php.
+require_once __DIR__ . '/module_access.php';
+$__page   = basename($_SERVER['SCRIPT_NAME'] ?? '');
+$__module = esPageModule($__page);
+if (($_SESSION['role'] ?? '') !== 'owner' && $__module !== null && !esCanUseModule($__module)) {
+    $__home = esModuleHome();
+    header('Location: ' . (($__page === 'appointments-schedule.php' && $__home && $__home !== $__page) ? $__home : 'unauthorized.php'));
+    exit;
+}
+unset($__page, $__module);

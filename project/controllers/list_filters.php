@@ -193,13 +193,70 @@ function listActiveCount(array $values): int
     return count(array_filter($values, fn($v) => $v !== '' && $v !== null && $v !== 0 && $v !== '0' && $v !== false));
 }
 
-/** Empty-state row for a filtered table. */
-function listEmptyRow(int $colspan, bool $filtered, string $default, string $icon = 'feather-inbox', string $resetPage = ''): string
+/**
+ * Empty-state row in the Appointment Records design (appointments-records.css .ar-empty):
+ * icon chip, title, one helpful line. When filters are on, the line offers "Reset filters".
+ * $icon may be prefixed "danger:" for a load error (red chip).
+ */
+function listEmpty(int $colspan, bool $filtered, string $title, string $text = '', string $icon = 'feather-inbox', string $resetPage = ''): string
 {
-    $msg = $filtered
-        ? 'No records match the selected filters.' . ($resetPage ? ' <a href="' . htmlspecialchars($resetPage) . '" class="fw-semibold">Reset filters</a>' : '')
-        : htmlspecialchars($default);
-    return '<tr><td colspan="' . $colspan . '" class="text-center py-4 text-muted"><i class="' . $icon . ' me-2"></i>' . $msg . '</td></tr>';
+    $e = fn($s) => htmlspecialchars($s, ENT_QUOTES);
+    $tone = 't-slate';
+    if (str_starts_with($icon, 'danger:')) { $tone = 't-red'; $icon = substr($icon, 7); }
+    if ($filtered) {
+        $icon  = 'feather-search';
+        $title = 'No records match your filters';
+        $textHtml = $resetPage
+            ? '<a href="' . $e($resetPage) . '" class="fw-semibold">Reset filters</a> to see everything.'
+            : 'Try a different search or filter.';
+    } else {
+        $textHtml = $e($text);
+    }
+    return '<tr class="rec-empty-row"><td colspan="' . $colspan . '" class="ar-empty">'
+         . '<span class="an-ico ' . $tone . '"><i class="' . $e($icon) . '"></i></span>'
+         . '<div class="ar-empty-title">' . $e($title) . '</div>'
+         . ($textHtml !== '' ? '<div class="ar-empty-text">' . $textHtml . '</div>' : '')
+         . '</td></tr>';
 }
 
+/**
+ * Card-footer count line in the Appointment Records design (.ar-foot-count):
+ * "Showing 1–10 of 42 patients  ⊗ Clear filters". $noun is singular; $plural defaults to $noun . 's'.
+ */
+function listFootCount(int $from, int $to, int $total, string $noun, string $resetPage = '', bool $filtered = false, string $plural = ''): string
+{
+    $e = fn($s) => htmlspecialchars($s, ENT_QUOTES);
+    $plural = $plural !== '' ? $plural : $noun . 's';
+    $h = '<p class="ar-foot-count mb-0"><span>';
+    $h .= $total
+        ? 'Showing <b>' . $from . '–' . $to . '</b> of <b>' . number_format($total) . '</b> ' . $e($total === 1 ? $noun : $plural)
+        : 'No ' . $e($plural) . ' to show';
+    $h .= '</span>';
+    if ($filtered && $resetPage) {
+        $h .= '<a href="' . $e($resetPage) . '" class="ar-clear"><i class="feather-x-circle"></i>Clear filters</a>';
+    }
+    return $h . '</p>';
+}
+
+}
+
+/**
+ * Windowed pager (‹ 1 … 4 5 6 … 12 ›) — same markup as the record pages.
+ * $baseUrl = listUrl() of the current filters WITHOUT page. Empty when there is one page.
+ */
+function listPager(string $baseUrl, int $page, int $totalPages): string
+{
+    if ($totalPages <= 1) return '';
+    $u   = fn(int $p) => htmlspecialchars($baseUrl . '&page=' . $p);
+    $off = '<a class="text-muted" style="pointer-events:none;opacity:.4;" aria-disabled="true"><i class="bi bi-arrow-%s"></i></a>';
+    $h   = '<ul class="list-unstyled d-flex align-items-center gap-1 mb-0 pagination-common-style" aria-label="Pages">';
+    $h  .= '<li>' . ($page > 1 ? '<a href="' . $u($page - 1) . '" aria-label="Previous page"><i class="bi bi-arrow-left"></i></a>' : sprintf($off, 'left')) . '</li>';
+    $wS = max(1, $page - 2); $wE = min($totalPages, $wS + 4); $wS = max(1, $wE - 4);
+    if ($wS > 1) { $h .= '<li><a href="' . $u(1) . '">1</a></li>' . ($wS > 2 ? '<li><span class="px-1 text-muted">…</span></li>' : ''); }
+    for ($p = $wS; $p <= $wE; $p++) {
+        $h .= '<li><a href="' . $u($p) . '"' . ($p === $page ? ' class="active" aria-current="page"' : '') . '>' . $p . '</a></li>';
+    }
+    if ($wE < $totalPages) { $h .= ($wE < $totalPages - 1 ? '<li><span class="px-1 text-muted">…</span></li>' : '') . '<li><a href="' . $u($totalPages) . '">' . $totalPages . '</a></li>'; }
+    $h .= '<li>' . ($page < $totalPages ? '<a href="' . $u($page + 1) . '" aria-label="Next page"><i class="bi bi-arrow-right"></i></a>' : sprintf($off, 'right')) . '</li>';
+    return $h . '</ul>';
 }

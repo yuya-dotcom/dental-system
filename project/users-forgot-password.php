@@ -123,6 +123,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script src="assets/vendors/js/vendors.min.js"></script>
-    <script src="assets/js/admin.js"></script>
+    <script src="assets/js/admin.js?v=7"></script>
 </body>
 </html>

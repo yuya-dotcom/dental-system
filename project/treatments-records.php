@@ -10,6 +10,7 @@ admin_release_session();   // read-only page render: don't hold the session lock
 require_once __DIR__ . '/controllers/treatment_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/list_filters.php';
+require_once __DIR__ . '/controllers/record_ui.php';   // Appointment Records cell markup
 
 $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : getSessionBranch();
 if (!isOwner() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
@@ -64,10 +65,15 @@ $sortBase = listUrl('treatments-records.php', ['branch' => $filterBranch, 'statu
     <link rel="stylesheet" type="text/css" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
-    <link rel="stylesheet" href="assets/css/custom.css?v=5">
+    <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <link rel="stylesheet" href="assets/css/treatments.css">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-records.css?v=7">
+    <link rel="stylesheet" href="assets/css/analytics.css?v=8">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -92,14 +98,15 @@ $sortBase = listUrl('treatments-records.php', ['branch' => $filterBranch, 'statu
                 </div>
             </div>
 
-            <div class="main-content">
+            <div class="main-content an-page ar-page">
                 <div class="row">
                     <div class="col-lg-12">
                         <div class="card stretch stretch-full">
                             <div class="card-header">
-                                <h5 class="card-title">
+                                <h5 class="card-title mb-0">
                                     Treatment Records
-                                    <span class="badge bg-soft-primary text-primary ms-2"><?= $totalRecords ?> total</span>
+                                    <span class="an-pill info ms-2"><?= $totalRecords ?> <?= $filtersOn ? 'found' : 'total' ?></span>
+                                    <span class="rec-card-sub">Finished and cancelled treatments · ongoing work is under Active Treatments</span>
                                 </h5>
                                 <div class="card-header-action">
                                     <div class="card-header-btn">
@@ -137,7 +144,7 @@ $sortBase = listUrl('treatments-records.php', ['branch' => $filterBranch, 'statu
                             <div class="card-body custom-card-action p-0">
                                 <!-- trt-table-wrapper mirrors apt-table-wrapper: horizontal scroll inside card only -->
                                 <div class="table-responsive trt-table-wrapper">
-                                    <table class="table table-hover mb-0 trt-records-table">
+                                    <table class="table table-hover mb-0 trt-records-table rec-table ar-table">
                                         <thead>
                                             <tr>
                                                 <?= listTh('Date / Time', 'newest', 'oldest', $sortKey, $sortBase) ?>
@@ -148,45 +155,33 @@ $sortBase = listUrl('treatments-records.php', ['branch' => $filterBranch, 'statu
                                                     <?= listTh('Dentist', 'dentist_asc', 'dentist_desc', $sortKey, $sortBase) ?>
                                                 <?php endif; ?>
                                                 <?= listTh('Status', 'status_asc', 'status_desc', $sortKey, $sortBase) ?>
-                                                <th class="text-end">Action</th>
+                                                <th class="rec-col-action text-end">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <?php if (empty($treatments)): ?>
-                                                <tr>
-                                                    <td colspan="5" class="text-center py-4 text-muted">
-                                                        <i class="feather-activity me-2"></i><?= $filtersOn ? 'No treatment records match the selected filters. <a href="treatments-records.php" class="fw-semibold">Reset filters</a>' : 'No treatment records found.' ?>
-                                                    </td>
-                                                </tr>
+                                                <?= listEmpty(5, (bool)$filtersOn, 'No treatment records yet', 'Treatments show up here once they are finished or cancelled in Active Treatments.', 'feather-activity', 'treatments-records.php') ?>
                                             <?php else: ?>
                                                 <?php foreach ($treatments as $t): ?>
                                                 <tr>
                                                     <?php $trtTime = $t['appointments']['appointment_time'] ?? null; ?>
                                                     <td>
-                                                        <div class="fw-semibold"><?= formatTrtDate($t['treatment_date'] ?? null) ?></div>
-                                                        <?php if ($trtTime): ?>
-                                                            <div class="text-muted small"><?= date('g:i A', strtotime($trtTime)) ?></div>
-                                                        <?php endif; ?>
+                                                        <?= recWhen(formatTrtDate($t['treatment_date'] ?? null), $trtTime ? date('g:i A', strtotime($trtTime)) : '') ?>
                                                     </td>
                                                     <td>
-                                                        <a href="patient-records.php?id=<?= (int)($t['patient_id'] ?? 0) ?>"
-                                                           class="text-primary fw-semibold">
-                                                            <?= htmlspecialchars($t['patients']['full_name'] ?? '—') ?>
-                                                        </a>
+                                                        <?= recWho($t['patients']['full_name'] ?? '', (int)($t['patient_id'] ?? 0), 'patient-records.php?id=' . (int)($t['patient_id'] ?? 0), (string)($t['patients']['patient_code'] ?? '')) ?>
                                                     </td>
                                                     <?php if (isOwner()): ?>
-                                                        <td><?= htmlspecialchars($t['branches']['branch_name'] ?? '—') ?></td>
+                                                        <td><?= recBranch($t['branches']['branch_name'] ?? '', $branches ?? []) ?></td>
                                                     <?php else: ?>
                                                         <td><?= htmlspecialchars($t['dentists']['full_name'] ?? '—') ?></td>
                                                     <?php endif; ?>
                                                     <td>
-                                                        <span class="badge <?= trtStatusBadge($t['status']) ?>">
-                                                            <?= trtStatusLabel($t['status']) ?>
-                                                        </span>
+                                                        <?= recPill(trtStatusLabel($t['status']), recToneFromBadge(trtStatusBadge($t['status']))) ?>
                                                     </td>
-                                                    <td class="text-end">
+                                                    <td class="rec-col-action">
                                                         <div class="dropdown">
-                                                            <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed">
+                                                            <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed" aria-label="Actions">
                                                                 <i class="feather-more-vertical"></i>
                                                             </a>
                                                             <div class="dropdown-menu dropdown-menu-end action-dropdown">
@@ -229,37 +224,9 @@ $sortBase = listUrl('treatments-records.php', ['branch' => $filterBranch, 'statu
                                 </div>
                             </div>
 
-                            <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                <p class="text-muted small mb-0">
-                                    Showing <?= $from ?>–<?= $to ?> of <?= $totalRecords ?> record(s)
-                                    <?php if ($filtersOn): ?>
-                                        &nbsp;·&nbsp;<a href="treatments-records.php" class="text-danger">
-                                            <i class="feather-x-circle me-1"></i>Clear filters
-                                        </a>
-                                    <?php endif; ?>
-                                </p>
-                                <?php if ($totalPages > 1): ?>
-                                <ul class="list-unstyled d-flex align-items-center gap-1 mb-0 pagination-common-style">
-                                    <li>
-                                        <?php if ($page > 1): ?>
-                                            <a href="<?= $baseUrl ?>&page=<?= $page - 1 ?>"><i class="bi bi-arrow-left"></i></a>
-                                        <?php else: ?>
-                                            <a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-left"></i></a>
-                                        <?php endif; ?>
-                                    </li>
-                                    <?php $wS=max(1,$page-2);$wE=min($totalPages,$wS+4);$wS=max(1,$wE-4); ?>
-                                    <?php if ($wS>1): ?><li><a href="<?= $baseUrl ?>&page=1">1</a></li><?php if ($wS>2): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?><?php endif; ?>
-                                    <?php for ($p=$wS;$p<=$wE;$p++): ?><li><a href="<?= $baseUrl ?>&page=<?= $p ?>" class="<?= $p===$page?'active':'' ?>"><?= $p ?></a></li><?php endfor; ?>
-                                    <?php if ($wE<$totalPages): ?><?php if ($wE<$totalPages-1): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?><li><a href="<?= $baseUrl ?>&page=<?= $totalPages ?>"><?= $totalPages ?></a></li><?php endif; ?>
-                                    <li>
-                                        <?php if ($page < $totalPages): ?>
-                                            <a href="<?= $baseUrl ?>&page=<?= $page + 1 ?>"><i class="bi bi-arrow-right"></i></a>
-                                        <?php else: ?>
-                                            <a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-right"></i></a>
-                                        <?php endif; ?>
-                                    </li>
-                                </ul>
-                                <?php endif; ?>
+                            <div class="card-footer ar-foot d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <?= listFootCount($from, $to, $totalRecords, 'treatment record', 'treatments-records.php', (bool)$filtersOn) ?>
+                                <?= listPager($baseUrl, $page, $totalPages) ?>
                             </div>
                         </div>
                     </div>
@@ -271,7 +238,7 @@ $sortBase = listUrl('treatments-records.php', ['branch' => $filterBranch, 'statu
     <!-- ============================================================
          VIEW TREATMENT MODAL
     ============================================================ -->
-    <div class="modal fade es-detail-modal" id="treatmentViewModal" tabindex="-1" aria-labelledby="tvTitle" aria-hidden="true">
+    <div class="modal fade es-detail-modal ar-detail-modal" id="treatmentViewModal" tabindex="-1" aria-labelledby="tvTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down apt-record-dialog">
             <div class="modal-content apt-record-content">
                 <div class="modal-header apt-record-header">
@@ -382,9 +349,12 @@ $sortBase = listUrl('treatments-records.php', ['branch' => $filterBranch, 'statu
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/admin.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
-    <script src="assets/js/treatments.js?v=3"></script>
+    <script src="assets/js/admin.js?v=7"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
+    <script src="assets/js/es-records.js?v=3"></script>
+    <script src="assets/js/treatments.js?v=4"></script>
     <script>
     function applyFilters() {
         window._applyFilters('treatments-records.php', {

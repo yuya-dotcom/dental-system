@@ -9,6 +9,7 @@
 
 define('REQUIRED_ROLES', ['owner']);
 require_once __DIR__ . '/controllers/auth_controller.php';
+require_once __DIR__ . '/controllers/list_filters.php';
 require_once __DIR__ . '/controllers/secure_controller.php';
 require_once __DIR__ . '/controllers/admin_batch.php';
 admin_release_session();   // read-only page render: don't hold the session lock while querying
@@ -69,9 +70,11 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/select2.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/select2-theme.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
-    <link rel="stylesheet" href="assets/css/custom.css">
+    <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -83,7 +86,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
             <!-- ── Page Header ──────────────────────────────── -->
             <div class="page-header">
                 <div class="page-header-left d-flex align-items-center">
-                    <div class="page-header-title"><h5 class="m-b-10">Services</h5></div>
+                    <div class="page-header-title"><h5 class="m-b-10">Service Catalog</h5></div>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="dashboard.php">Home</a></li>
                         <li class="breadcrumb-item">Service Pricing</li>
@@ -92,27 +95,6 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
                 <div class="page-header-right ms-auto">
                     <div class="page-header-right-items">
                         <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-
-                            <!-- Search -->
-                            <input type="text" id="searchInput" class="form-control form-control-sm hdr-control"
-                                placeholder="Search service…" value="<?= htmlspecialchars($search) ?>"
-                                onkeydown="if(event.key==='Enter') applyFilters()"
-                                style="max-width:180px;">
-
-                            <!-- Type filter -->
-                            <select id="filterType" class="js-custom-select" data-cs-filter onchange="applyFilters()" aria-label="Filter by type">
-                                <option value="">All Types</option>
-                                <?php foreach ($serviceTypes as $t): ?>
-                                    <option value="<?= $t ?>" <?= $filterType === $t ? 'selected' : '' ?>><?= $t ?></option>
-                                <?php endforeach; ?>
-                            </select>
-
-                            <!-- Status filter -->
-                            <select id="filterStatus" class="js-custom-select" data-cs-filter onchange="applyFilters()" aria-label="Filter by status">
-                                <option value="active"   <?= $filterStatus === 'active'   ? 'selected' : '' ?>>Active</option>
-                                <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
-                                <option value=""         <?= $filterStatus === ''         ? 'selected' : '' ?>>All</option>
-                            </select>
 
                             <!-- Add button (owner/admin only) -->
                             <?php if (!isDentist()): ?>
@@ -147,6 +129,27 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div class="list-toolbar">
+                                <div class="list-field list-field-search"><label class="list-label" for="searchInput">Search</label>
+                                <div class="list-search"><i class="feather-search" aria-hidden="true"></i>
+                                <input type="search" id="searchInput" placeholder="Service name or description" value="<?= htmlspecialchars($search) ?>" autocomplete="off"
+                                    onkeydown="if(event.key==='Enter'){event.preventDefault();applyFilters();}" onsearch="if(!this.value)applyFilters()"></div></div>
+                                <div class="list-field"><label class="list-label" for="filterType">Service Type</label>
+                                <select id="filterType" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                    <option value="">All Types</option>
+                                    <?php foreach ($serviceTypes as $t): ?>
+                                        <option value="<?= $t ?>" <?= $filterType === $t ? 'selected' : '' ?>><?= $t ?></option>
+                                    <?php endforeach; ?>
+                                </select></div>
+                                <div class="list-field"><label class="list-label" for="filterStatus">Status</label>
+                                <select id="filterStatus" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                    <option value="active"   <?= $filterStatus === 'active'   ? 'selected' : '' ?>>Active</option>
+                                    <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                                    <option value=""         <?= $filterStatus === ''         ? 'selected' : '' ?>>All</option>
+                                </select></div>
+                                <?= listResetControl('service-pricing.php', listActiveCount([$filterType, $filterStatus !== 'active', $search])) ?>
                             </div>
 
                             <div class="card-body custom-card-action p-0">
@@ -197,7 +200,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
                                                 <?php if (!isDentist()): ?>
                                                 <td class="text-end">
                                                     <div class="dropdown">
-                                                        <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown">
+                                                        <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed">
                                                             <i class="feather-more-vertical"></i>
                                                         </a>
                                                         <div class="dropdown-menu dropdown-menu-end action-dropdown">
@@ -363,10 +366,10 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
                 <div class="modal-footer border-0 px-4 pb-4 pt-3 d-flex justify-content-between align-items-center">
                     <span class="text-muted small"><span class="text-danger"></span></span>
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-primary px-4" id="svcSaveBtn" onclick="saveService()">
                             <i class="feather-save me-1"></i> Save Service
                         </button>
+                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                     </div>
                 </div>
 
@@ -376,11 +379,13 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
     <?php endif; ?>
 
     <script src="assets/vendors/js/vendors.min.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/admin.js"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
+    <script src="assets/js/admin.js?v=7"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
     <script>
     // ── Filter helper ────────────────────────────────────────
     function applyFilters() {
@@ -390,7 +395,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
             search: document.getElementById('searchInput')?.value  ?? '',
             page:   1,
         });
-        window.location.href = 'service-pricing.php?' + params.toString();
+        esNavigate('service-pricing.php?' + params.toString());
     }
 
     // ── Open ADD modal ───────────────────────────────────────
@@ -471,7 +476,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
             Swal.fire({
                 icon: 'success', title: 'Saved!', text: res.message,
                 timer: 1600, showConfirmButton: false,
-            }).then(() => location.reload());
+            }).then(() => esRefresh());
         })
         .catch(err => {
             btn.disabled  = false;
@@ -504,7 +509,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
             .then(res => {
                 if (res.success) {
                     Swal.fire({ icon: 'success', title: 'Updated!', text: res.message, timer: 1500, showConfirmButton: false })
-                        .then(() => location.reload());
+                        .then(() => esRefresh());
                 } else {
                     Swal.fire('Error', res.message, 'error');
                 }
@@ -529,7 +534,7 @@ $serviceTypes = ['Procedure', 'Consultation', 'Cosmetic', 'Orthodontic', 'Other'
             .then(res => {
                 if (res.success) {
                     Swal.fire({ icon: 'success', title: 'Deleted!', text: res.message, timer: 1500, showConfirmButton: false })
-                        .then(() => location.reload());
+                        .then(() => esRefresh());
                 } else {
                     Swal.fire('Error', res.message, 'error');
                 }

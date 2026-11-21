@@ -27,15 +27,6 @@ const FEEDBACK_CATEGORIES = [            // labels for stored rows (Owner side)
 ];
 const FEEDBACK_PATIENT_CATEGORY = 'dentist'; // the only category patients can submit
 
-/** Patient id linked to a portal account (null when not linked yet). */
-function feedbackPatientId(int $accountId): ?int
-{
-    $res = supabase_request('patient_accounts', 'GET', [],
-        'account_id=eq.' . $accountId . '&select=patient_id&limit=1');
-    $id = $res['data'][0]['patient_id'] ?? null;
-    return $id ? (int)$id : null;
-}
-
 /**
  * appointment_id => ['category', 'created_at'] for the given appointments.
  * Returns null when the table can't be read (e.g. migration not run yet).

@@ -1,8 +1,8 @@
 <?php
 // =============================================================
 //  api/patient_record_api.php
-//  Tab data for patient-records.php (Appointments, Treatments,
-//  Billing, Clinical Notes) + add / delete clinical notes.
+//  Tab data for patient-records.php (Patient Details, Appointments,
+//  Treatments, Billing, Clinical Notes) + add / delete clinical notes.
 // =============================================================
 session_start();
 define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']); // required before patient_control.php is loaded
@@ -20,6 +20,7 @@ if (!$patientId) {
     echo json_encode(['success' => false, 'message' => 'Invalid patient ID.']);
     exit;
 }
+requirePatientAccess($patientId);   // non-owners: only patients with an appointment at their branch
 
 switch ($action) {
 
@@ -92,6 +93,36 @@ switch ($action) {
         $invoices = getPatientInvoices($patientId);
         $summary  = getPatientFinancialSummary($patientId);
         echo json_encode(['success' => true, 'invoices' => $invoices, 'summary' => $summary]);
+        break;
+
+    // ── TAB: Patient Details (personal + contact; no branch — patients aren't
+    //    tied to one; the branch belongs to each appointment) ──────────────
+    case 'get_details':
+        require_once __DIR__ . '/../controllers/admin_batch.php';
+        $r = admin_sb_many([
+            'p' => admin_q('patients', 'select=full_name,gender,birthdate,contact_number&patient_id=eq.' . $patientId . '&limit=1'),
+            'a' => admin_q('patient_accounts', 'select=first_name,middle_name,last_name,suffix,email,contact_number,birthdate&patient_id=eq.' . $patientId . '&limit=1'),
+            'f' => admin_q('patient_profiles', 'select=address,barangay,city,province,zip&patient_id=eq.' . $patientId . '&limit=1'),
+        ]);
+        $p = $r['p']['data'][0] ?? null;
+        if (!$p) { echo json_encode(['success' => false, 'message' => 'Patient not found.']); break; }
+        $a = $r['a']['data'][0] ?? [];
+        $f = $r['f']['data'][0] ?? [];
+        $clean = fn($v) => ($v = trim((string)($v ?? ''))) === '' ? null : $v;
+        $birth = $clean($p['birthdate'] ?? null) ?? $clean($a['birthdate'] ?? null);
+        $address = implode(', ', array_filter(array_map($clean, [
+            $f['address'] ?? null, $f['barangay'] ?? null, $f['city'] ?? null, $f['province'] ?? null, $f['zip'] ?? null,
+        ])));
+        echo json_encode(['success' => true, 'details' => [
+            'full_name'      => $clean($p['full_name'] ?? null),
+            'gender'         => $clean($p['gender'] ?? null) ? ucfirst(strtolower(trim($p['gender']))) : null,
+            'birthdate'      => $birth ? date('M d, Y', strtotime($birth)) : null,
+            'age'            => $birth ? calculateAge($birth) : null,
+            'contact_number' => $clean($p['contact_number'] ?? null) ?? $clean($a['contact_number'] ?? null),
+            'email'          => $clean($a['email'] ?? null),
+            'address'        => $address !== '' ? $address : null,
+            'has_account'    => !empty($a),
+        ]]);
         break;
 
     default:

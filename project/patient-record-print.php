@@ -19,16 +19,21 @@ function decodeNestedJson(mixed $data): mixed {
 
 $patientId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if (!$patientId) die('Invalid patient.');
+// Branch-scoped: a non-owner only prints patients with an appointment at their branch
+if (!canAccessPatient($patientId)) { header('Location: unauthorized.php'); exit; }
 
-$patient = decodeNestedJson(getPatientById($patientId)) ?? [];
+// Everything the printout shows in ONE request (was 7 reads in a row);
+// the individual reads are the fallback. Same filters, order and limits.
+$bundle  = getPatientRecordBundle($patientId, true);
+$patient = decodeNestedJson($bundle ? $bundle['patient'] : getPatientById($patientId)) ?? [];
 if (!$patient) die('Patient not found.');
 
-$summary    = decodeNestedJson(getPatientFinancialSummary($patientId)) ?? [];
-$active     = decodeNestedJson(getPatientActiveTreatments($patientId)) ?? [];
-$upcoming   = decodeNestedJson(getPatientUpcomingAppointments($patientId)) ?? [];
-$invoices = decodeNestedJson(getPatientInvoices($patientId)) ?? [];
-$treatments = decodeNestedJson(getPatientTreatments($patientId)) ?? [];
-$notes      = decodeNestedJson(getPatientClinicalNotes($patientId)) ?? [];
+$summary    = decodeNestedJson($bundle ? $bundle['summary']    : getPatientFinancialSummary($patientId)) ?? [];
+$active     = decodeNestedJson($bundle ? $bundle['active']     : getPatientActiveTreatments($patientId)) ?? [];
+$upcoming   = decodeNestedJson($bundle ? $bundle['upcoming']   : getPatientUpcomingAppointments($patientId)) ?? [];
+$invoices   = decodeNestedJson($bundle ? $bundle['invoices']   : getPatientInvoices($patientId)) ?? [];
+$treatments = decodeNestedJson($bundle ? $bundle['treatments'] : getPatientTreatments($patientId)) ?? [];
+$notes      = decodeNestedJson($bundle ? $bundle['notes']      : getPatientClinicalNotes($patientId)) ?? [];
 $age        = calculateAge($patient['birthdate'] ?? null);
 ?>
 <!DOCTYPE html>
@@ -54,7 +59,8 @@ $age        = calculateAge($patient['birthdate'] ?? null);
         @media print { body { padding: 0; } }
     </style>
 </head>
-<body onload="window.print()">
+<?php // ?embed=1: shown inside the Patient Record's print modal, which has its own Print button ?>
+<body<?= empty($_GET['embed']) ? ' onload="window.print()"' : '' ?>>
 
     <!-- HEADER -->
     <div class="header">

@@ -11,6 +11,7 @@ admin_release_session();   // read-only page render: don't hold the session lock
 require_once __DIR__ . '/controllers/treatment_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/list_filters.php';
+require_once __DIR__ . '/controllers/record_ui.php';   // Appointment Records cell markup
 
 $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : getSessionBranch();
 if (!isOwner() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
@@ -96,10 +97,6 @@ if (!empty($treatments)) {
     }
     unset($t);
 }
-// DEBUG — remove after confirming
-foreach ($treatments as $t) {
-    error_log("TRT ID: " . ($t['treatment_id'] ?? 'none') . " | APT ID: " . ($t['appointment_id'] ?? 'none') . " | APT CODE: " . ($t['appointment_code'] ?? 'MISSING'));
-}
 ?>
 <!DOCTYPE html>
 <html lang="zxx">
@@ -112,13 +109,13 @@ foreach ($treatments as $t) {
     <link rel="stylesheet" type="text/css" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
-    <link rel="stylesheet" href="assets/css/custom.css?v=5">
+    <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/odontogram.css?v=3">
     <link rel="stylesheet" href="assets/css/treatments.css?v=7">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <link rel="stylesheet" href="assets/fonts/sora/sora-400-700.css"><!-- Sora, self-hosted (was Google Fonts) -->
-    <link rel="stylesheet" href="assets/css/es-swal.css?v=4">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
     <style>
         /* ── Add Material blur effect ── */
         body.add-material-open>* {
@@ -152,6 +149,10 @@ foreach ($treatments as $t) {
             opacity: 0.85;
         }
     </style>
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-records.css?v=7">
+    <link rel="stylesheet" href="assets/css/analytics.css?v=8">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
 </head>
 
 <body>
@@ -179,14 +180,15 @@ foreach ($treatments as $t) {
                 </div>
             </div>
 
-            <div class="main-content">
+            <div class="main-content an-page ar-page">
                 <div class="row">
                     <div class="col-lg-12">
                         <div class="card stretch stretch-full">
                             <div class="card-header">
-                                <h5 class="card-title">
+                                <h5 class="card-title mb-0">
                                     Active Treatments
-                                    <span class="badge bg-soft-primary text-primary ms-2"><?= $totalRecords ?> total</span>
+                                    <span class="an-pill info ms-2"><?= $totalRecords ?> <?= $filtersOn ? 'found' : 'total' ?></span>
+                                    <span class="rec-card-sub">Checked-in patients whose treatment is pending or in progress</span>
                                 </h5>
                                 <div class="card-header-action">
                                     <div class="card-header-btn">
@@ -219,70 +221,53 @@ foreach ($treatments as $t) {
                             </div>
                             <div class="card-body custom-card-action p-0">
                                 <div class="table-responsive" style="overflow:visible;">
-                                    <table class="table table-hover mb-0">
+                                    <table class="table table-hover mb-0 rec-table ar-table">
                                         <thead>
                                             <tr>
+                                                <?= listTh('Date/Time', 'oldest', 'newest', $sortKey, $sortBase) ?>
                                                 <?= listTh('Patient Name', 'patient_asc', 'patient_desc', $sortKey, $sortBase) ?>
-                                                <?= listTh('Date', 'oldest', 'newest', $sortKey, $sortBase) ?>
-                                                <th>Service(s)</th>
-                                                <th>Estimated Price</th>
+                                                <th>Services</th>
                                                 <?= listTh('Status', 'status_asc', 'status_desc', $sortKey, $sortBase) ?>
-                                                <th class="text-end">Action</th>
+                                                <th class="rec-col-action text-end">Action</th>
                                             </tr>
 
                                         </thead>
                                         <tbody>
                                             <?php if (empty($treatments)): ?>
-                                                <tr>
-                                                    <td colspan="10" class="text-center py-5 text-muted">
-                                                        <i class="feather-activity me-2 fs-4 d-block mb-2"></i>
-                                                        <?php if ($filtersOn): ?>
-                                                        No active treatments match the selected filters.<br>
-                                                        <a href="treatments-active.php" class="fw-semibold small">Reset filters</a>
-                                                        <?php else: ?>
-                                                        No active treatments at the moment.<br>
-                                                        <small>Patients appear here after being checked in at the appointment desk.</small>
-                                                        <?php endif; ?>
-                                                    </td>
-                                                </tr>
+                                                <?= listEmpty(5, (bool)$filtersOn, 'No active treatments right now', 'Patients appear here after they are checked in at the appointment desk.', 'feather-activity', 'treatments-active.php') ?>
                                             <?php else: ?>
                                                 <?php foreach ($treatments as $t): ?>
                                                     <?php
                                                     $allSvcs = $t['all_service_names'] ?? [];
                                                     ?>
                                                     <tr>
-                                                        <td>
-                                                            <a href="patient-records.php?id=<?= (int)($t['patient_id'] ?? 0) ?>"
-                                                                class="text-primary fw-semibold text-decoration-none">
-                                                                <?= htmlspecialchars($t['patients']['full_name'] ?? '—') ?>
-                                                            </a>
+                                                        <td class="text-nowrap">
+                                                            <?= recWhen(formatTrtDate($t['treatment_date'] ?? ($t['appointment_date'] ?? null)), (string)(formatTrtTime($t['appointment_time'] ?? null) ?: '')) ?>
                                                         </td>
-                                                        <td><?= formatTrtDate($t['treatment_date'] ?? null) ?></td>
+                                                        <td>
+                                                            <?= recWho($t['patients']['full_name'] ?? '', (int)($t['patient_id'] ?? 0), 'patient-records.php?id=' . (int)($t['patient_id'] ?? 0), (string)($t['patients']['patient_code'] ?? '')) ?>
+                                                        </td>
 
                                                         <!-- ── All services as numbered badges ── -->
                                                         <td>
                                                             <?php if (!empty($allSvcs)): ?>
                                                                 <?php foreach ($allSvcs as $i => $svcName): ?>
-                                                                    <span class="badge bg-soft-primary text-primary d-inline-flex align-items-center gap-1 mb-1"
-                                                                        style="font-size:.74rem;font-weight:500;">
-                                                                        <span style="opacity:.55;font-size:.65rem;"><?= $i + 1 ?>.</span>
+                                                                    <span class="rec-pill mb-1">
+                                                                        <span class="rec-muted"><?= $i + 1 ?>.</span>
                                                                         <?= htmlspecialchars($svcName) ?>
                                                                     </span>
                                                                 <?php endforeach; ?>
                                                             <?php else: ?>
-                                                                <span class="text-muted">—</span>
+                                                                <span class="rec-muted">—</span>
                                                             <?php endif; ?>
                                                         </td>
 
-                                                        <td><?= formatCost($t['cost'] ?? null) ?></td>
                                                         <td>
-                                                            <span class="badge <?= trtStatusBadge($t['status']) ?>">
-                                                                <?= trtStatusLabel($t['status']) ?>
-                                                            </span>
+                                                            <?= recPill(trtStatusLabel($t['status']), recToneFromBadge(trtStatusBadge($t['status']))) ?>
                                                         </td>
-                                                        <td class="text-end">
+                                                        <td class="rec-col-action">
                                                             <div class="dropdown">
-                                                                <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" style="overflow:visible;">
+                                                                <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed" style="overflow:visible;" aria-label="Actions">
                                                                     <i class="feather-more-vertical"></i>
                                                                 </a>
                                                                 <div class="dropdown-menu dropdown-menu-end action-dropdown">
@@ -343,22 +328,9 @@ foreach ($treatments as $t) {
                                 </div>
                             </div>
 
-                            <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                <p class="text-muted small mb-0">
-                                    Showing <?= $from ?>–<?= $to ?> of <?= $totalRecords ?> record(s)
-                                </p>
-                                <?php if ($totalPages > 1): ?>
-                                    <ul class="list-unstyled d-flex align-items-center gap-1 mb-0 pagination-common-style">
-                                        <li><?php if ($page > 1): ?><a href="<?= $baseUrl ?>&page=<?= $page - 1 ?>"><i class="bi bi-arrow-left"></i></a><?php else: ?><a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-left"></i></a><?php endif; ?></li>
-                                        <?php $wS = max(1, $page - 2);
-                                        $wE = min($totalPages, $wS + 4);
-                                        $wS = max(1, $wE - 4); ?>
-                                        <?php if ($wS > 1): ?><li><a href="<?= $baseUrl ?>&page=1">1</a></li><?php if ($wS > 2): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?><?php endif; ?>
-                                                <?php for ($p = $wS; $p <= $wE; $p++): ?><li><a href="<?= $baseUrl ?>&page=<?= $p ?>" class="<?= $p === $page ? 'active' : '' ?>"><?= $p ?></a></li><?php endfor; ?>
-                                                <?php if ($wE < $totalPages): ?><?php if ($wE < $totalPages - 1): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?><li><a href="<?= $baseUrl ?>&page=<?= $totalPages ?>"><?= $totalPages ?></a></li><?php endif; ?>
-                                        <li><?php if ($page < $totalPages): ?><a href="<?= $baseUrl ?>&page=<?= $page + 1 ?>"><i class="bi bi-arrow-right"></i></a><?php else: ?><a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-right"></i></a><?php endif; ?></li>
-                                    </ul>
-                                <?php endif; ?>
+                            <div class="card-footer ar-foot d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <?= listFootCount($from, $to, $totalRecords, 'active treatment', 'treatments-active.php', (bool)$filtersOn) ?>
+                                <?= listPager($baseUrl, $page, $totalPages) ?>
                             </div>
                         </div>
                     </div>
@@ -370,7 +342,7 @@ foreach ($treatments as $t) {
     <!-- ============================================================
          VIEW DETAILS MODAL
     ============================================================ -->
-    <div class="modal fade es-detail-modal" id="treatmentViewModal" tabindex="-1" aria-labelledby="tvTitle" aria-hidden="true">
+    <div class="modal fade es-detail-modal ar-detail-modal" id="treatmentViewModal" tabindex="-1" aria-labelledby="tvTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down apt-record-dialog">
             <div class="modal-content apt-record-content">
                 <div class="modal-header apt-record-header">
@@ -494,8 +466,8 @@ foreach ($treatments as $t) {
                     <ol class="tw-steps">
                         <li><button type="button" class="tw-step" data-step="1" onclick="twGoStep(1)"><span class="tw-step-num">1</span><span class="tw-step-label">Details</span></button></li>
                         <li><button type="button" class="tw-step" data-step="2" onclick="twGoStep(2)"><span class="tw-step-num">2</span><span class="tw-step-label">Teeth &amp; Procedures</span></button></li>
-                        <li><button type="button" class="tw-step" data-step="3" onclick="twGoStep(3)"><span class="tw-step-num">3</span><span class="tw-step-label">Plan &amp; Cost</span></button></li>
-                        <li><button type="button" class="tw-step" data-step="4" onclick="twGoStep(4)"><span class="tw-step-num">4</span><span class="tw-step-label">Materials</span></button></li>
+                        <li><button type="button" class="tw-step" data-step="3" onclick="twGoStep(3)"><span class="tw-step-num">3</span><span class="tw-step-label">Materials</span></button></li>
+                        <li><button type="button" class="tw-step" data-step="4" onclick="twGoStep(4)"><span class="tw-step-num">4</span><span class="tw-step-label">Plan &amp; Cost</span></button></li>
                     </ol>
                 </nav>
 
@@ -571,8 +543,41 @@ foreach ($treatments as $t) {
                         </div>
                     </section>
 
+                    <!-- ── Materials ── -->
+                    <section class="tw-section tw-pane" data-pane="3" aria-labelledby="twMatTitle">
+                        <div class="tw-section-head">
+                            <h6 class="tw-section-title" id="twMatTitle"><i class="feather-package" aria-hidden="true"></i> Materials Used</h6>
+                            <span class="tw-section-hint">Auto-filled from all services, editable.</span>
+                            <button type="button" class="btn btn-sm btn-outline-primary tw-add-btn" onclick="openAddWorkMaterial()">
+                                <i class="feather-plus me-1"></i> Add Item
+                            </button>
+                        </div>
+                        <div id="work_materials_loading" class="tw-chart-loading">
+                            <span class="spinner-border spinner-border-sm" role="status"></span> Loading materials...
+                        </div>
+                        <div class="table-responsive tw-table" id="work_materials_table" style="display:none;">
+                            <table class="table table-sm mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>In Stock</th>
+                                        <th>Qty Used</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="work_materials_body">
+                                    <tr id="work_no_materials">
+                                        <td colspan="4" class="text-center py-3 text-muted small">
+                                            <i class="feather-info me-1"></i>No materials configured for this service.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
                     <!-- ── Treatment plan & cost ── -->
-                    <section class="tw-section tw-pane" data-pane="3" aria-labelledby="twPlanTitle">
+                    <section class="tw-section tw-pane" data-pane="4" aria-labelledby="twPlanTitle">
                         <div class="tw-section-head">
                             <h6 class="tw-section-title" id="twPlanTitle"><i class="feather-list" aria-hidden="true"></i> Treatment Plan &amp; Cost</h6>
                             <span class="tw-section-hint">Planned until you finish the treatment.</span>
@@ -614,55 +619,22 @@ foreach ($treatments as $t) {
                             </div>
                         </div>
                     </section>
-
-                    <!-- ── Materials ── -->
-                    <section class="tw-section tw-pane" data-pane="4" aria-labelledby="twMatTitle">
-                        <div class="tw-section-head">
-                            <h6 class="tw-section-title" id="twMatTitle"><i class="feather-package" aria-hidden="true"></i> Materials Used</h6>
-                            <span class="tw-section-hint">Auto-filled from all services, editable.</span>
-                            <button type="button" class="btn btn-sm btn-outline-primary tw-add-btn" onclick="openAddWorkMaterial()">
-                                <i class="feather-plus me-1"></i> Add Item
-                            </button>
-                        </div>
-                        <div id="work_materials_loading" class="tw-chart-loading">
-                            <span class="spinner-border spinner-border-sm" role="status"></span> Loading materials...
-                        </div>
-                        <div class="table-responsive tw-table" id="work_materials_table" style="display:none;">
-                            <table class="table table-sm mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Item</th>
-                                        <th>In Stock</th>
-                                        <th>Qty Used</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="work_materials_body">
-                                    <tr id="work_no_materials">
-                                        <td colspan="4" class="text-center py-3 text-muted small">
-                                            <i class="feather-info me-1"></i>No materials configured for this service.
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
                 </div>
 
                 <div class="modal-footer tw-footer">
                     <!-- Running total, visible on every step (filled by _renderStepSummary) -->
                     <div class="tw-summary" id="tw_summary" aria-live="polite"></div>
                     <div class="tw-actions">
-                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-outline-primary px-4" id="twBackBtn" onclick="twGoStep(_twStep - 1)">
-                            <i class="feather-arrow-left me-1"></i> Back
-                        </button>
                         <button type="button" class="btn btn-primary px-4" id="twNextBtn" onclick="twGoStep(_twStep + 1)">
                             Next <i class="feather-arrow-right ms-1"></i>
                         </button>
                         <button type="button" class="btn btn-primary px-4" id="finishTreatmentBtn" onclick="openFinishConfirmModal()">
                             <i class="feather-check-circle me-1"></i> Finish Treatment
                         </button>
+                        <button type="button" class="btn btn-outline-primary px-4" id="twBackBtn" onclick="twGoStep(_twStep - 1)">
+                            <i class="feather-arrow-left me-1"></i> Back
+                        </button>
+                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -744,11 +716,11 @@ foreach ($treatments as $t) {
                     </div>
                 </div>
                 <div class="modal-footer apt-record-footer">
-                    <button type="button" class="btn btn-light" onclick="backToWorkModal()">
-                        <i class="feather-arrow-left me-1"></i> Back
-                    </button>
                     <button type="button" class="btn btn-success px-4" id="confirmFinishBtn" onclick="confirmFinishTreatment()">
                         <i class="feather-check-circle me-1"></i> Confirm &amp; Finish
+                    </button>
+                    <button type="button" class="btn btn-light" onclick="backToWorkModal()">
+                        <i class="feather-arrow-left me-1"></i> Back
                     </button>
                 </div>
             </div>
@@ -812,10 +784,10 @@ foreach ($treatments as $t) {
                 <div class="modal-footer border-0 d-flex justify-content-between">
                     <span class="text-muted small"><span class="text-danger">*</span> Required</span>
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-light" onclick="closeAddWorkMaterial()">Cancel</button>
                         <button type="button" class="btn btn-primary px-4" onclick="addWorkMaterial()">
                             <i class="feather-plus me-1"></i> Add Item
                         </button>
+                        <button type="button" class="btn btn-light" onclick="closeAddWorkMaterial()">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -826,12 +798,14 @@ foreach ($treatments as $t) {
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/es-swal.js?v=2"></script>
-    <script src="assets/js/admin.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
+    <script src="assets/js/admin.js?v=7"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
+    <script src="assets/js/es-records.js?v=3"></script>
     <script src="assets/js/odontogram.js?v=2"></script>
     <script src="assets/js/treatments-active-chart.js?v=4"></script>
-    <script src="assets/js/treatments-active.js?v=8"></script>
+    <script src="assets/js/treatments-active.js?v=10"></script>
     <script>
         window._sessionBranchId = '<?= getSessionBranch() ?>';
         window._currentUser = '<?= htmlspecialchars($currentUser['full_name'] ?? '', ENT_QUOTES) ?>';

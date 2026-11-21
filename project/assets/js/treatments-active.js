@@ -450,18 +450,39 @@ function _loadSavedMaterials(treatmentId) {
 // rebuilt from each response, so it clears once stock is replenished and
 // keeps only the materials that are still short. finish_treatment.php
 // repeats the check before saving anything.
-let _stock = { ok: true, shortages: [], seq: 0, timer: null };
+let _stock = { ok: true, shortages: [], seq: 0, timer: null, sig: "", at: 0, pending: null, pendingSig: "" };
+// A result for the same branch + materials is reused for this long when moving
+// to Plan & Cost (finish_treatment.php checks stock again before saving anything).
+const TW_STOCK_FRESH_MS = 30000;
 
+function _stockMaterials() {
+  return _workMaterials.map((m) => ({ item_id: m.item_id, quantity: m.qty_used }));
+}
+function _stockSig(materials) {
+  const branch = parseInt(document.getElementById("work_branch_id").value, 10) || 0;
+  return branch + "|" + materials.map((m) => m.item_id + ":" + m.quantity).sort().join(",");
+}
 function _scheduleStockCheck() {
   clearTimeout(_stock.timer);
   _stock.timer = setTimeout(_checkStock, 300);
 }
+/** Stock check for the gate: reuses a fresh result or the check already on its way. */
+function _checkStockCached() {
+  const sig = _stockSig(_stockMaterials());
+  if (_stock.pending && _stock.pendingSig === sig) { clearTimeout(_stock.timer); return _stock.pending; }
+  if (_stock.sig === sig && Date.now() - _stock.at < TW_STOCK_FRESH_MS && !_stock.shortages.some((s) => s.error)) {
+    clearTimeout(_stock.timer);
+    return Promise.resolve(_stock.ok);
+  }
+  return _checkStock();
+}
 function _checkStock() {
   clearTimeout(_stock.timer);
   const seq = ++_stock.seq;
-  const materials = _workMaterials.map((m) => ({ item_id: m.item_id, quantity: m.qty_used }));
-  if (!materials.length) { _stock.ok = true; _stock.shortages = []; _renderStockAlert(); return Promise.resolve(true); }
-  return fetch("api/stock_check.php", {
+  const materials = _stockMaterials();
+  if (!materials.length) { _stock.ok = true; _stock.shortages = []; _stock.sig = _stockSig(materials); _stock.at = Date.now(); _renderStockAlert(); return Promise.resolve(true); }
+  const sig = _stockSig(materials);
+  const p = fetch("api/stock_check.php", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ branch_id: parseInt(document.getElementById("work_branch_id").value, 10) || 0, materials }),
@@ -477,6 +498,7 @@ function _checkStock() {
       _workMaterials.forEach((m) => { if (m.item_id in avail) m.stock = avail[m.item_id]; });
       _stock.ok = !!res.ok;
       _stock.shortages = res.shortages || [];
+      _stock.sig = sig; _stock.at = Date.now();
       _renderStockAlert();
       renderWorkMaterials();
       return _stock.ok;
@@ -485,9 +507,13 @@ function _checkStock() {
       if (seq !== _stock.seq) return _stock.ok;
       _stock.ok = false;
       _stock.shortages = [{ error: true }];
+      _stock.sig = ""; _stock.at = 0;               // never reuse a failed check
       _renderStockAlert();
       return false;
-    });
+    })
+    .finally(() => { if (_stock.pending === p) { _stock.pending = null; _stock.pendingSig = ""; } });
+  _stock.pending = p; _stock.pendingSig = sig;
+  return p;
 }
 function _renderStockAlert() {
   const box = document.getElementById("twStockAlert");
@@ -541,14 +567,18 @@ function viewTreatment(t) {
 /* ── Step navigation: one section per step, total always in the footer ── */
 let _twStep = 1;
 const TW_STEPS = 4;
-const TW_STOCK_GATE = 3; // Plan & Cost: moving past it needs the plan's materials in stock
+const TW_STOCK_GATE = 3; // Materials: moving past it (to Plan & Cost) needs the plan's materials in stock
 function twGoStep(n) {
   if (n > _twStep && n > TW_STOCK_GATE) {
-    return _ensureLineMaterials().then(() => { _rebuildMaterials(); return _checkStock(); }).then((ok) => {
+    const next = document.getElementById("twNextBtn");
+    let slow = setTimeout(() => { slow = null; next.disabled = true; next.classList.add("es-btn-busy"); }, 150);
+    const done = () => { if (slow) clearTimeout(slow); next.disabled = false; next.classList.remove("es-btn-busy"); };
+    return _ensureLineMaterials().then(() => { _rebuildMaterials(); return _checkStockCached(); }).then((ok) => {
+      done();
       if (ok) return _twShowStep(n);
       _twShowStep(TW_STOCK_GATE);
       document.getElementById("twStockAlert").scrollIntoView({ block: "nearest" });
-    });
+    }, (err) => { done(); throw err; });
   }
   _twShowStep(n);
 }
@@ -584,7 +614,8 @@ function openWorkModal(t) {
   _workMaterials     = [];
   _bookedSvcs = []; _plan = []; _findings = []; _focusTooth = null; _pickerOpen = null;
   _svcMats = {}; _matManual = {}; _matEdited = {}; _matRemoved = new Set(); _matLocked = false;
-  _stock.seq++; _stock.ok = true; _stock.shortages = []; _renderStockAlert();
+  _stock.seq++; _stock.ok = true; _stock.shortages = []; _stock.sig = ""; _stock.at = 0; _stock.pending = null; _stock.pendingSig = "";
+  _renderStockAlert();
 
   // Hidden fields
   document.getElementById("work_treatment_id").value  = t.treatment_id;
@@ -931,7 +962,7 @@ function openFinishConfirmModal() {
   if (!dentistId)      return fail("Please select the dentist who performed the treatment.", 1);
   if (!procedureNotes) return fail("Please describe the procedure performed.", 1);
   if (!_plan.length)   return fail("Add at least one procedure — select a tooth on the chart, or add a general procedure.", 2);
-  if (cost <= 0)       return fail("The total cost is ₱0.00 — check the prices of the selected services in Service Pricing.", 3);
+  if (cost <= 0)       return fail("The total cost is ₱0.00 — check the prices of the selected services in Service Pricing.", 4);
   // Fresh server check of the combined materials (the alert lists what is short)
   _checkStock().then((ok) => {
     if (!ok) { _twShowStep(TW_STOCK_GATE); document.getElementById("twStockAlert").scrollIntoView({ block: "nearest" }); return; }
@@ -1080,7 +1111,7 @@ function confirmFinishTreatment() {
             timerProgressBar:  !warn,
             buttonsStyling:    false,
             customClass:       ES_SWAL_TONE(warn ? "warn" : "success"),
-          }).then(() => location.reload());
+          }).then(() => esRefresh());
         });
       } else {
         if (res.shortages) {           // stock changed since the last check

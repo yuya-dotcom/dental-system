@@ -24,6 +24,7 @@ require_once __DIR__ . '/controllers/appointment_controller.php'; // resolveCoun
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/feedback_controller.php';
 require_once __DIR__ . '/controllers/list_filters.php';
+require_once __DIR__ . '/controllers/record_ui.php';   // Appointment Records cell markup
 
 const FB_PER_PAGE   = 15;
 const FB_MIN_SAMPLE = 5;   // fewer ratings than this → shown as a low sample
@@ -155,7 +156,7 @@ function fbTs(?string $iso): ?int
     <link rel="stylesheet" type="text/css" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
-    <link rel="stylesheet" href="assets/css/custom.css">
+    <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=3">
     <style>
@@ -172,6 +173,11 @@ function fbTs(?string $iso): ?int
         #feedbackViewModal .ar-notes { padding: .75rem 0 .25rem; }
         #feedbackViewModal .fb-anon-note { margin: 1rem 0 0; font-size: .75rem; color: #6b7a90; }
     </style>
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-records.css?v=7">
+    <link rel="stylesheet" href="assets/css/analytics.css?v=8">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -187,42 +193,35 @@ function fbTs(?string $iso): ?int
                     </ul>
                 </div>
             </div>
-            <div class="main-content">
+            <div class="main-content an-page ar-page">
                 <?php if (!$loadError):
                     $cards = [
-                        ['feather-star',           'Average Rating',     $sumAll ? number_format($stats['avg'], 1) . ' / 5' : '—', $stats['positive'] . ' rated 4–5 stars', $pct($stats['positive']), 'bg-success'],
-                        ['feather-message-square', 'Total Feedback',     $sumAll, $stats['low'] . ' low ratings (1–2 stars)', $pct($stats['low']), 'bg-danger'],
-                        ['feather-user-check',     'Dentists Reviewed',  $stats['dentists'], 'with at least one rating', $stats['dentists'] ? 100 : 0, 'bg-primary'],
-                        ['feather-trending-up',    'Positive Share',     $pct($stats['positive']) . '%', 'of ' . $sumAll . ' rating' . ($sumAll === 1 ? '' : 's') . ($sumAll && $sumAll < FB_MIN_SAMPLE ? ' · low sample' : ''), $pct($stats['positive']), 'bg-success'],
+                        ['feather-star',           'Average Rating',    $sumAll ? number_format($stats['avg'], 1) . ' / 5' : '—', $stats['positive'] . ' rated 4–5 stars', 'tone-amber'],
+                        ['feather-message-square', 'Total Feedback',    $sumAll, $stats['low'] . ' low ratings (1–2 stars)', ''],
+                        ['feather-user-check',     'Dentists Reviewed', $stats['dentists'], 'with at least one rating', 'tone-green'],
+                        ['feather-trending-up',    'Positive Share',    $pct($stats['positive']) . '%', 'of ' . $sumAll . ' rating' . ($sumAll === 1 ? '' : 's') . ($sumAll && $sumAll < FB_MIN_SAMPLE ? ' · low sample' : ''), 'tone-green'],
                     ];
                 ?>
-                <div class="row">
-                    <?php foreach ($cards as [$icon, $label, $value, $note, $bar, $barCls]): ?>
-                    <div class="col-xxl-3 col-md-6">
-                        <div class="card stretch stretch-full">
-                            <div class="card-body">
-                                <div class="d-flex gap-3 align-items-center">
-                                    <div class="avatar-text avatar-lg bg-gray-200"><i class="<?= $icon ?>"></i></div>
-                                    <div>
-                                        <div class="fs-4 fw-bold text-dark"><?= htmlspecialchars((string)$value) ?></div>
-                                        <h3 class="fs-13 fw-semibold text-truncate-1-line mb-0"><?= htmlspecialchars($label) ?></h3>
-                                    </div>
-                                </div>
-                                <div class="pt-4">
-                                    <span class="fs-12 fw-medium text-muted"><?= htmlspecialchars($note) ?></span>
-                                    <div class="progress mt-2 ht-3"><div class="progress-bar <?= $barCls ?>" style="width:<?= (int)$bar ?>%"></div></div>
-                                </div>
-                            </div>
+                <div class="card stretch stretch-full" data-es-region="fb-summary">
+                    <div class="rec-summary" role="list" aria-label="Feedback summary">
+                        <?php foreach ($cards as [$icon, $label, $value, $note, $tone]): ?>
+                        <div class="rec-stat <?= $tone ?>" role="listitem">
+                            <span class="rec-stat-icon"><i class="<?= $icon ?>"></i></span>
+                            <span class="rec-stat-body">
+                                <span class="rec-stat-value d-block"><?= htmlspecialchars((string)$value) ?></span>
+                                <span class="rec-stat-label d-block"><?= htmlspecialchars($label) ?></span>
+                                <span class="rec-stat-hint d-block"><?= htmlspecialchars($note) ?></span>
+                            </span>
                         </div>
+                        <?php endforeach; ?>
                     </div>
-                    <?php endforeach; ?>
                 </div>
 
                 <!-- Analytics: branch + date filters only, from the actual ratings; no submitter data -->
-                <div class="row">
+                <div class="row" data-es-region="fb-analytics">
                     <div class="col-xxl-4 col-lg-5">
                         <div class="card stretch stretch-full">
-                            <div class="card-header"><h5 class="card-title mb-0">Rating Distribution</h5></div>
+                            <div class="card-header"><h5 class="card-title mb-0">Rating Distribution<span class="rec-card-sub">How patients rated their visits</span></h5></div>
                             <div class="card-body">
                                 <?php for ($n = 5; $n >= 1; $n--): $w = $distTotal ? (int)round($dist[$n] * 100 / $distTotal) : 0; ?>
                                 <div class="fb-dist-row">
@@ -245,17 +244,17 @@ function fbTs(?string $iso): ?int
                             </div>
                             <div class="card-body p-0">
                                 <div class="table-responsive">
-                                    <table class="table mb-0 fb-ana-table">
+                                    <table class="table mb-0 fb-ana-table rec-table ar-table">
                                         <thead><tr><th>Dentist</th><th class="text-center">Ratings</th><th>Average</th><th>Last <?= FB_TREND_DAYS ?> days</th></tr></thead>
                                         <tbody>
                                         <?php if (!$perDentist): ?>
-                                            <tr><td colspan="4" class="text-center text-muted py-4">No dentist ratings in this range yet.</td></tr>
+                                            <?= listEmpty(4, false, 'No dentist ratings yet', 'Ratings appear here once patients review a dentist in this branch and date range.', 'feather-user-check') ?>
                                         <?php else: foreach ($perDentist as $d):
                                             $n = count($d['ratings']); $avg = $avgOf($d['ratings']);
                                             $rec = $avgOf($d['recent']); $bef = $avgOf($d['before']);
                                         ?>
                                             <tr>
-                                                <td class="fw-semibold text-dark"><?= htmlspecialchars($d['name']) ?></td>
+                                                <td class="rec-strong"><?= htmlspecialchars($d['name']) ?></td>
                                                 <td class="text-center"><?= $n ?><?php if ($n < FB_MIN_SAMPLE): ?> <span class="badge bg-soft-warning text-warning ms-1">Low sample</span><?php endif; ?></td>
                                                 <td class="text-nowrap"><?= fbStars((int)round($avg)) ?> <span class="ms-1 fw-semibold"><?= number_format($avg, 1) ?></span></td>
                                                 <td class="text-nowrap small">
@@ -279,10 +278,10 @@ function fbTs(?string $iso): ?int
                 <div class="row"><div class="col-lg-12">
                     <div class="card stretch stretch-full">
                         <div class="card-header">
-                            <div>
-                                <h5 class="card-title mb-1">Feedback Records <span class="badge bg-soft-primary text-primary ms-2"><?= $totalRecords ?> total</span></h5>
-                                <p class="fb-notice text-muted mb-0"><i class="feather-eye-off me-1"></i>Patients' identities are hidden. Messages appear exactly as written and may mention details about their author.</p>
-                            </div>
+                            <h5 class="card-title mb-0">
+                                Feedback Records <span class="an-pill info ms-2"><?= $totalRecords ?> <?= $filtersOn ? 'found' : 'total' ?></span>
+                                <span class="rec-card-sub"><i class="feather-eye-off me-1"></i>Patients' identities are hidden. Messages appear exactly as written and may mention details about their author.</span>
+                            </h5>
                             <div class="card-header-action"><div class="card-header-btn">
                                 <div data-bs-toggle="tooltip" title="Refresh"><a href="feedback-records.php" class="avatar-text avatar-xs bg-warning"></a></div>
                                 <div data-bs-toggle="tooltip" title="Maximize/Minimize"><a href="javascript:void(0);" class="avatar-text avatar-xs bg-success" data-bs-toggle="expand"></a></div>
@@ -304,20 +303,16 @@ function fbTs(?string $iso): ?int
                         </div>
                         <div class="card-body custom-card-action p-0">
                             <div class="table-responsive" style="overflow:visible;">
-                                <table class="table table-hover mb-0">
+                                <table class="table table-hover mb-0 rec-table ar-table">
                                     <thead><tr>
                                         <th>Date Submitted</th><th>Dentist</th><th>Rating</th>
-                                        <th>Branch</th><th class="text-end">Action</th>
+                                        <th>Branch</th><th class="rec-col-action text-end">Action</th>
                                     </tr></thead>
                                     <tbody>
                                     <?php if ($loadError): ?>
-                                        <tr><td colspan="5" class="text-center py-5">
-                                            <i class="feather-alert-triangle fs-3 text-warning d-block mb-2"></i>
-                                            <div class="fw-semibold text-dark">Feedback couldn't be loaded</div>
-                                            <div class="text-muted small">If this is a new setup, run <code>database/2026-10-27_patient_feedback.sql</code> in the Supabase SQL Editor, then refresh.</div>
-                                        </td></tr>
+                                        <?= listEmpty(5, false, "Feedback couldn't be loaded", 'If this is a new setup, run database/2026-10-27_patient_feedback.sql in the Supabase SQL Editor, then refresh.', 'danger:feather-alert-triangle') ?>
                                     <?php elseif (!$rows): ?>
-                                        <?= listEmptyRow(5,$filtersOn > 0, 'No feedback has been submitted yet.', 'feather-message-square', 'feedback-records.php') ?>
+                                        <?= listEmpty(5, $filtersOn > 0, 'No feedback yet', 'Feedback appears here after patients rate a visit in the Patient Portal.', 'feather-message-square', 'feedback-records.php') ?>
                                     <?php else: foreach ($rows as $r):
                                         $isDentist = $r['category'] === 'dentist';
                                         $ts = fbTs($r['created_at'] ?? null);
@@ -337,17 +332,16 @@ function fbTs(?string $iso): ?int
                                         <tr>
                                             <td class="text-nowrap">
                                                 <?php if ($ts): ?>
-                                                <span class="text-dark fw-medium d-block"><?= date('M d, Y', $ts) ?></span>
-                                                <small class="text-muted"><?= date('h:i A', $ts) ?></small>
+                                                <?= recWhen(date('M d, Y', $ts), date('h:i A', $ts)) ?>
                                                 <?php else: ?><span class="text-muted">—</span><?php endif; ?>
                                             </td>
-                                            <td><?php if ($isDentist): ?><span class="fw-semibold text-dark"><?= htmlspecialchars($detail['dentist'] ?: '—') ?></span>
+                                            <td><?php if ($isDentist): ?><span class="rec-strong"><?= htmlspecialchars($detail['dentist'] ?: '—') ?></span>
                                                 <?php else: ?><span class="badge fb-cat-badge bg-soft-success text-success">Clinic &amp; Management</span><?php endif; ?></td>
                                             <td><?= fbStars($detail['rating']) ?></td>
-                                            <td><?= htmlspecialchars($detail['branch'] ?: '—') ?></td>
-                                            <td class="text-end">
+                                            <td><?= recBranch($detail['branch'], $branches ?? []) ?></td>
+                                            <td class="rec-col-action">
                                                 <div class="dropdown">
-                                                    <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed" aria-label="Actions"><i class="feather-more-vertical"></i></a>
+                                                    <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed" aria-label="Actions for this feedback"><i class="feather-more-vertical"></i></a>
                                                     <div class="dropdown-menu dropdown-menu-end action-dropdown">
                                                         <a href="javascript:void(0);" class="dropdown-item" data-feedback="<?= htmlspecialchars(json_encode($detail), ENT_QUOTES) ?>" onclick="viewFeedback(this)">
                                                             <i class="feather-eye"></i> View Details
@@ -361,19 +355,9 @@ function fbTs(?string $iso): ?int
                                 </table>
                             </div>
                         </div>
-                        <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            <p class="text-muted small mb-0">
-                                Showing <?= $from ?>–<?= $to ?> of <?= $totalRecords ?> feedback
-                                <?php if ($filtersOn): ?>&nbsp;·&nbsp;<a href="feedback-records.php" class="text-danger"><i class="feather-x-circle me-1"></i>Clear filters</a><?php endif; ?>
-                            </p>
-                            <?php if ($totalPages > 1): ?>
-                            <ul class="list-unstyled d-flex align-items-center gap-1 mb-0 pagination-common-style">
-                                <li><?php if ($page > 1): ?><a href="<?= $baseUrl ?>&page=<?= $page - 1 ?>"><i class="bi bi-arrow-left"></i></a><?php else: ?><a class="text-muted" style="pointer-events:none;"><i class="bi bi-arrow-left"></i></a><?php endif; ?></li>
-                                <?php $wS = max(1, $page - 2); $wE = min($totalPages, $wS + 4); $wS = max(1, $wE - 4); ?>
-                                <?php for ($pg = $wS; $pg <= $wE; $pg++): ?><li><a href="<?= $baseUrl ?>&page=<?= $pg ?>" class="<?= $pg === $page ? 'active' : '' ?>"><?= $pg ?></a></li><?php endfor; ?>
-                                <li><?php if ($page < $totalPages): ?><a href="<?= $baseUrl ?>&page=<?= $page + 1 ?>"><i class="bi bi-arrow-right"></i></a><?php else: ?><a class="text-muted" style="pointer-events:none;"><i class="bi bi-arrow-right"></i></a><?php endif; ?></li>
-                            </ul>
-                            <?php endif; ?>
+                        <div class="card-footer ar-foot d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <?= listFootCount($from, $to, $totalRecords, 'feedback entry', 'feedback-records.php', $filtersOn > 0, 'feedback entries') ?>
+                            <?= listPager($baseUrl, $page, $totalPages) ?>
                         </div>
                     </div>
                 </div></div>
@@ -382,7 +366,7 @@ function fbTs(?string $iso): ?int
     </main>
 
     <!-- VIEW MODAL (read-only; filled with textContent so feedback text is never parsed as HTML) -->
-    <div class="modal fade es-detail-modal" id="feedbackViewModal" tabindex="-1" aria-labelledby="fvTitle" aria-hidden="true">
+    <div class="modal fade es-detail-modal ar-detail-modal" id="feedbackViewModal" tabindex="-1" aria-labelledby="fvTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down apt-record-dialog">
             <div class="modal-content apt-record-content">
                 <div class="modal-header apt-record-header">
@@ -441,8 +425,11 @@ function fbTs(?string $iso): ?int
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/admin.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
+    <script src="assets/js/admin.js?v=7"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
+    <script src="assets/js/es-records.js?v=3"></script>
     <script>
     function applyFilters() {
         window._applyFilters('feedback-records.php', { branch: 'filterBranch' });

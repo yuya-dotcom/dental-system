@@ -13,12 +13,19 @@ $isDentist = $role === 'dentist';
 // page's own REQUIRED_ROLES guard (the server-side check is what actually
 // protects the page — hiding a link is only a convenience).
 // Groups / captions with no visible links are not rendered.
+// Dashboard. The data is scoped on the SERVER from the session
+// (api/dashboard_stats.php → scopedBranch): admins / dentists always get their
+// own branch, the owner all branches (or one, via the page's selector).
+//  - Owner: a "Dashboard" dropdown → Overview (dashboard.php) + Analytics.
+//  - Admin / dentist: a direct "Dashboard" link to their branch dashboard.
 $navSections = [
     'Overview' => [
-        ['icon' => 'feather-airplay', 'label' => 'Dashboards', 'links' => [
+        ['icon' => 'feather-airplay', 'label' => 'Dashboard', 'links' => [
             ['dashboard.php', 'Overview',  ['owner']],
+            // Predictive analytics (forecast only; the descriptive figures are on the Dashboard)
             ['analytics.php', 'Analytics', ['owner']],
         ]],
+        ['icon' => 'feather-airplay', 'label' => 'Dashboard', 'href' => 'dashboard.php', 'roles' => ['admin', 'dentist']],
     ],
     'Operations' => [
         ['icon' => 'feather-calendar', 'label' => 'Appointments', 'links' => [
@@ -42,9 +49,11 @@ $navSections = [
         ['icon' => 'feather-package', 'label' => 'Inventory', 'links' => [
             ['inventory-records.php',        'Inventory Records', ['owner', 'admin', 'dentist']],
             ['inventory-stock-movement.php', 'Stock Movement',    ['owner', 'admin', 'dentist']],
+            ['inventory-transfers.php',      'Stock Transfers',   ['owner', 'admin', 'dentist']],
+            ['inventory-procurement.php',    'Procurement',       ['owner', 'admin', 'dentist']],
         ]],
-        ['icon' => 'feather-tool', 'label' => 'Materials Configuration', 'links' => [
-            ['service-records.php',   'Services',          ['owner', 'admin']],
+        ['icon' => 'feather-tool', 'label' => 'Clinic Configuration', 'links' => [
+            ['service-records.php',   'Service Catalog',   ['owner', 'admin']],
             ['discount-vouchers.php', 'Discount Vouchers', ['owner', 'admin']],
         ]],
     ],
@@ -66,6 +75,12 @@ $navSections = [
         ['icon' => 'feather-shield', 'label' => 'Audit Trail', 'links' => [
             ['audit-records.php', 'Audit Records', ['owner', 'admin', 'dentist']],
         ]],
+        // Staff Notification Center (every staff role) + the patient email / SMS /
+        // push delivery log, templates and announcements
+        ['icon' => 'feather-bell', 'label' => 'Notifications', 'links' => [
+            ['notification-center.php', 'Notification Center', ['owner', 'admin', 'dentist']],
+            ['notification-records.php', 'Notification Log', ['owner', 'admin']],
+        ]],
     ],
 ];
 
@@ -76,10 +91,18 @@ $navCurrent = [
     'service-materials.php' => 'service-records.php',
     'service-pricing.php'   => 'service-records.php',
 ][$navCurrent] ?? $navCurrent;
-
+// Owner-assigned modules (Account Records → Sidebar Access): a restricted
+// admin / dentist only sees its modules. The page guard enforces the same
+// list (controllers/secure_controller.php), so this is not the only check.
+require_once __DIR__ . '/../controllers/module_access.php';
+$navAllowed = fn(string $href) => ($m = esPageModule(strtok($href, '#'))) === null || esCanUseModule($m);
 foreach ($navSections as $caption => $groups) {
     foreach ($groups as $gi => $group) {
-        $group['links'] = array_values(array_filter($group['links'], fn($l) => in_array($role, $l[2], true)));
+        if (isset($group['href'])) {          // direct link (no submenu)
+            if (!in_array($role, $group['roles'], true) || !$navAllowed($group['href'])) unset($navSections[$caption][$gi]);
+            continue;
+        }
+        $group['links'] = array_values(array_filter($group['links'], fn($l) => in_array($role, $l[2], true) && $navAllowed($l[0])));
         if ($group['links']) $navSections[$caption][$gi] = $group;
         else unset($navSections[$caption][$gi]);
     }
@@ -90,6 +113,23 @@ foreach ($navSections as $caption => $groups) {
         // Staff interface marker: turns on the staff dropdown design in
         // assets/css/custom-select.css (the patient portal doesn't include this sidebar).
         document.documentElement.classList.add('es-staff');
+
+        // Show / Hide Filters: filters are hidden by default. Apply that BEFORE
+        // the toolbar is parsed (this script runs at the top of <body>), so the
+        // filters never flash and then collapse. Only a page where the user
+        // chose "Show Filters" starts open. See assets/js/es-ajax.js.
+        var esFtOpen = false;
+        try { esFtOpen = sessionStorage.getItem('esFilters:' + location.pathname) === '1'; } catch (e) { /* storage blocked: hidden */ }
+        if (!esFtOpen) document.documentElement.classList.add('es-ft-hidden');
+
+        // Restore the collapsed sidebar before it paints, so every page opens
+        // at the width the user chose (the theme saves the choice under this
+        // key but never reads it back). Desktop only — see assets/js/es-sidebar.js.
+        try {
+            if (window.innerWidth >= 1025 && localStorage.getItem('nexel-classic-dashboard-menu-mini-theme') === 'menu-mini-theme') {
+                document.documentElement.classList.add('minimenu');
+            }
+        } catch (e) { /* storage blocked: keep the default (expanded) */ }
 
         // ── Back-navigation / bfcache guard ──────────────────────────────
         // When a user logs out and presses Back, some browsers restore the
@@ -122,11 +162,19 @@ foreach ($navSections as $caption => $groups) {
             });
         })();
     </script>
+<link rel="stylesheet" href="assets/css/es-sidebar.css?v=1">
+<script src="assets/js/es-sidebar.js?v=1" defer></script>
+<!-- Row action button (⋮) + menu design for every module (from Appointment Records) -->
+<link rel="stylesheet" href="assets/css/es-actions.css?v=1">
+<script src="assets/js/es-actions.js?v=2"></script>
+<!-- Phone card tables for every staff list (labels from the column headers) -->
+<script src="assets/js/es-responsive.js?v=1" defer></script>
 <nav class="nxl-navigation">
     <div class="navbar-wrapper">
         <div class="m-header">
-            <a href="<?= $isOwner ? 'dashboard.php' : 'appointments-schedule.php' ?>" class="b-brand">
+            <a href="<?= $isOwner ? 'dashboard.php' : htmlspecialchars(esModuleHome() ?? 'unauthorized.php') ?>" class="b-brand">
                 <img src="assets/images/EssenciaSmile-Original-Logo.svg" alt="EssenciaSmile" class="logo logo-lg" width="194" height="34" style="max-width:100%;height:auto;">
+                <img src="assets/images/Essencia-abbr.png" alt="EssenciaSmile" class="logo logo-sm" width="42" height="32">
 
             </a>
         </div>
@@ -138,7 +186,16 @@ foreach ($navSections as $caption => $groups) {
                         <label><?= htmlspecialchars($caption) ?></label>
                     </li>
                     <?php foreach ($groups as $group):
-                        $groupActive = in_array($navCurrent, array_column($group['links'], 0), true); ?>
+                        if (isset($group['href'])):
+                            $linkActive = $navCurrent === $group['href']; ?>
+                        <li class="nxl-item<?= $linkActive ? ' active' : '' ?>">
+                            <a href="<?= htmlspecialchars($group['href']) ?>" class="nxl-link"<?= $linkActive ? ' aria-current="page"' : '' ?>>
+                                <span class="nxl-micon"><i class="<?= $group['icon'] ?>"></i></span>
+                                <span class="nxl-mtext"><?= htmlspecialchars($group['label']) ?></span>
+                            </a>
+                        </li>
+                        <?php continue; endif;
+                        $groupActive = in_array($navCurrent, array_map(fn($h) => strtok($h, '#'), array_column($group['links'], 0)), true); ?>
                         <li class="nxl-item nxl-hasmenu<?= $groupActive ? ' active nxl-trigger' : '' ?>">
                             <a href="javascript:void(0);" class="nxl-link">
                                 <span class="nxl-micon"><i class="<?= $group['icon'] ?>"></i></span>
@@ -147,7 +204,7 @@ foreach ($navSections as $caption => $groups) {
                             </a>
                             <ul class="nxl-submenu">
                                 <?php foreach ($group['links'] as [$href, $text]): ?>
-                                    <li class="nxl-item<?= $href === $navCurrent ? ' active' : '' ?>"><a class="nxl-link" href="<?= $href ?>"><?= htmlspecialchars($text) ?></a></li>
+                                    <li class="nxl-item<?= strtok($href, '#') === $navCurrent ? ' active' : '' ?>"><a class="nxl-link" href="<?= htmlspecialchars($href) ?>"><?= htmlspecialchars($text) ?></a></li>
                                 <?php endforeach; ?>
                             </ul>
                         </li>

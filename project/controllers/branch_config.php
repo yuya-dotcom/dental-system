@@ -13,7 +13,9 @@
 //    • dates      bookable from tomorrow (Asia/Manila), on open days only
 //
 //  Used by: portal-web-scheduling.php, api/get_timeslots.php,
-//           api/get_booked_days.php, api/portal_book_appointment.php
+//           api/get_booked_days.php, api/portal_book_appointment.php,
+//           and the admin Add / Edit Appointment (api/appointments.php,
+//           assets/js/appointments.js) — one source of truth for both.
 //  Zero HTML. Zero $_GET/$_POST reading.
 // =============================================================
 
@@ -108,6 +110,9 @@ function normalizeBookingBranch(array $b): array
         'days_label'  => formatOperatingDays($days),
         'hours_label' => minutesToLabel($open) . ' – ' . minutesToLabel($close),
         'active'      => ($b['status'] ?? 'active') === 'active' && $close > $open,
+        // Upcoming date overrides, 'YYYY-MM-DD' => ['open' => bool, 'reason' => string]
+        // (filled by getBookingBranches; empty until the exceptions SQL is run)
+        'exceptions'  => [],
     ];
 }
 
@@ -121,7 +126,17 @@ function getBookingBranches(): array
     if ($cache !== null) return $cache;
 
     $cols = 'branch_id,branch_name,address,open_time,close_time,status';
-    $res  = supabase_request('branches', 'GET', [], 'select=' . $cols . ',operating_days&order=branch_name.asc');
+    // One request: the branches WITH their date overrides from today on embedded
+    // (was branches, then branch_schedule_exceptions — two round trips in a row).
+    $exT  = defined('BR_EXCEPTIONS_TABLE') ? BR_EXCEPTIONS_TABLE : 'branch_schedule_exceptions';
+    $res  = supabase_request('branches', 'GET', [], 'select=' . $cols . ',operating_days,'
+        . 'ex:' . $exT . '(branch_id,exception_date,is_open,reason)&ex.exception_date=gte.' . bookingToday()
+        . '&order=branch_name.asc');
+    $embeddedEx = !$res['error'] && is_array($res['data']);
+    if (!$embeddedEx) {
+        // Exceptions table missing → branches only (overrides are read separately below, as before)
+        $res = supabase_request('branches', 'GET', [], 'select=' . $cols . ',operating_days&order=branch_name.asc');
+    }
     if ($res['error']) {
         // operating_days not added yet → Mon–Sat
         $res = supabase_request('branches', 'GET', [], 'select=' . $cols . '&order=branch_name.asc');
@@ -136,9 +151,25 @@ function getBookingBranches(): array
     }
 
     $cache = [];
+    $exRows = [];
     foreach ($rows as $row) {
+        if ($embeddedEx) foreach ((is_array($row['ex'] ?? null) ? $row['ex'] : []) as $ex) $exRows[] = $ex;
+        unset($row['ex']);
         $b = normalizeBookingBranch($row);
         $cache[$b['branch_id']] = $b;
+    }
+
+    // Date overrides from today on (past dates can't be booked anyway).
+    // null = table not created yet → weekly schedule only, as before.
+    if (!$embeddedEx) $exRows = getBranchExceptions(null, bookingToday()) ?? [];
+    usort($exRows, fn($a, $b) => strcmp((string)($a['exception_date'] ?? ''), (string)($b['exception_date'] ?? '')));
+    foreach ($exRows as $ex) {
+        $bid = (int)($ex['branch_id'] ?? 0);
+        if (!isset($cache[$bid]) || !isValidIsoDate((string)($ex['exception_date'] ?? ''))) continue;
+        $cache[$bid]['exceptions'][$ex['exception_date']] = [
+            'open'   => (bool)$ex['is_open'],
+            'reason' => trim((string)($ex['reason'] ?? '')),
+        ];
     }
     return $cache;
 }
@@ -157,8 +188,22 @@ function dateUnavailableReason(array $branch, string $date): ?string
     if (!isValidIsoDate($date))                           return 'invalid';
     if ($date <= bookingToday())                          return 'past';     // same-day booking not allowed
     if (!$branch['active'])                               return 'inactive';
+    // A date override (Branch Records → Schedule Exceptions) beats the weekly days
+    $ex = $branch['exceptions'][$date] ?? null;
+    if ($ex !== null) return $ex['open'] ? null : 'closed';
     if (!in_array(weekdayOf($date), $branch['days'], true)) return 'closed';
     return null;
+}
+
+/** Patient-facing sentence for a closed date (weekly day off or a date override). */
+function closedDateMessage(array $branch, string $date): string
+{
+    $ex = $branch['exceptions'][$date] ?? null;
+    if ($ex !== null && !$ex['open']) {
+        return 'The ' . $branch['branch_name'] . ' branch is closed on that day'
+             . ($ex['reason'] !== '' ? ' (' . $ex['reason'] . ')' : '') . '. Please choose another date.';
+    }
+    return 'The ' . $branch['branch_name'] . ' branch is closed on that day. It is open ' . $branch['days_label'] . '.';
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -248,17 +293,20 @@ function visitLengthLabel(int $minutes): string
  *   ['2026-10-14' => [[startMin, endMin], …], …]
  * Cancelled and no-show appointments don't count. Appointments saved before
  * durations existed count as one 30-minute slot.
+ * $excludeAppointmentId: leave one appointment out — the one being edited, so
+ * it doesn't block its own time (admin Edit Appointment).
  */
-function getBookedRanges(int $branchId, string $from, string $to): array
+function getBookedRanges(int $branchId, string $from, string $to, int $excludeAppointmentId = 0): array
 {
-    $q = implode('&', [
+    $q = implode('&', array_filter([
         'branch_id=eq.'        . $branchId,
         'appointment_date=gte.' . $from,
         'appointment_date=lte.' . $to,
         'status=neq.cancelled',
         'status=neq.no_show',
+        $excludeAppointmentId > 0 ? 'appointment_id=neq.' . $excludeAppointmentId : '',
         'select=appointment_date,appointment_time',
-    ]);
+    ]));
     $res = supabase_request('appointments', 'GET', [], $q . ',duration_minutes');
     if ($res['error']) $res = supabase_request('appointments', 'GET', [], $q);
     if ($res['error'] || !is_array($res['data'])) return ['__error' => true];
@@ -309,4 +357,58 @@ function canStartAt(array $branch, string $time, int $duration, array $ranges): 
         if ($slot['time'] === minutesToTime($t)) return $slot['available'];
     }
     return false; // not one of the branch's start times
+}
+
+/**
+ * One check for "can this visit be booked here?", used by the admin Add / Edit
+ * Appointment save (api/appointments.php) with the same rules as the patient
+ * booking (api/portal_book_appointment.php): branch hours and open days, visit
+ * length from the services, no overlap with another active booking.
+ *   $excludeAppointmentId  the appointment being edited (doesn't block itself)
+ *   $checkDate             false when an edit keeps the stored date and branch:
+ *                          an appointment already on today's date may still be
+ *                          edited (e.g. its services); the time must still fit.
+ * Returns ['ok' => bool, 'code' => ?string, 'message' => ?string, 'duration' => int]
+ *   code: branch | date_past | date_closed | date_inactive | date_invalid |
+ *         services | unavailable | not_offered | closing | taken
+ */
+function checkBookingSlot(int $branchId, string $date, string $time, array $serviceIds,
+                          int $excludeAppointmentId = 0, bool $checkDate = true): array
+{
+    $fail = fn(string $code, string $msg, int $d = 0) => ['ok' => false, 'code' => $code, 'message' => $msg, 'duration' => $d];
+
+    $branch = getBookingBranch($branchId);
+    if (!$branch) return $fail('branch', 'Please select a valid branch.');
+    if (!isValidIsoDate($date)) return $fail('date_invalid', 'Please choose a valid date.');
+    $start = timeToMinutes(substr($time, 0, 5));
+    if ($start === null) return $fail('not_offered', 'Please choose a valid time slot.');
+
+    if ($checkDate) {
+        switch (dateUnavailableReason($branch, $date)) {
+            case 'past':     return $fail('date_past', 'Appointments can be booked from tomorrow onward. Please choose a later date.');
+            case 'inactive': return $fail('date_inactive', 'This branch is not taking appointments right now.');
+            case 'closed':   return $fail('date_closed', closedDateMessage($branch, $date));
+            case 'invalid':  return $fail('date_invalid', 'Please choose a valid date.');
+        }
+    }
+
+    $visit = visitDurationFor($serviceIds);
+    if ($visit['error']) return $fail('services', $visit['error']);
+    $duration = $visit['minutes'];
+
+    $ranges = getBookedRanges($branchId, $date, $date, $excludeAppointmentId);
+    if (isset($ranges['__error'])) return $fail('unavailable', 'Could not check availability. Please try again.', $duration);
+
+    $slot = null;
+    foreach (buildDaySlots($branch, $duration, $ranges[$date] ?? []) as $s) {
+        if ($s['time'] === minutesToTime($start)) { $slot = $s; break; }
+    }
+    if (!$slot) return $fail('not_offered', "That start time isn't offered at this branch. Please pick one of the listed times.", $duration);
+    if ($slot['reason'] === 'closing') {
+        return $fail('closing', 'This visit (' . visitLengthLabel($duration) . ') would end after closing time ('
+            . minutesToLabel($branch['close_min']) . '). Please pick an earlier time.', $duration);
+    }
+    if (!$slot['available']) return $fail('taken', 'That time is already booked. Please pick another available time.', $duration);
+
+    return ['ok' => true, 'code' => null, 'message' => null, 'duration' => $duration];
 }

@@ -141,7 +141,7 @@ $tokenCheck = validateResetToken($token);
     </div>
 
     <script src="assets/vendors/js/vendors.min.js"></script>
-    <script src="assets/js/admin.js"></script>
+    <script src="assets/js/admin.js?v=7"></script>
     <script>
         // Local to this page — mirrors the (inputId, iconId) pattern
         // needed here since there are two password fields, not one.

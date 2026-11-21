@@ -21,7 +21,15 @@
     .modal-cs .modal-cs-trigger:focus-visible { outline:none; border-color:#185fa5; box-shadow:0 0 0 3px rgba(24,95,165,.15); }
     .modal-cs .modal-cs-list li.cs-focus { background:#e8f0fb; color:#185fa5; }
     .modal-cs .modal-cs-list li.active.cs-focus { background:#185fa5; color:#fff; }
-    .modal-cs-list li[hidden] { display:none; }`;
+    .modal-cs-list li[hidden] { display:none; }
+    /* <option data-code="PAT-00007">: the code sits small and grey before the (prominent) label */
+    .modal-cs .cs-opt-code { display:inline-block; flex:0 0 auto; min-width:6.4em; margin-right:.6em; font-size:.76em; font-weight:500;
+      color:#7b8aa0; letter-spacing:.01em; font-variant-numeric:tabular-nums; }
+    .modal-cs .cs-opt-name { flex:1 1 auto; min-width:0; text-align:left; font-weight:500; overflow:hidden; text-overflow:ellipsis; }
+    .modal-cs .modal-cs-list li:has(.cs-opt-code), .modal-cs .modal-cs-value:has(.cs-opt-code) { justify-content:flex-start; }
+    .modal-cs .modal-cs-list li.active .cs-opt-code { color:rgba(255,255,255,.8); }
+    .modal-cs .modal-cs-list li.cs-focus .cs-opt-code { color:#64748b; }
+    .modal-cs .modal-cs-list li.active.cs-focus .cs-opt-code { color:rgba(255,255,255,.8); }`;
   const style = document.createElement('style');
   style.textContent = css;
   document.head.appendChild(style);
@@ -37,6 +45,27 @@
         if (t) t.setAttribute('aria-expanded', 'false');
       }
     });
+  }
+
+  function escAttr(v) {
+    return String(v).replace(/[&<>"']/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]; });
+  }
+
+  // An option label, or (with data-code) "<code> <label>" as two spans
+  function fillLabel(el, o, text) {
+    const code = o && o.value !== '' ? (o.getAttribute('data-code') || '') : '';
+    if (!code) { el.textContent = text; return; }
+    el.textContent = '';
+    const c = document.createElement('span'); c.className = 'cs-opt-code'; c.textContent = code;
+    const n = document.createElement('span'); n.className = 'cs-opt-name'; n.textContent = text;
+    el.appendChild(c); el.appendChild(n);
+  }
+
+  // Text a search matches: the label, plus the code with and without its
+  // separators ("PAT-00007", "PAT00007") so a Patient ID finds its patient
+  function searchText(o) {
+    const code = (o.getAttribute('data-code') || '').toLowerCase();
+    return (o.text + ' ' + code + ' ' + code.replace(/[^a-z0-9]/g, '')).toLowerCase();
   }
 
   function enhance(sel) {
@@ -62,7 +91,7 @@
       // Opt-in search box: <select data-cs-search> (same markup/styles as the portal's address dropdowns)
       ('csSearch' in sel.dataset
         ? '<div class="modal-cs-search-wrap"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>' +
-          '<input type="text" class="modal-cs-search" placeholder="Search..." autocomplete="off"' +
+          '<input type="text" class="modal-cs-search" placeholder="' + escAttr(sel.dataset.csSearchPlaceholder || 'Search...') + '" autocomplete="off"' +
           ' aria-label="Search options" aria-controls="' + id + '_cslist"></div>'
         : '') +
       '<ul class="modal-cs-list" role="listbox" id="' + id + '_cslist"></ul></div>';
@@ -99,7 +128,7 @@
         const li = document.createElement('li');
         li.setAttribute('role', 'option');
         li.dataset.index = i;
-        li.textContent = o.value === '' ? placeholderText(o.text) : o.text;
+        if (o.value === '') li.textContent = placeholderText(o.text); else fillLabel(li, o, o.text);
         list.appendChild(li);
       });
       if (search) {
@@ -118,9 +147,12 @@
 
     function filter(q) {
       q = q.trim().toLowerCase();
+      const qCompact = q.replace(/[^a-z0-9]/g, '');
       list.querySelectorAll('li[data-index]').forEach(function (li) {
-        const isPlaceholder = sel.options[+li.dataset.index].value === '';
-        li.hidden = q !== '' && (isPlaceholder || !li.textContent.toLowerCase().includes(q));
+        const o = sel.options[+li.dataset.index];
+        const isPlaceholder = o.value === '';
+        const hay = searchText(o);
+        li.hidden = q !== '' && (isPlaceholder || !(hay.includes(q) || (qCompact !== '' && o.hasAttribute('data-code') && hay.includes(qCompact))));
       });
       const items = visibleItems();
       const empty = list.querySelector('.cs-empty');
@@ -140,7 +172,7 @@
       const i = sel.selectedIndex;
       const o = sel.options[i];
       const hasValue = !!(o && o.value !== '');
-      valueEl.textContent = o ? (hasValue ? o.text : placeholderText(o.text)) : 'Select';
+      if (o && hasValue) fillLabel(valueEl, o, o.text); else valueEl.textContent = o ? placeholderText(o.text) : 'Select';
       valueEl.classList.toggle('cs-selected', hasValue);
       list.querySelectorAll('li').forEach(function (li) {
         const on = +li.dataset.index === i;
@@ -505,8 +537,13 @@
       });
     }
 
-    // data-dp-max="today": no future dates (birthdate, last visit)
+    // data-dp-max="today": no future dates (last visit)
+    // data-dp-max="yesterday": no today/future dates (patient birthdate)
     if (input.dataset.dpMax === 'today') input.max = iso(new Date()) + (withTime ? 'T23:59' : '');
+    if (input.dataset.dpMax === 'yesterday') {
+      const y = new Date(); y.setDate(y.getDate() - 1);
+      input.max = iso(y) + (withTime ? 'T23:59' : '');
+    }
 
     const minD = () => parse(input.min);
     const maxD = () => parse(input.max);

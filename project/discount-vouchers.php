@@ -13,6 +13,8 @@ require_once __DIR__ . '/controllers/secure_controller.php';
 require_once __DIR__ . '/controllers/admin_batch.php';
 admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/dbconfig.php';
+require_once __DIR__ . '/controllers/list_filters.php';
+require_once __DIR__ . '/controllers/record_ui.php';   // Appointment Records cell markup
 
 // Belt-and-suspenders: enforce the role gate directly, regardless of
 // how secure_controller.php interprets REQUIRED_ROLES. No dentist
@@ -90,9 +92,14 @@ function fmtVoucherDate(?string $date): string {
     <link rel="stylesheet" type="text/css" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
-    <link rel="stylesheet" href="assets/css/custom.css">
+    <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-records.css?v=7">
+    <link rel="stylesheet" href="assets/css/analytics.css?v=8">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -114,27 +121,6 @@ function fmtVoucherDate(?string $date): string {
                     <div class="page-header-right-items">
                         <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
 
-                            <!-- Search -->
-                            <input type="text" id="searchInput" class="form-control form-control-sm hdr-control"
-                                placeholder="Search voucher…" value="<?= htmlspecialchars($search) ?>"
-                                onkeydown="if(event.key==='Enter') applyFilters()"
-                                style="max-width:180px;">
-
-                            <!-- Discount type filter -->
-                            <select id="filterType" class="js-custom-select" data-cs-filter onchange="applyFilters()" aria-label="Filter by type">
-                                <option value="">All Types</option>
-                                <?php foreach ($discountTypes as $val => $label): ?>
-                                    <option value="<?= $val ?>" <?= $filterType === $val ? 'selected' : '' ?>><?= $label ?></option>
-                                <?php endforeach; ?>
-                            </select>
-
-                            <!-- Status filter -->
-                            <select id="filterStatus" class="js-custom-select" data-cs-filter onchange="applyFilters()" aria-label="Filter by status">
-                                <option value="active"   <?= $filterStatus === 'active'   ? 'selected' : '' ?>>Active</option>
-                                <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
-                                <option value=""         <?= $filterStatus === ''         ? 'selected' : '' ?>>All</option>
-                            </select>
-
                             <!-- Add button -->
                             <button class="btn btn-primary btn-sm hdr-btn" onclick="openAddModal()">
                                 <i class="feather-plus me-1"></i> Create Voucher
@@ -146,15 +132,17 @@ function fmtVoucherDate(?string $date): string {
             </div>
             <!-- ── /Page Header ─────────────────────────────── -->
 
-            <div class="main-content">
+            <div class="main-content an-page ar-page">
                 <div class="row">
                     <div class="col-lg-12">
                         <div class="card stretch stretch-full">
 
                             <div class="card-header">
-                                <h5 class="card-title">
+                                <?php $vchFiltersOn = listActiveCount([$filterType, $filterStatus !== 'active', $search]); ?>
+                                <h5 class="card-title mb-0">
                                     Discount Vouchers
-                                    <span class="badge bg-soft-primary text-primary ms-2"><?= $totalRecords ?> total</span>
+                                    <span class="an-pill info ms-2"><?= $totalRecords ?> <?= $vchFiltersOn ? 'found' : 'total' ?></span>
+                                    <span class="rec-card-sub">Discount codes that can be applied to a patient's bill</span>
                                 </h5>
                                 <div class="card-header-action">
                                     <div class="card-header-btn">
@@ -168,9 +156,30 @@ function fmtVoucherDate(?string $date): string {
                                 </div>
                             </div>
 
+                            <div class="list-toolbar">
+                                <div class="list-field list-field-search"><label class="list-label" for="searchInput">Search</label>
+                                <div class="list-search"><i class="feather-search" aria-hidden="true"></i>
+                                <input type="search" id="searchInput" placeholder="Voucher name or code" value="<?= htmlspecialchars($search) ?>" autocomplete="off"
+                                    onkeydown="if(event.key==='Enter'){event.preventDefault();applyFilters();}" onsearch="if(!this.value)applyFilters()"></div></div>
+                                <div class="list-field"><label class="list-label" for="filterType">Discount Type</label>
+                                <select id="filterType" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                    <option value="">All Types</option>
+                                    <?php foreach ($discountTypes as $val => $label): ?>
+                                        <option value="<?= $val ?>" <?= $filterType === $val ? 'selected' : '' ?>><?= $label ?></option>
+                                    <?php endforeach; ?>
+                                </select></div>
+                                <div class="list-field"><label class="list-label" for="filterStatus">Status</label>
+                                <select id="filterStatus" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                    <option value="active"   <?= $filterStatus === 'active'   ? 'selected' : '' ?>>Active</option>
+                                    <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                                    <option value=""         <?= $filterStatus === ''         ? 'selected' : '' ?>>All</option>
+                                </select></div>
+                                <?= listResetControl('discount-vouchers.php', $vchFiltersOn) ?>
+                            </div>
+
                             <div class="card-body custom-card-action p-0">
                                 <div class="table-responsive" style="overflow:visible;">
-                                    <table class="table table-hover mb-0">
+                                    <table class="table table-hover mb-0 rec-table ar-table">
                                         <thead>
                                             <tr>
                                                 <th>Voucher Name</th>
@@ -180,41 +189,42 @@ function fmtVoucherDate(?string $date): string {
                                                 <th>Start Date</th>
                                                 <th>Expiration Date</th>
                                                 <th>Status</th>
-                                                <th class="text-end">Action</th>
+                                                <th class="rec-col-action text-end">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                         <?php if (empty($vouchers)): ?>
-                                            <tr>
-                                                <td colspan="8" class="text-center py-4 text-muted">
-                                                    <i class="feather-tag me-2"></i>No vouchers found.
-                                                </td>
-                                            </tr>
+                                                <?= listEmpty(8, (bool)$vchFiltersOn, 'No vouchers yet', 'Use Create Voucher at the top of the page to add a discount code.', 'feather-tag', 'discount-vouchers.php') ?>
                                         <?php else: ?>
                                             <?php foreach ($vouchers as $v): ?>
                                             <tr>
-                                                <td><span class="fw-semibold"><?= htmlspecialchars($v['voucher_name']) ?></span></td>
-                                                <td><span class="fw-semibold"><?= htmlspecialchars($v['voucher_code']) ?></span></td>
+                                                <td>
+                                                    <div class="rec-entity">
+                                                        <span class="rec-tile<?= $v['status'] === 'active' ? '' : ' is-muted' ?>" aria-hidden="true"><i class="feather-tag"></i></span>
+                                                        <span class="rec-strong"><?= htmlspecialchars($v['voucher_name']) ?></span>
+                                                    </div>
+                                                </td>
+                                                <td><span class="rec-code"><?= htmlspecialchars($v['voucher_code']) ?></span></td>
                                                 <td>
                                                     <span class="badge <?= discountTypeBadge($v['discount_type']) ?>">
                                                         <?= htmlspecialchars($discountTypes[$v['discount_type']] ?? $v['discount_type']) ?>
                                                     </span>
                                                 </td>
-                                                <td class="fw-semibold text-success">
+                                                <td class="rec-amount text-success">
                                                     <?= formatDiscountValue($v['discount_type'], $v['discount_value']) ?>
                                                 </td>
-                                                <td><?= fmtVoucherDate($v['start_date']) ?></td>
-                                                <td><?= fmtVoucherDate($v['expiration_date']) ?></td>
+                                                <td class="rec-nowrap"><?= fmtVoucherDate($v['start_date']) ?></td>
+                                                <td class="rec-nowrap"><?= fmtVoucherDate($v['expiration_date']) ?></td>
                                                 <td>
                                                     <?php if ($v['status'] === 'active'): ?>
-                                                        <span class="badge bg-soft-success text-success">Active</span>
+                                                        <?= recPill('Active', 'up') ?>
                                                     <?php else: ?>
-                                                        <span class="badge bg-soft-danger text-danger">Inactive</span>
+                                                        <?= recPill('Inactive', 'slate') ?>
                                                     <?php endif; ?>
                                                 </td>
-                                                <td class="text-end">
+                                                <td class="rec-col-action">
                                                     <div class="dropdown">
-                                                        <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed">
+                                                        <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed" aria-label="Actions for <?= htmlspecialchars($v['voucher_name'], ENT_QUOTES) ?>">
                                                             <i class="feather-more-vertical"></i>
                                                         </a>
                                                         <div class="dropdown-menu dropdown-menu-end action-dropdown">
@@ -231,7 +241,7 @@ function fmtVoucherDate(?string $date): string {
                                                                     "expiration_date" => $v["expiration_date"],
                                                                     "status"          => $v["status"],
                                                                ]) ?>)'>
-                                                                <i class="feather-edit"></i> Edit
+                                                                <i class="feather-edit-2"></i> Edit
                                                             </a>
                                                             <?php if ($v['status'] === 'active'): ?>
                                                             <a href="javascript:void(0);" class="dropdown-item text-warning"
@@ -262,49 +272,9 @@ function fmtVoucherDate(?string $date): string {
                                 </div>
                             </div>
 
-                            <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                <p class="text-muted small mb-0">
-                                    Showing <?= $from ?>–<?= $to ?> of <?= $totalRecords ?> voucher(s)
-                                    <?php if ($filterType || $filterStatus !== 'active' || $search): ?>
-                                        &nbsp;·&nbsp;<a href="discount-vouchers.php" class="text-danger">
-                                            <i class="feather-x-circle me-1"></i>Clear filters
-                                        </a>
-                                    <?php endif; ?>
-                                </p>
-                                <?php if ($totalPages > 1): ?>
-                                <ul class="list-unstyled d-flex align-items-center gap-1 mb-0 pagination-common-style">
-                                    <li>
-                                        <?php if ($page > 1): ?>
-                                            <a href="<?= $baseUrl ?>&page=<?= $page - 1 ?>"><i class="bi bi-arrow-left"></i></a>
-                                        <?php else: ?>
-                                            <a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-left"></i></a>
-                                        <?php endif; ?>
-                                    </li>
-                                    <?php
-                                    $wStart = max(1, $page - 2);
-                                    $wEnd   = min($totalPages, $wStart + 4);
-                                    $wStart = max(1, $wEnd - 4);
-                                    ?>
-                                    <?php if ($wStart > 1): ?>
-                                        <li><a href="<?= $baseUrl ?>&page=1">1</a></li>
-                                        <?php if ($wStart > 2): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?>
-                                    <?php endif; ?>
-                                    <?php for ($p = $wStart; $p <= $wEnd; $p++): ?>
-                                        <li><a href="<?= $baseUrl ?>&page=<?= $p ?>" class="<?= $p === $page ? 'active' : '' ?>"><?= $p ?></a></li>
-                                    <?php endfor; ?>
-                                    <?php if ($wEnd < $totalPages): ?>
-                                        <?php if ($wEnd < $totalPages - 1): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?>
-                                        <li><a href="<?= $baseUrl ?>&page=<?= $totalPages ?>"><?= $totalPages ?></a></li>
-                                    <?php endif; ?>
-                                    <li>
-                                        <?php if ($page < $totalPages): ?>
-                                            <a href="<?= $baseUrl ?>&page=<?= $page + 1 ?>"><i class="bi bi-arrow-right"></i></a>
-                                        <?php else: ?>
-                                            <a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-right"></i></a>
-                                        <?php endif; ?>
-                                    </li>
-                                </ul>
-                                <?php endif; ?>
+                            <div class="card-footer ar-foot d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <?= listFootCount($from, $to, $totalRecords, 'voucher', 'discount-vouchers.php', (bool)$vchFiltersOn) ?>
+                                <?= listPager($baseUrl, $page, $totalPages) ?>
                             </div>
 
                         </div>
@@ -317,121 +287,139 @@ function fmtVoucherDate(?string $date): string {
     <!-- ============================================================
          ADD / EDIT VOUCHER MODAL
     ============================================================ -->
-    <div class="modal fade" id="voucherModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered" style="max-width:560px;">
-            <div class="modal-content border-0 shadow-lg">
-
-                <div class="modal-header border-0 pb-0 px-4 pt-4">
-                    <div>
-                        <h5 class="modal-title fw-bold mb-0" id="vchModalTitle">Create Voucher</h5>
-                        <p class="text-muted small mb-0" id="vchModalSubtitle">Define a new reusable discount voucher.</p>
+    <div class="modal fade es-detail-modal" id="voucherModal" tabindex="-1" aria-labelledby="vchModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down apt-form-dialog rec-form-dialog">
+            <div class="modal-content apt-record-content">
+                <div class="modal-header apt-record-header">
+                    <div class="apt-record-title-wrap">
+                        <div class="apt-record-icon" aria-hidden="true"><i class="feather-tag"></i></div>
+                        <div class="min-w-0">
+                            <h5 class="apt-record-title mb-0" id="vchModalTitle">Create Voucher</h5>
+                            <div class="apt-record-meta" id="vchModalSubtitle">Define a new reusable discount voucher.</div>
+                        </div>
                     </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
-                <div class="modal-body px-4 pt-3 pb-0">
-                    <div id="vchModalError" class="alert alert-danger small py-2 px-3 mb-3" style="display:none;"></div>
+                <div class="modal-body apt-form-body">
+                    <div id="vchModalError" class="apt-form-alert" role="alert" style="display:none;"></div>
                     <input type="hidden" id="vch_id">
-
-                    <div class="row g-3">
-                        <!-- Voucher Name -->
-                        <div class="col-md-7">
-                            <label class="form-label fw-semibold small">Voucher Name </label>
-                            <input type="text" id="vch_name" class="form-control form-control-sm"
-                                placeholder="e.g. New Patient Discount" maxlength="120">
-                        </div>
-
-                        <!-- Voucher Code -->
-                        <div class="col-md-5">
-                            <label class="form-label fw-semibold small">Voucher Code </label>
-                            <input type="text" id="vch_code" class="form-control form-control-sm"
-                                placeholder="e.g. NEWPATIENT20" maxlength="40"
-                                style="text-transform:uppercase;"
-                                oninput="this.value = this.value.toUpperCase()">
-                        </div>
-
-                        <!-- Discount Type -->
-                        <div class="col-md-5">
-                            <label class="form-label fw-semibold small">Discount Type</label>
-                            <select id="vch_type" class="form-select form-select-sm js-custom-select" data-cs-float onchange="updateValueSymbol()">
-                                <?php foreach ($discountTypes as $val => $label): ?>
-                                    <option value="<?= $val ?>"><?= $label ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <!-- Discount Value -->
-                        <div class="col-md-7">
-                            <label class="form-label fw-semibold small">Discount Value </label>
-                            <div class="input-group">
-                                <span class="input-group-text" id="vch_valueSymbol">%</span>
-                                <input type="number" id="vch_value" class="form-control"
-                                    placeholder="0.00" min="0" step="0.01">
+                    <div class="rec-form-stack">
+                        <section class="ar-card">
+                            <div class="ar-card-header"><span class="ar-card-icon"><i class="feather-tag"></i></span><h6 class="ar-card-title">Voucher</h6></div>
+                            <div class="apt-form-card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-7">
+                                        <div class="apt-field mb-0">
+                                            <label class="apt-label" for="vch_name">Voucher Name <span class="apt-req" aria-hidden="true">*</span></label>
+                                            <input type="text" id="vch_name" class="form-control" placeholder="e.g. New Patient Discount" maxlength="120" autocomplete="off">
+                                            
+                                        </div>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <div class="apt-field mb-0">
+                                            <label class="apt-label" for="vch_code">Voucher Code <span class="apt-req" aria-hidden="true">*</span></label>
+                                            <input type="text" id="vch_code" class="form-control" placeholder="e.g. NEWPATIENT20" maxlength="40" autocomplete="off" style="text-transform:uppercase;" oninput="this.value = this.value.toUpperCase()">
+                                            
+                                        </div>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <div class="apt-field mb-0">
+                                            <label class="apt-label" for="vch_type">Discount Type <span class="apt-req" aria-hidden="true">*</span></label>
+                                            <select id="vch_type" class="form-select js-custom-select" data-cs-float onchange="updateValueSymbol()">
+                                                <?php foreach ($discountTypes as $val => $label): ?>
+                                                    <option value="<?= $val ?>"><?= $label ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            
+                                        </div>
+                                    </div>
+                                    <div class="col-md-7">
+                                        <div class="apt-field mb-0">
+                                            <label class="apt-label" for="vch_value">Discount Value <span class="apt-req" aria-hidden="true">*</span></label>
+                                            <div class="input-group">
+                                                <span class="input-group-text" id="vch_valueSymbol">%</span>
+                                                <input type="number" id="vch_value" class="form-control" placeholder="0.00" min="0" step="0.01">
+                                            </div>
+                                            
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-
-                        <!-- Start Date -->
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Start Date </label>
-                            <input type="date" id="vch_start" class="form-control form-control-sm">
-                        </div>
-
-                        <!-- Expiration Date -->
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Expiration Date </label>
-                            <input type="date" id="vch_expiration" class="form-control form-control-sm">
-                        </div>
-
-                        <!-- Minimum Bill Amount -->
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Minimum Bill Amount</label>
-                            <div class="input-group">
-                                <span class="input-group-text">₱</span>
-                                <input type="number" id="vch_minBill" class="form-control"
-                                    placeholder="0.00" min="0" step="0.01">
+                        </section>
+                        <section class="ar-card">
+                            <div class="ar-card-header"><span class="ar-card-icon"><i class="feather-calendar"></i></span><h6 class="ar-card-title">Validity &amp; Limits</h6></div>
+                            <div class="apt-form-card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="apt-field mb-0">
+                                            <label class="apt-label" for="vch_start">Start Date <span class="apt-req" aria-hidden="true">*</span></label>
+                                            <input type="date" id="vch_start" class="form-control js-date-picker" placeholder="Select date">
+                                            
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="apt-field mb-0">
+                                            <label class="apt-label" for="vch_expiration">Expiration Date <span class="apt-req" aria-hidden="true">*</span></label>
+                                            <input type="date" id="vch_expiration" class="form-control js-date-picker" placeholder="Select date">
+                                            
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="apt-field mb-0">
+                                            <label class="apt-label" for="vch_minBill">Minimum Bill Amount <span class="apt-opt">(optional)</span></label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">₱</span>
+                                                <input type="number" id="vch_minBill" class="form-control" placeholder="0.00" min="0" step="0.01">
+                                            </div>
+                                            <div class="rec-help">Leave blank for no minimum.</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="apt-field mb-0">
+                                            <label class="apt-label" for="vch_usageLimit">Usage Limit <span class="apt-opt">(optional)</span></label>
+                                            <input type="number" id="vch_usageLimit" class="form-control" placeholder="e.g. 100" min="1" step="1">
+                                            <div class="rec-help">Leave blank for unlimited uses.</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12" id="vchStatusRow" style="display:none;">
+                                        <div class="apt-field mb-0">
+                                            <label class="apt-label" for="vch_status">Status</label>
+                                            <select id="vch_status" class="form-select js-custom-select" data-cs-float>
+                                                <option value="active">Active</option>
+                                                <option value="inactive">Inactive</option>
+                                            </select>
+                                            <div class="rec-help">Only <strong>Active</strong> vouchers can be applied to a bill.</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="form-text">Leave blank for no minimum.</div>
-                        </div>
-
-                        <!-- Usage Limit -->
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Usage Limit</label>
-                            <input type="number" id="vch_usageLimit" class="form-control form-control-sm"
-                                placeholder="e.g. 100" min="1" step="1">
-                            <div class="form-text">Leave blank for unlimited uses.</div>
-                        </div>
-
-                        <!-- Status (edit mode only) -->
-                        <div class="col-12" id="vchStatusRow" style="display:none;">
-                            <label class="form-label fw-semibold small">Status</label>
-                            <select id="vch_status" class="form-select form-select-sm js-custom-select" data-cs-float>
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
-                        </div>
+                        </section>
                     </div>
                 </div>
 
-                <div class="modal-footer border-0 px-4 pb-4 pt-3 d-flex justify-content-between align-items-center">
-                    <span class="text-muted small"><span class="text-danger"></span></span>
+                <div class="modal-footer apt-record-footer apt-form-footer">
+                    <span class="apt-form-hint"><span class="apt-req">*</span> Required</span>
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-primary px-4" id="vchSaveBtn" onclick="saveVoucher()">
                             <i class="feather-save me-1"></i> Save Voucher
                         </button>
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                     </div>
                 </div>
-
             </div>
         </div>
     </div>
 
     <script src="assets/vendors/js/vendors.min.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
+    <script src="assets/js/es-records.js?v=3"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/admin.js"></script>
+    <script src="assets/js/admin.js?v=7"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
     <script>
     // ── Filter helper ────────────────────────────────────────
     function applyFilters() {
@@ -441,7 +429,7 @@ function fmtVoucherDate(?string $date): string {
             search: document.getElementById('searchInput')?.value  ?? '',
             page:   1,
         });
-        window.location.href = 'discount-vouchers.php?' + params.toString();
+        esNavigate('discount-vouchers.php?' + params.toString());
     }
 
     // ── Discount value ₱/% symbol swap ───────────────────────
@@ -561,7 +549,7 @@ function fmtVoucherDate(?string $date): string {
             Swal.fire({
                 icon: 'success', title: 'Saved!', text: res.message,
                 timer: 1600, showConfirmButton: false,
-            }).then(() => location.reload());
+            }).then(() => esRefresh());
         })
         .catch(err => {
             btn.disabled  = false;
@@ -594,7 +582,7 @@ function fmtVoucherDate(?string $date): string {
             .then(res => {
                 if (res.success) {
                     Swal.fire({ icon: 'success', title: 'Updated!', text: res.message, timer: 1500, showConfirmButton: false })
-                        .then(() => location.reload());
+                        .then(() => esRefresh());
                 } else {
                     Swal.fire('Error', res.message, 'error');
                 }
@@ -619,7 +607,7 @@ function fmtVoucherDate(?string $date): string {
             .then(res => {
                 if (res.success) {
                     Swal.fire({ icon: 'success', title: 'Deleted!', text: res.message, timer: 1500, showConfirmButton: false })
-                        .then(() => location.reload());
+                        .then(() => esRefresh());
                 } else {
                     Swal.fire('Error', res.message, 'error');
                 }

@@ -17,19 +17,21 @@ session_start();
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../controllers/auth_controller.php';
 require_once __DIR__ . '/../controllers/audit_controller.php';
+require_once __DIR__ . '/../controllers/invoice_view_helper.php';   // idc_ok/idc_peso/idc_ineligible/idc_amount/idc_summary
 
 header('Content-Type: application/json');
 requireLogin();
 requireStaffApi('owner', 'admin', 'dentist');   // staff only; non-owners are pinned to their branch
 
 $method = $_SERVER['REQUEST_METHOD'];
+// Read-only GET: release the session lock ($_SESSION stays readable) so the
+// Add Payment wizard's invoice + voucher requests run side by side.
+if ($method === 'GET' && session_status() === PHP_SESSION_ACTIVE) session_write_close();
 
 function idc_fail(string $msg): void {
     echo json_encode(['success' => false, 'message' => $msg]);
     exit;
 }
-function idc_ok(array $r): bool { return ($r['status'] ?? 0) >= 200 && ($r['status'] ?? 0) < 300; }
-function idc_peso(float $n): string { return '₱' . number_format($n, 2); }
 
 function idc_invoice(int $invoiceId): array {
     $r = supabase_request('invoices', 'GET', [],
@@ -43,9 +45,7 @@ function idc_invoice(int $invoiceId): array {
     // Every GET / apply / remove goes through here: check the invoice's real branch
     requireBranchAccess($inv['branch_id'] ?? null);
     // Before any discount, subtotal = total (also covers invoices created before the migration)
-    $inv['subtotal'] = round((float)($inv['subtotal_amount'] ?? $inv['total_amount']), 2);
-    $inv['paid']     = round((float)($inv['amount_paid'] ?? 0), 2);
-    return $inv;
+    return idc_amounts($inv);
 }
 
 function idc_applied(int $invoiceId): array {
@@ -56,31 +56,7 @@ function idc_applied(int $invoiceId): array {
     return idc_ok($r) && is_array($r['data']) ? $r['data'] : [];
 }
 
-// Why a voucher can't be applied right now ('' = it can)
-function idc_ineligible(array $v, float $subtotal, array $appliedIds): string {
-    $today = date('Y-m-d');
-    if (($v['status'] ?? '') !== 'active')                                  return 'This voucher is inactive.';
-    if (in_array((int)$v['voucher_id'], $appliedIds, true))                  return 'This voucher is already applied to this invoice.';
-    if (!empty($v['start_date']) && $today < $v['start_date'])              return 'This voucher starts on ' . $v['start_date'] . '.';
-    if (!empty($v['expiration_date']) && $today > $v['expiration_date'])    return 'This voucher expired on ' . $v['expiration_date'] . '.';
-    if ($v['min_bill_amount'] !== null && $subtotal < (float)$v['min_bill_amount']) {
-        return 'This voucher needs a bill of at least ' . idc_peso((float)$v['min_bill_amount']) . '.';
-    }
-    if ($v['usage_limit'] !== null) {
-        $used = supabase_request('invoice_discounts', 'GET', [],
-            'voucher_id=eq.' . (int)$v['voucher_id'] . '&select=invoice_discount_id');
-        if (count(idc_ok($used) && is_array($used['data']) ? $used['data'] : []) >= (int)$v['usage_limit']) {
-            return 'This voucher has reached its usage limit.';
-        }
-    }
-    return '';
-}
-
-function idc_amount(array $v, float $subtotal): float {
-    return $v['discount_type'] === 'percentage'
-        ? round($subtotal * (float)$v['discount_value'] / 100, 2)
-        : round((float)$v['discount_value'], 2);
-}
+// idc_ineligible() / idc_amount() / idc_summary(): controllers/invoice_view_helper.php
 
 // Re-total the invoice from its applied vouchers and sync statuses
 function idc_retotal(array $inv): array {
@@ -108,44 +84,27 @@ function idc_retotal(array $inv): array {
 }
 
 // ── GET ──────────────────────────────────────────────────────
+//  One wave: the invoice with its applied vouchers embedded + the active
+//  vouchers with their usage counts (was 3 + one query per voucher, in a row).
 if ($method === 'GET') {
     $invoiceId = (int)($_GET['invoice_id'] ?? 0);
     if (!$invoiceId) idc_fail('Invoice ID required.');
-    $inv     = idc_invoice($invoiceId);
-    $applied = idc_applied($invoiceId);
-    $appliedIds = array_map(fn($a) => (int)$a['voucher_id'], $applied);
-    $discount = round(array_sum(array_map(fn($a) => (float)$a['discount_amount'], $applied)), 2);
-
-    // Active vouchers this invoice could still use (for the picker)
-    $available = [];
-    $vr = supabase_request('discount_vouchers', 'GET', [],
-        'status=eq.active&select=voucher_id,voucher_name,voucher_code,discount_type,discount_value,min_bill_amount,usage_limit,start_date,expiration_date,status&order=voucher_name.asc');
-    foreach ((idc_ok($vr) && is_array($vr['data']) ? $vr['data'] : []) as $v) {
-        if (idc_ineligible($v, $inv['subtotal'], $appliedIds) !== '') continue;
-        $available[] = [
-            'voucher_id'     => (int)$v['voucher_id'],
-            'voucher_code'   => $v['voucher_code'],
-            'voucher_name'   => $v['voucher_name'],
-            'discount_type'  => $v['discount_type'],
-            'discount_value' => (float)$v['discount_value'],
-            'preview_amount' => min(idc_amount($v, $inv['subtotal']), max(0, $inv['subtotal'] - $discount)),
-            // Details for the picker's preview
-            'min_bill_amount' => $v['min_bill_amount'] !== null ? (float)$v['min_bill_amount'] : null,
-            'expiration_date' => $v['expiration_date'] ?? null,
-            'usage_limit'     => $v['usage_limit'] !== null ? (int)$v['usage_limit'] : null,
-        ];
-    }
-
-    echo json_encode([
-        'success'   => true,
-        'can_edit'  => isOwner() || isAdmin(),
-        'subtotal'  => $inv['subtotal'],
-        'discount'  => $discount,
-        'total'     => round($inv['subtotal'] - $discount, 2),
-        'paid'      => $inv['paid'],
-        'applied'   => $applied,
-        'available' => $available,
+    $res = admin_sb_many([
+        'inv' => admin_q('invoices', 'invoice_id=eq.' . $invoiceId .
+            '&select=invoice_id,appointment_id,branch_id,total_amount,amount_paid,payment_status,subtotal_amount,discount_amount,' .
+            'invoice_discounts(invoice_discount_id,voucher_id,voucher_code,voucher_name,discount_type,discount_value,discount_amount,applied_at)&limit=1'),
+        'vouchers' => idc_voucher_spec(),
     ]);
+    if (!idc_ok($res['inv'])) {
+        idc_fail('Discounts are not set up yet — run database/2026-10-20_invoice_discounts.sql in Supabase.');
+    }
+    $inv = $res['inv']['data'][0] ?? null;
+    if (!$inv) idc_fail('Invoice not found.');
+    requireBranchAccess($inv['branch_id'] ?? null);   // the invoice's real branch, from the database
+    $applied  = ivh_sort($inv['invoice_discounts'] ?? [], fn($d) => (string)($d['applied_at'] ?? ''));
+    $vouchers = idc_ok($res['vouchers']) && is_array($res['vouchers']['data']) ? $res['vouchers']['data'] : [];
+
+    echo json_encode(['success' => true] + idc_summary($inv, $applied, $vouchers));
     exit;
 }
 
@@ -164,7 +123,7 @@ if ($method === 'POST') {
 
     $vr = supabase_request('discount_vouchers', 'GET', [],
         'voucher_code=ilike.' . rawurlencode($code) .
-        '&select=voucher_id,voucher_name,voucher_code,discount_type,discount_value,min_bill_amount,usage_limit,start_date,expiration_date,status');
+        '&select=' . INVOICE_VOUCHER_SELECT . ',invoice_discounts(count)');
     $voucher = null;
     foreach ((idc_ok($vr) && is_array($vr['data']) ? $vr['data'] : []) as $v) {
         if (strtoupper((string)$v['voucher_code']) === $code) { $voucher = $v; break; }

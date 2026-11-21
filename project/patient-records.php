@@ -14,18 +14,25 @@ if (!$patientId) {
     header('Location: patients-list.php');
     exit;
 }
+// Branch-scoped: a non-owner only opens patients with an appointment at their branch
+if (!canAccessPatient($patientId)) {
+    header('Location: unauthorized.php');
+    exit;
+}
 
-$patient = getPatientById($patientId);
+// One request for the patient + Overview (controllers/patient_control.php);
+// the individual reads are the fallback.
+$bundle  = getPatientRecordBundle($patientId);
+$patient = $bundle ? $bundle['patient'] : getPatientById($patientId);
 if (!$patient) {
     header('Location: patients-list.php?error=patient_not_found');
     exit;
 }
 
-$summary  = getPatientFinancialSummary($patientId);
-$active   = getPatientActiveTreatments($patientId);
-$upcoming = getPatientUpcomingAppointments($patientId);
+$summary  = $bundle ? $bundle['summary']  : getPatientFinancialSummary($patientId);
+$active   = $bundle ? $bundle['active']   : getPatientActiveTreatments($patientId);
+$upcoming = $bundle ? $bundle['upcoming'] : getPatientUpcomingAppointments($patientId);
 
-$age      = calculateAge($patient['birthdate'] ?? null);
 $fullName = htmlspecialchars($patient['full_name'] ?? '—');
 
 // Dental chart editing: the same staff roles that could use the old chart modal on this page
@@ -36,14 +43,6 @@ $prDate   = fn(?string $d, string $fmt = 'M d, Y') => !empty($d) && strtotime($d
 $status   = strtolower($patient['status'] ?? 'active');
 $balance  = (float)($summary['total_balance'] ?? 0);
 $nextAppt = $upcoming[0] ?? null;
-$meta = [
-    ['feather-phone',    'Contact',    $patient['contact_number'] ?? null],
-    ['feather-user',     'Gender',     !empty($patient['gender']) ? ucfirst($patient['gender']) : null],
-    ['feather-hash',     'Age',        ($age && $age !== '—') ? $age : null],
-    ['feather-map-pin',  'Branch',     $patient['branches']['branch_name'] ?? null],
-    ['feather-calendar', 'Birthdate',  $prDate($patient['birthdate'] ?? null)],
-    ['feather-clock',    'Last Visit', $prDate($patient['last_visit'] ?? null)],
-];
 function prApptPill(?string $status): string
 {
     $s = strtolower($status ?? '');
@@ -68,12 +67,17 @@ function prApptPill(?string $status): string
     <link rel="stylesheet" type="text/css" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
-    <link rel="stylesheet" href="assets/css/custom.css">
+    <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/treatments.css">
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <link rel="stylesheet" href="assets/css/odontogram.css?v=3">
-    <link rel="stylesheet" href="assets/css/patient-record.css?v=2">
+    <link rel="stylesheet" href="assets/css/patient-record.css?v=5">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-records.css?v=7">
+    <link rel="stylesheet" href="assets/css/analytics.css?v=8">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
 </head>
 
 <body>
@@ -99,18 +103,19 @@ function prApptPill(?string $status): string
                     <a href="patients-list.php" class="btn btn-light btn-sm">
                         <i class="feather-arrow-left me-1"></i> Back to List
                     </a>
-                    <a href="patient-record-print.php?id=<?= $patientId ?>" target="_blank"
-                        class="btn btn-outline-secondary btn-sm">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prPrintBtn" aria-haspopup="dialog">
                         <i class="feather-printer me-1"></i> Print
-                    </a>
+                    </button>
                 </div>
             </div>
 
-            <div class="main-content">
+            <div class="main-content an-page ar-page pr-page">
 
                 <!-- ── Patient summary ── -->
+                <!-- Name, Patient ID and status only; personal / contact details live in the
+                     Patient Details tab (no branch: the branch belongs to each appointment) -->
                 <div class="card mb-3">
-                    <div class="pr-head">
+                    <div class="pr-head is-compact">
                         <div class="pr-avatar" aria-hidden="true">
                             <?= htmlspecialchars(strtoupper(mb_substr($patient['full_name'] ?? 'P', 0, 1))) ?>
                         </div>
@@ -122,14 +127,6 @@ function prApptPill(?string $status): string
                                 </span>
                                 <span class="badge pr-status <?= patStatusBadge($status) ?>"><?= htmlspecialchars(ucfirst($status)) ?></span>
                             </div>
-                            <dl class="pr-meta">
-                                <?php foreach ($meta as [$icon, $label, $value]): ?>
-                                    <div>
-                                        <dt><i class="<?= $icon ?>" aria-hidden="true"></i><?= $label ?></dt>
-                                        <dd class="<?= $value === null || $value === '' ? 'is-empty' : '' ?>"><?= htmlspecialchars($value === null || $value === '' ? 'Not recorded' : (string)$value) ?></dd>
-                                    </div>
-                                <?php endforeach; ?>
-                            </dl>
                         </div>
                     </div>
                 </div>
@@ -140,11 +137,13 @@ function prApptPill(?string $status): string
                         <ul class="nav nav-tabs pr-tabs" id="patientTabs" role="tablist">
                             <?php foreach ([
                                 ['overview',     'pane-overview',     'feather-grid',      'Overview'],
+                                ['details',      'pane-details',      'feather-user',      'Patient Details'],
                                 ['appointments', 'pane-appointments', 'feather-calendar',  'Appointments'],
                                 ['treatments',   'pane-treatments',   'feather-activity',  'Treatments'],
                                 ['billing',      'pane-billing',      'feather-credit-card', 'Billing'],
                                 ['notes',        'pane-notes',        'feather-edit-3',    'Clinical Notes'],
                                 ['waivers',      'pane-waivers',      'feather-file-text', 'Waivers'],
+                                ['files',        'pane-files',        'feather-folder',    'Files'],
                                 ['vitals',       'pane-vitals',       'feather-heart',     'Vital Signs'],
                                 ['dentalchart',  'pane-dentalchart',  'feather-layers',    'Dental Chart'],
                             ] as $i => [$id, $pane, $icon, $label]): ?>
@@ -265,6 +264,16 @@ function prApptPill(?string $status): string
                         </div>
                         <!-- ══ END OVERVIEW ══ -->
 
+                        <!-- ══ PATIENT DETAILS TAB (api/patient_record_api.php?action=get_details) ══ -->
+                        <div class="tab-pane fade" id="pane-details" role="tabpanel" aria-labelledby="tab-details">
+                            <div id="details-content">
+                                <div class="tab-loading">
+                                    <div class="spinner-border" role="status"></div>
+                                    <span>Loading patient details…</span>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- ══ APPOINTMENTS TAB ══ -->
                         <div class="tab-pane fade" id="pane-appointments" role="tabpanel" aria-labelledby="tab-appointments">
                             <div id="apt-content">
@@ -311,6 +320,16 @@ function prApptPill(?string $status): string
                                 <div class="tab-loading">
                                     <div class="spinner-border" role="status"></div>
                                     <span>Loading waivers…</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ══ FILES TAB — shown to the patient in the portal's My Files (api/patient_files.php) ══ -->
+                        <div class="tab-pane fade" id="pane-files" role="tabpanel" aria-labelledby="tab-files">
+                            <div id="files-content">
+                                <div class="tab-loading">
+                                    <div class="spinner-border" role="status"></div>
+                                    <span>Loading files…</span>
                                 </div>
                             </div>
                         </div>
@@ -372,10 +391,10 @@ function prApptPill(?string $status): string
                                                     <option value="treatment_record">Treatment Record</option>
                                                     <option value="correction">Correction</option>
                                                 </select>
-                                                <button type="button" class="btn btn-light btn-sm" id="pr_chartDiscard" disabled>Discard</button>
                                                 <button type="button" class="btn btn-primary btn-sm px-3" id="pr_chartSave" disabled>
                                                     <i class="feather-save me-1"></i> Save changes
                                                 </button>
+                                                <button type="button" class="btn btn-light btn-sm" id="pr_chartDiscard" disabled>Discard</button>
                                             </div>
                                         </div>
                                     <?php endif; ?>
@@ -401,12 +420,72 @@ function prApptPill(?string $status): string
         </div>
     </main>
 
+    <!-- ── File / waiver preview (Files + Waivers Eye icon). The document is
+         streamed by api/patient_files.php / api/patient_waivers.php, which
+         check that it belongs to this patient and that the user may see the
+         patient; it is shown from a local blob URL (no file path exposed). ── -->
+    <div class="modal fade es-detail-modal" id="prPreviewModal" tabindex="-1" aria-labelledby="prPreviewTitle" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-fullscreen-sm-down">
+            <div class="modal-content apt-record-content">
+                <div class="modal-header apt-record-header">
+                    <div class="apt-record-title-wrap min-w-0">
+                        <div class="apt-record-icon" aria-hidden="true"><i class="feather-eye"></i></div>
+                        <div class="min-w-0">
+                            <h5 class="apt-record-title mb-0 text-truncate" id="prPreviewTitle">Preview</h5>
+                            <div class="apt-record-meta">File preview</div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="pr-preview-stage" id="prPreviewStage"></div>
+                </div>
+                <div class="modal-footer apt-record-footer">
+                    <a class="btn btn-primary" id="prPreviewDownload" href="#"><i class="feather-download me-1"></i> Download</a>
+                    <button type="button" class="btn btn-outline-primary" id="prPreviewPrint"><i class="feather-printer me-1"></i> Print</button>
+                    <span class="rec-foot-spacer"></span>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Print preview (patient-record-print.php?embed=1 in a frame) ── -->
+    <div class="modal fade es-detail-modal" id="prPrintModal" tabindex="-1" aria-labelledby="prPrintTitle" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+            <div class="modal-content apt-record-content">
+                <div class="modal-header apt-record-header">
+                    <div class="apt-record-title-wrap">
+                        <div class="apt-record-icon" aria-hidden="true"><i class="feather-printer"></i></div>
+                        <div>
+                            <h5 class="apt-record-title mb-0" id="prPrintTitle">Print Patient Record</h5>
+                            <div class="apt-record-meta">Check the preview, then print</div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0 pr-print-body">
+                    <div class="pr-print-loading" id="prPrintLoading"><span class="spinner-border spinner-border-sm" role="status"></span> Preparing the record…</div>
+                    <iframe id="prPrintFrame" class="pr-print-frame" title="Patient record print preview"></iframe>
+                </div>
+                <div class="modal-footer apt-record-footer">
+                    <button type="button" class="btn btn-primary" id="prPrintGo" disabled><i class="feather-printer me-1"></i> Print</button>
+                    <span class="rec-foot-spacer"></span>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="assets/vendors/js/vendors.min.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
+    <script src="assets/js/es-records.js?v=3"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/admin.js"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
+    <script src="assets/js/admin.js?v=7"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
     <script src="assets/js/odontogram.js?v=2"></script>
     <script src="assets/js/patient-record-chart.js?v=1"></script>
 
@@ -522,6 +601,8 @@ function prApptPill(?string $status): string
 
         // ── Tab lazy-load tracker ────────────────────────────────────────────
         const loaded = {
+            details: false,
+            files: false,
             appointments: false,
             treatments: false,
             billing: false,
@@ -548,6 +629,14 @@ function prApptPill(?string $status): string
                 if (target === '#pane-notes' && !loaded.notes) {
                     loaded.notes = true;
                     loadTab('notes-content', 'get_notes');
+                }
+                if (target === '#pane-details' && !loaded.details) {
+                    loaded.details = true;
+                    loadDetails();
+                }
+                if (target === '#pane-files' && !loaded.files) {
+                    loaded.files = true;
+                    loadFiles();
                 }
                 if (target === '#pane-waivers' && !loaded.waivers) {
                     loaded.waivers = true;
@@ -609,7 +698,7 @@ function prApptPill(?string $status): string
 
             return `
                 <section class="pr-section">
-                    <h6 class="pr-section-title"><span>Upcoming</span><span class="pr-count">${upcoming.length}</span></h6>
+                    <h6 class="pr-section-title"><span>Upcoming</span></h6>
                     ${upcoming.length
                         ? table('<th>Date &amp; Time</th><th>Service</th><th>Dentist</th><th>Status</th>', upRows)
                         : emptyState('calendar', 'No upcoming appointments.')}
@@ -618,7 +707,7 @@ function prApptPill(?string $status): string
                     <h6 class="pr-section-title"><span>History</span>
                         ${(data.history?.total ?? 0) > history.length
                             ? `<span class="pr-hint">Latest ${history.length} of ${data.history.total}</span>`
-                            : `<span class="pr-count">${history.length}</span>`}</h6>
+                            : ''}</h6>
                     ${history.length
                         ? table('<th>Date &amp; Time</th><th>Service</th><th>Dentist</th><th>Branch</th><th>Status</th>', histRows)
                         : emptyState('clock', 'No past appointments.')}
@@ -641,7 +730,7 @@ function prApptPill(?string $status): string
                 <td>${pill(t.status)}</td>
               </tr>`).join('');
 
-            return `<h6 class="pr-section-title"><span>Treatment Records</span><span class="pr-count">${rows.length}</span></h6>` +
+            return `<h6 class="pr-section-title"><span>Treatment Records</span></h6>` +
                 table('<th>Code</th><th>Service</th><th>Tooth</th><th>Stage</th><th>Date</th><th class="text-end">Cost</th><th>Dentist</th><th>Status</th>', tr);
         }
 
@@ -714,7 +803,7 @@ function prApptPill(?string $status): string
 
             if (!notes.length) return form + emptyState('file-text', 'No clinical notes on record.');
 
-            return form + `<h6 class="pr-section-title"><span>Notes on Record</span><span class="pr-count">${notes.length}</span></h6>` +
+            return form + `<h6 class="pr-section-title"><span>Notes on Record</span></h6>` +
                 notes.map(n => {
                     const created = n.created_at ? new Date(n.created_at).toLocaleString('en-PH', {
                         month: 'short', day: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit'
@@ -740,6 +829,320 @@ function prApptPill(?string $status): string
                 </article>`;
                 }).join('');
         }
+
+        // ── Patient Details ──────────────────────────────────────────────────
+        function loadDetails() {
+            fetch(`api/patient_record_api.php?action=get_details&patient_id=${PATIENT_ID}`)
+                .then(r => r.json())
+                .then(d => {
+                    if (!d.success) throw new Error(d.message || 'Could not load the details.');
+                    document.getElementById('details-content').innerHTML = renderDetails(d.details);
+                })
+                .catch(err => {
+                    loaded.details = false;   // try again next time the tab opens
+                    document.getElementById('details-content').innerHTML =
+                        `<p class="text-danger small"><i class="feather-alert-circle me-1"></i>${esc(err.message || 'Failed to load patient details.')}</p>`;
+                });
+        }
+
+        function renderDetails(d) {
+            const row = (label, value) => `<div><dt>${label}</dt><dd class="${value ? '' : 'is-empty'}">${value ? esc(value) : 'Not recorded'}</dd></div>`;
+            const noAccount = !d.has_account
+                ? '<p class="pr-hint mt-2 mb-0"><i class="feather-info me-1"></i>No patient portal account is linked, so email and address come from the portal profile once the patient registers.</p>'
+                : '';
+            return `<div class="pr-ov-grid">
+                <section class="pr-section">
+                    <h6 class="pr-section-title"><span><i class="feather-user me-1"></i> Personal Information</span></h6>
+                    <dl class="pr-details">
+                        ${row('Full Name', d.full_name)}
+                        ${row('Gender', d.gender)}
+                        ${row('Birthdate', d.birthdate)}
+                        ${row('Age', d.age)}
+                    </dl>
+                </section>
+                <section class="pr-section">
+                    <h6 class="pr-section-title"><span><i class="feather-phone me-1"></i> Contact Information</span></h6>
+                    <dl class="pr-details">
+                        ${row('Contact Number', d.contact_number)}
+                        ${row('Email Address', d.email)}
+                        ${row('Address', d.address)}
+                    </dl>
+                    ${noAccount}
+                </section>
+            </div>`;
+        }
+
+        // ── System alerts: the shared design (assets/js/es-swal.js + es-swal.css),
+        //    same pattern as Billing / Appointments. Primary action LEFT, Cancel RIGHT.
+        function prAlert(tone, glyph, title, text, chip) {
+            return Swal.fire({
+                icon: tone === 'success' ? 'success' : 'error',
+                iconHtml: `<i class="feather-${glyph} es-swal-glyph"></i>`,
+                title,
+                html: `<p class="es-swal-text">${esc(text)}</p>` +
+                    (chip ? `<span class="es-swal-chip"><i class="feather-${chip[0]}"></i> ${esc(chip[1])}</span>` : ''),
+                confirmButtonText: 'Okay',
+                buttonsStyling: false,
+                customClass: ES_SWAL_TONE(tone === 'success' ? 'success' : 'warn'),
+                ...(tone === 'success' ? { timer: 1800, timerProgressBar: true } : {}),
+            });
+        }
+        function prConfirmDelete(title, text, chipIcon, name, confirmText) {
+            return Swal.fire({
+                icon: 'warning',
+                iconHtml: '<i class="feather-trash-2 es-swal-glyph"></i>',
+                title,
+                html: `<p class="es-swal-text">${esc(text)}</p><span class="es-swal-chip"><i class="feather-${chipIcon}"></i> ${esc(name)}</span>`,
+                showCancelButton: true,
+                confirmButtonText: confirmText,   // LEFT (SweetAlert2 default order)
+                cancelButtonText: 'Cancel',       // RIGHT
+                focusCancel: true,
+                buttonsStyling: false,
+                customClass: ES_SWAL_TONE('danger'),
+            });
+        }
+
+        // ── Preview modal (Files + Waivers): stays on this page ──────────────
+        //   url: the access-checked stream endpoint (inline); dlUrl: same with download=1
+        const prPreview = (function () {
+            const modalEl = document.getElementById('prPreviewModal');
+            const stage = document.getElementById('prPreviewStage');
+            const title = document.getElementById('prPreviewTitle');
+            const dl = document.getElementById('prPreviewDownload');
+            const pr = document.getElementById('prPreviewPrint');
+            let blobUrl = null, seq = 0, printable = null;
+            const clear = () => { if (blobUrl) URL.revokeObjectURL(blobUrl); blobUrl = null; printable = null; stage.innerHTML = ''; };
+            modalEl.addEventListener('hidden.bs.modal', () => { seq++; clear(); });
+            pr.addEventListener('click', () => { if (printable) printable(); });
+            const msg = (icon, text) => `<div class="pr-preview-msg"><i class="feather-${icon}"></i><p>${esc(text)}</p></div>`;
+
+            function printImage(src, name) {
+                const f = document.createElement('iframe');
+                f.className = 'pr-preview-printframe';
+                f.setAttribute('aria-hidden', 'true');
+                document.body.appendChild(f);
+                const d = f.contentDocument;
+                d.open();
+                d.write(`<!doctype html><title>${esc(name)}</title><style>html,body{margin:0}img{max-width:100%;}</style><img src="${src}">`);
+                d.close();
+                const img = d.querySelector('img');
+                const go = () => { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 1000); };
+                img.complete ? go() : img.addEventListener('load', go);
+            }
+
+            function open(name, url, dlUrl) {
+                const mine = ++seq;
+                clear();
+                title.textContent = name;   // the header icon tile already shows the eye
+                dl.href = dlUrl;
+                dl.classList.remove('disabled');
+                pr.disabled = true;
+                stage.innerHTML = `<div class="pr-print-loading"><span class="spinner-border spinner-border-sm" role="status"></span> Loading the document…</div>`;
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                fetch(url, { credentials: 'same-origin' })
+                    .then(r => r.ok ? r.blob() : r.text().then(t => { throw new Error(t && t.length < 200 && !/</.test(t) ? t : 'This document is not available.'); }))
+                    .then(blob => {
+                        if (mine !== seq) return;
+                        blobUrl = URL.createObjectURL(blob);
+                        const type = blob.type || '';
+                        if (type.startsWith('image/')) {
+                            stage.innerHTML = `<img class="pr-preview-img" alt="${esc(name)}" src="${blobUrl}">`;
+                            printable = () => printImage(blobUrl, name);
+                        } else if (type === 'application/pdf') {
+                            stage.innerHTML = `<iframe class="pr-preview-frame" title="${esc(name)}" src="${blobUrl}"></iframe>`;
+                            const f = stage.querySelector('iframe');
+                            printable = () => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { window.open(blobUrl); } };
+                        } else {
+                            stage.innerHTML = msg('file', 'A preview is not available for this file type. Use Download to open it.');
+                        }
+                        pr.disabled = !printable;
+                    })
+                    .catch(err => {
+                        if (mine !== seq) return;
+                        stage.innerHTML = msg('alert-circle', err.message || 'This document is not available.');
+                        dl.classList.add('disabled');
+                    });
+            }
+            return { open };
+        })();
+
+        function previewPatientFile(fileId, name) {
+            const url = `api/patient_files.php?action=view&patient_id=${PATIENT_ID}&file_id=${parseInt(fileId, 10)}`;
+            prPreview.open(name, url, url + '&download=1');
+        }
+        function previewWaiver(waiverId, name) {
+            const url = `api/patient_waivers.php?action=view&patient_id=${PATIENT_ID}&waiver_id=${parseInt(waiverId, 10)}`;
+            prPreview.open(name, url, url + '&download=1');
+        }
+
+        // ── Files (shown to the patient in the portal's My Files) ────────────
+        let pfTypes = [], pfMaxMb = 10;
+        function loadFiles() {
+            fetch(`api/patient_files.php?action=list&patient_id=${PATIENT_ID}`)
+                .then(r => r.json())
+                .then(d => {
+                    if (!d.success) throw new Error(d.message || 'Failed to load files.');
+                    pfTypes = d.types || [];
+                    pfMaxMb = d.max_mb || 10;
+                    document.getElementById('files-content').innerHTML = renderFiles(d.files || []);
+                    if (window.enhanceCustomSelects) window.enhanceCustomSelects();
+                })
+                .catch(err => {
+                    loaded.files = false;
+                    document.getElementById('files-content').innerHTML =
+                        `<p class="text-danger small"><i class="feather-alert-circle me-1"></i>${esc(err.message || 'Failed to load files.')}</p>`;
+                });
+        }
+
+        function renderFiles(files) {
+            const form = `
+                <div class="pr-form">
+                    <h6 class="pr-section-title"><span><i class="feather-upload me-1"></i> Upload File</span>
+                        <span class="pr-hint">Appears in the patient's portal under My Files</span></h6>
+                    <div id="pfUploadErr" class="alert alert-danger small py-2 px-3 mb-3" style="display:none;"></div>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label" for="pfType">File Type <span class="text-danger">*</span></label>
+                            <select id="pfType" class="form-select js-custom-select" data-cs-float>
+                                <option value="">— Select type —</option>
+                                ${pfTypes.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="pfFile">File <span class="text-danger">*</span>
+                                <span class="pr-hint">PDF, JPG or PNG · max ${pfMaxMb} MB</span>
+                            </label>
+                            <input type="file" id="pfFile" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-primary w-100" id="pfUploadBtn" onclick="uploadPatientFile()">
+                                <i class="feather-upload me-1"></i> Upload
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+            if (!files.length) return form + emptyState('folder', 'No files uploaded yet.');
+            const fmt = v => v ? new Date(String(v).replace(' ', 'T')).toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' }) : '—';
+            const rows = files.map(f => {
+                const id = parseInt(f.file_id, 10);
+                const url = `api/patient_files.php?action=view&patient_id=${PATIENT_ID}&file_id=${id}`;
+                return `<tr>
+                    <td><div class="pr-wrap pr-strong" title="${esc(f.file_name || '')}">${esc(f.file_name || f.file_type || 'File')}</div></td>
+                    <td>${esc(f.file_type || '—')}</td>
+                    <td>${esc(f.uploaded_by || '—')}</td>
+                    <td class="num">${fmt(f.uploaded_at)}</td>
+                    <td class="text-end">
+                        <span class="pr-actions">
+                            <button type="button" class="pr-icon-btn" title="View file" aria-label="View file"
+                                onclick="previewPatientFile(${id}, ${esc(JSON.stringify(String(f.file_name || f.file_type || 'File')))})"><i class="feather-eye" style="font-size:13px;"></i></button>
+                            <a href="${url}&download=1" class="pr-icon-btn" title="Download file" aria-label="Download file"><i class="feather-download" style="font-size:13px;"></i></a>
+                            <button type="button" class="pr-icon-btn is-danger" title="Delete file" aria-label="Delete file"
+                                onclick="deletePatientFile(${id}, ${esc(JSON.stringify(String(f.file_name || f.file_type || 'this file')))})">
+                                <i class="feather-trash-2" style="font-size:13px;"></i>
+                            </button>
+                        </span>
+                    </td>
+                </tr>`;
+            }).join('');
+            return form +
+                `<h6 class="pr-section-title"><span>Files on Record</span></h6>` +
+                table('<th>File</th><th>Type</th><th>Uploaded By</th><th>Date</th><th class="text-end">Actions</th>', rows);
+        }
+
+        function uploadPatientFile() {
+            const type = document.getElementById('pfType').value;
+            const file = document.getElementById('pfFile').files[0];
+            const errBox = document.getElementById('pfUploadErr');
+            const btn = document.getElementById('pfUploadBtn');
+            const fail = msg => { errBox.textContent = msg; errBox.style.display = 'block'; };
+            errBox.style.display = 'none';
+            if (!type) return fail('Please select a file type.');
+            if (!file) return fail('Please choose a file to upload.');
+            if (file.size > pfMaxMb * 1024 * 1024) return fail(`File must be under ${pfMaxMb} MB.`);
+
+            const fd = new FormData();
+            fd.append('action', 'upload');
+            fd.append('patient_id', PATIENT_ID);
+            fd.append('file_type', type);
+            fd.append('patient_file', file);
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Uploading…';
+            fetch('api/patient_files.php', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if (!d.success) return fail(d.message || 'Upload failed.');
+                    // Only after the server saved it; one alert, no toast
+                    prAlert('success', 'check-circle', 'File Uploaded', 'The file was uploaded and now appears in the patient\'s My Files.', ['file', file.name]);
+                    loadFiles();
+                })
+                .catch(() => fail('Upload failed. Please check your connection and try again.'))
+                .finally(() => { if (btn.isConnected) { btn.disabled = false; btn.innerHTML = '<i class="feather-upload me-1"></i> Upload'; } });
+        }
+
+        function deletePatientFile(fileId, name) {
+            prConfirmDelete('Delete File?', 'This file will be deleted and the patient will no longer see it in My Files. This cannot be undone.',
+                'file', name, 'Delete File').then(r => {
+                if (!r.isConfirmed) return;
+                const fd = new FormData();
+                fd.append('action', 'delete');
+                fd.append('patient_id', PATIENT_ID);
+                fd.append('file_id', fileId);
+                fetch('api/patient_files.php', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(d => {
+                        if (!d.success) return prAlert('warn', 'alert-circle', 'Delete Failed', d.message || 'Could not delete the file.');
+                        // Only after the server confirmed the deletion
+                        prAlert('success', 'check-circle', 'File Deleted', 'The file was deleted from the patient\'s record.', ['file', name]);
+                        loadFiles();
+                    })
+                    .catch(() => prAlert('warn', 'alert-circle', 'Delete Failed', 'Could not reach the server. Please check your connection and try again.'));
+            });
+        }
+
+        // ── Print: preview in a modal, print from the frame ──────────────────
+        (function () {
+            const modalEl = document.getElementById('prPrintModal');
+            const frame = document.getElementById('prPrintFrame');
+            const go = document.getElementById('prPrintGo');
+            const wait = document.getElementById('prPrintLoading');
+            const openBtn = document.getElementById('prPrintBtn');
+            const openHtml = openBtn.innerHTML;
+            let slowTimer = 0;
+            // "Preparing…" only when it is actually slow (no flash on a quick load)
+            const settle = () => {
+                clearTimeout(slowTimer);
+                wait.hidden = true;
+                openBtn.disabled = false;
+                openBtn.innerHTML = openHtml;
+            };
+            wait.hidden = true;
+            openBtn.addEventListener('click', () => {
+                if (openBtn.disabled) return;
+                // Reload each time so the printout reflects any changes made on this page
+                // (the print page now needs one database request instead of seven)
+                go.disabled = true;
+                openBtn.disabled = true;
+                slowTimer = setTimeout(() => {
+                    wait.hidden = false;
+                    openBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Preparing…';
+                }, 350);
+                frame.src = `patient-record-print.php?id=${PATIENT_ID}&embed=1&t=${Date.now()}`;
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            });
+            frame.addEventListener('load', () => {
+                if (!frame.getAttribute('src')) return;
+                settle();
+                go.disabled = false;
+            });
+            frame.addEventListener('error', settle);
+            go.addEventListener('click', () => {
+                const w = frame.contentWindow;
+                if (!w) return;
+                w.focus();
+                w.print();
+            });
+            modalEl.addEventListener('hidden.bs.modal', () => { frame.removeAttribute('src'); settle(); });
+        })();
 
         // ── Render: Waivers ──────────────────────────────────────────────────
         function loadWaivers() {
@@ -810,9 +1213,10 @@ function prApptPill(?string $status): string
                     <td class="num">${signed ? signedAt : '<span class="text-muted">—</span>'}</td>
                     <td class="text-end">
                         <span class="pr-actions">
-                            <a href="${esc(w.file_path)}" target="_blank" rel="noopener" class="pr-icon-btn" title="View file" aria-label="View file">
+                            <button type="button" class="pr-icon-btn" title="View waiver" aria-label="View waiver"
+                                onclick="previewWaiver(${parseInt(w.waiver_id, 10)}, ${esc(JSON.stringify(String(w.waiver_type || 'Waiver')))})">
                                 <i class="feather-eye" style="font-size:13px;"></i>
-                            </a>
+                            </button>
                             <button class="pr-icon-btn is-danger" title="Delete waiver" aria-label="Delete waiver"
                                 onclick="deleteWaiver(${parseInt(w.waiver_id, 10)}, ${esc(JSON.stringify(String(w.waiver_type ?? '')))})">
                                 <i class="feather-trash-2" style="font-size:13px;"></i>
@@ -823,7 +1227,7 @@ function prApptPill(?string $status): string
             }).join('');
 
             return uploadForm +
-                `<h6 class="pr-section-title"><span>Waivers on File</span><span class="pr-count">${waivers.length}</span></h6>` +
+                `<h6 class="pr-section-title"><span>Waivers on File</span></h6>` +
                 table('<th>Type</th><th>File</th><th>Status</th><th>Signed By</th><th>Signed At</th><th class="text-end">Actions</th>', rows);
         }
 
@@ -857,16 +1261,9 @@ function prApptPill(?string $status): string
                 .then(r => r.json())
                 .then(d => {
                     if (d.success) {
-                        Swal.fire({
-                                icon: 'success',
-                                title: 'Uploaded!',
-                                timer: 1400,
-                                showConfirmButton: false
-                            })
-                            .then(() => {
-                                loaded.waivers = false;
-                                loadWaivers();
-                            });
+                        prAlert('success', 'check-circle', 'Waiver Uploaded', 'The waiver was saved to the patient\'s record.', ['file-text', type]);
+                        loaded.waivers = false;
+                        loadWaivers();
                     } else {
                         errBox.textContent = d.message;
                         errBox.style.display = 'block';
@@ -879,39 +1276,24 @@ function prApptPill(?string $status): string
         }
 
         function deleteWaiver(waiverId, type) {
-            Swal.fire({
-                title: 'Delete Waiver?',
-                text: `Remove "${type}"? This cannot be undone.`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, delete',
-                confirmButtonColor: '#dc3545',
-            }).then(r => {
+            prConfirmDelete('Delete Waiver?', 'This waiver and its file will be deleted from the patient\'s record. This cannot be undone.',
+                'file-text', type || 'Waiver', 'Delete Waiver').then(r => {
                 if (!r.isConfirmed) return;
-                fetch('api/patient_waivers.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            action: 'delete_waiver',
-                            patient_id: PATIENT_ID,
-                            waiver_id: waiverId
-                        })
-                    })
+                // Form fields like every other action here (the old JSON body never
+                // reached $_POST, so the API answered "Invalid patient.")
+                const fd = new FormData();
+                fd.append('action', 'delete_waiver');
+                fd.append('patient_id', PATIENT_ID);
+                fd.append('waiver_id', waiverId);
+                fetch('api/patient_waivers.php', { method: 'POST', body: fd })
                     .then(r => r.json())
                     .then(d => {
-                        if (d.success) {
-                            loaded.waivers = false;
-                            loadWaivers();
-                        } else {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error',
-                                text: d.message
-                            });
-                        }
-                    });
+                        if (!d.success) return prAlert('warn', 'alert-circle', 'Delete Failed', d.message || 'Could not delete the waiver.');
+                        prAlert('success', 'check-circle', 'Waiver Deleted', 'The waiver was deleted from the patient\'s record.', ['file-text', type || 'Waiver']);
+                        loaded.waivers = false;
+                        loadWaivers();
+                    })
+                    .catch(() => prAlert('warn', 'alert-circle', 'Delete Failed', 'Could not reach the server. Please check your connection and try again.'));
             });
         }
 
@@ -1093,7 +1475,7 @@ function prApptPill(?string $status): string
                 </tr>`;
             }).join('');
 
-            return `<h6 class="pr-section-title"><span>Recorded at Check-in</span><span class="pr-count">${rows.length}</span></h6>` +
+            return `<h6 class="pr-section-title"><span>Recorded at Check-in</span></h6>` +
                 table('<th>Date &amp; Time</th><th>Appointment</th><th>Blood Pressure</th><th>Pulse Rate</th><th>Temperature</th><th>Checked By</th><th>Notes</th>', tableRows);
         }
     </script>

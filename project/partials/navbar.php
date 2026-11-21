@@ -1,30 +1,22 @@
 <?php
 // =============================================================
-//  partials/navbar.php — FIXED
-//  Change: notification list area now has max-height + overflow-y
-//  so it scrolls cleanly when there are many low-stock items.
+//  partials/navbar.php — staff header: bell (Notification Center) + profile
 // =============================================================
 
 require_once __DIR__ . '/../controllers/secure_controller.php';
 require_once __DIR__ . '/../controllers/auth_controller.php';
 require_once __DIR__ . '/../controllers/admin_batch.php';
+require_once __DIR__ . '/../controllers/branch_controller.php';   // getAllBranches() for transfer / request alerts
 $currentUser = getCurrentUser();
 
-// ── Fetch low/out-of-stock inventory items ────────────────────
-// Low stock is decided from the live quantity vs. the item's own reorder
-// level (min_stock), not the stored status, so the bell is never stale:
-// it updates on the next page load after any stock change, and an item
-// drops off as soon as it is restocked above its min_stock.
-// The query (admin_navbar_spec(): branch-scoped for non-owners) is usually
-// already fetched in parallel with the page's own queries by admin_prefetch();
-// otherwise it runs here.
-$_nb         = admin_navbar_spec();
-$lowStockRes = admin_get($_nb['table'], $_nb['query']);
-$lowStockItems = array_values(array_filter(
-    is_array($lowStockRes['data']) ? $lowStockRes['data'] : [],
-    fn($i) => (int)$i['stock_quantity'] <= (int)$i['min_stock'] || (int)$i['stock_quantity'] <= 0
-));
-$notifCount    = count($lowStockItems);
+// ── Notification Center (bell) ────────────────────────────────
+// The bell is filled in the browser from api/staff_notifications.php
+// (assets/js/es-notifications.js), so pages no longer query inventory
+// for it on every load. Only the category filter is rendered here —
+// the same categories the API allows this account to see.
+require_once __DIR__ . '/../controllers/staff_notifications.php';
+$_snViewer = staffn_viewer();
+$_snCats   = $_snViewer ? staffn_category_options($_snViewer) : [];
 ?>
     <header class="nxl-header">
         <div class="header-wrapper">
@@ -68,119 +60,38 @@ $notifCount    = count($lowStockItems);
                         <a href="javascript:void(0);" class="nxl-head-link me-0 light-button" style="display:none;"><i class="feather-sun"></i></a>
                     </div>
 
-                    <!-- ── NOTIFICATIONS ────────────────────── -->
-                    <div class="dropdown nxl-h-item">
-                        <a class="nxl-head-link me-3" data-bs-toggle="dropdown" href="#" role="button"
-                           data-bs-auto-close="outside">
+                    <!-- ── NOTIFICATIONS (assets/js/es-notifications.js) ── -->
+                    <div class="dropdown nxl-h-item" id="esnBell" data-user="<?= (int)($currentUser['user_id'] ?? 0) ?>">
+                        <a class="nxl-head-link me-3" id="esnToggle" data-bs-toggle="dropdown" href="#" role="button"
+                           data-bs-auto-close="outside" data-bs-display="static" aria-expanded="false" aria-label="Notifications">
                             <i class="feather-bell"></i>
-                            <?php if ($notifCount > 0): ?>
-                            <span class="badge bg-danger nxl-h-badge">
-                                <?= $notifCount > 9 ? '9+' : $notifCount ?>
-                            </span>
-                            <?php endif; ?>
+                            <span class="badge bg-danger nxl-h-badge" id="esnBadge" hidden></span>
                         </a>
-
-                        <!--
-                            SCROLLABLE NOTIFICATION DROPDOWN
-                            The dropdown itself keeps its normal width/shadow.
-                            Only the inner scrollable list area (.notif-scroll-area)
-                            gets max-height + overflow-y:auto so the header and
-                            footer always stay visible.
-                        -->
-                        <div class="dropdown-menu dropdown-menu-end nxl-h-dropdown nxl-notifications-menu"
-                             style="min-width:340px; max-width:380px;">
-
-                            <!-- Fixed header row -->
-                            <div class="d-flex justify-content-between align-items-center notifications-head px-3 py-2 border-bottom">
-                                <h6 class="fw-bold text-dark mb-0">
-                                    <i class="feather-bell me-1 text-primary"></i> Notifications
-                                    <?php if ($notifCount > 0): ?>
-                                    <span class="badge bg-danger ms-1"><?= $notifCount ?></span>
-                                    <?php endif; ?>
-                                </h6>
-                                <?php if ($notifCount > 0): ?>
-                                <a href="inventory-records.php" class="fs-11 text-primary ms-auto">
-                                    View All
-                                </a>
-                                <?php endif; ?>
+                        <div class="dropdown-menu dropdown-menu-end nxl-h-dropdown nxl-notifications-menu esn-menu">
+                            <div class="esn-head">
+                                <h6><i class="feather-bell text-primary"></i> Notifications <span class="esn-pill" id="esnHeadCount" hidden></span></h6>
+                                <button type="button" class="esn-linkbtn" id="esnMarkAll" data-esn-markall disabled>Mark all as read</button>
                             </div>
-
-                            <?php if ($notifCount === 0): ?>
-                            <!-- All clear state -->
-                            <div class="px-4 py-4 text-center text-muted small">
-                                <i class="feather-check-circle d-block mb-1 text-success" style="font-size:1.6rem;"></i>
-                                All inventory levels are healthy.
+                            <div class="esn-filters">
+                                <div class="esn-seg" role="group" aria-label="Show">
+                                    <button type="button" class="active" data-esn-state="all" aria-pressed="true">All</button>
+                                    <button type="button" data-esn-state="unread" aria-pressed="false">Unread</button>
+                                </div>
+                                <!-- Shared custom dropdown (assets/js/custom-select.js): data-cs-filter = list floats, never clipped;
+                                     data-cs-search = focus goes to a (visually hidden) type-ahead input, so Bootstrap's
+                                     dropdown arrow-key handling (which skips inputs) can't take the arrow keys -->
+                                <select id="esnCat" class="js-custom-select esn-cat" data-cs-filter data-cs-search data-cs-search-placeholder="Type to find a category" aria-label="Category">
+                                    <option value="">All categories</option>
+                                    <?php foreach ($_snCats as $_k => $_label): ?>
+                                    <option value="<?= htmlspecialchars($_k) ?>"><?= htmlspecialchars($_label) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
-
-                            <?php else: ?>
-
-                            <!-- Section label (fixed, above scroll) -->
-                            <div class="px-3 pt-2 pb-1">
-                                <p class="fs-11 fw-semibold text-uppercase text-muted mb-0">
-                                    <i class="feather-alert-triangle me-1 text-warning"></i>
-                                    Low / Out-of-Stock Items
-                                </p>
+                            <div class="esn-scroll" id="esnList" aria-live="polite"></div>
+                            <div class="esn-foot">
+                                <a href="notification-center.php"><i class="feather-list me-1"></i>View All Notifications</a>
                             </div>
-
-                            <!--
-                                SCROLLABLE LIST AREA
-                                max-height: 300px keeps the dropdown a reasonable size
-                                even with 20+ notifications.
-                                overflow-y: auto adds the scrollbar only when needed.
-                            -->
-                            <div class="notif-scroll-area"
-                                 style="max-height:300px; overflow-y:auto; overflow-x:hidden;">
-
-                                <?php foreach ($lowStockItems as $item):
-                                    $isOut      = (int)($item['stock_quantity'] ?? 0) <= 0;
-                                    $iconClass  = $isOut ? 'feather-alert-octagon' : 'feather-alert-triangle';
-                                    $colorClass = $isOut ? 'text-danger' : 'text-warning';
-                                    $bgClass    = $isOut ? 'bg-soft-danger'  : 'bg-soft-warning';
-                                    $badgeClass = $isOut ? 'bg-soft-danger text-danger' : 'bg-soft-warning text-warning';
-                                    // 0 units: unavailable for treatments until restocked/reconciled
-                                    $label      = $isOut ? 'Out of Stock · Unavailable' : 'Low Stock';
-                                    $branch     = htmlspecialchars($item['branches']['branch_name'] ?? '');
-                                ?>
-                                <a href="inventory-records.php"
-                                   class="notifications-item d-flex align-items-start px-3 py-2 border-bottom text-decoration-none">
-                                    <div class="me-3 mt-1 flex-shrink-0">
-                                        <span class="avatar-text avatar-sm <?= $bgClass ?>">
-                                            <i class="<?= $iconClass ?> <?= $colorClass ?>"></i>
-                                        </span>
-                                    </div>
-                                    <div class="flex-grow-1 min-width-0">
-                                        <div class="fw-semibold text-dark text-truncate">
-                                            <?= htmlspecialchars($item['item_name'] ?? '—') ?>
-                                        </div>
-                                        <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
-                                            <span class="badge <?= $badgeClass ?> small"><?= $label ?></span>
-                                            <span class="text-muted fs-11">
-                                                Stock: <strong><?= (int)($item['stock_quantity'] ?? 0) ?></strong>
-                                                / Min: <?= (int)($item['min_stock'] ?? 0) ?>
-                                            </span>
-                                            <?php if ($branch): ?>
-                                            <span class="text-muted fs-11">
-                                                <i class="feather-map-pin" style="font-size:10px;"></i>
-                                                <?= $branch ?>
-                                            </span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </a>
-                                <?php endforeach; ?>
-
-                            </div><!-- /notif-scroll-area -->
-
-                            <?php endif; ?>
-
-                            <!-- Fixed footer -->
-                            <div class="text-center py-2 border-top">
-                                <a href="inventory-records.php" class="fs-13 fw-semibold text-dark">
-                                    <i class="feather-package me-1"></i>Go to Inventory
-                                </a>
-                            </div>
-
-                        </div><!-- /dropdown-menu -->
+                        </div>
                     </div>
                     <!-- ── /NOTIFICATIONS ───────────────────── -->
 
@@ -224,4 +135,6 @@ $notifCount    = count($lowStockItems);
         </div>
     </header>
     <!-- Sign-out confirmation shared with the patient portal (handles a[data-signout-confirm]) -->
-    <script src="assets/js/signout-confirm.js?v=2"></script>
+    <script src="assets/js/signout-confirm.js?v=3"></script>
+    <link rel="stylesheet" href="assets/css/es-notifications.css?v=6">
+    <script src="assets/js/es-notifications.js?v=2" defer></script>

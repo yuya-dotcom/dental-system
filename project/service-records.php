@@ -37,16 +37,20 @@ $pageData = [
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>EssenciaSmile | Services</title>
+    <title>EssenciaSmile | Service Catalog</title>
     <link rel="shortcut icon" type="image/x-icon" href="assets/images/essencia-logo.ico">
     <link rel="stylesheet" type="text/css" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
-    <link rel="stylesheet" href="assets/css/custom.css">
+    <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
-    <link rel="stylesheet" href="assets/css/es-swal.css?v=4">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
     <link rel="stylesheet" href="assets/css/service-records.css?v=2">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-records.css?v=7">
+    <link rel="stylesheet" href="assets/css/analytics.css?v=8">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -57,10 +61,10 @@ $pageData = [
 
             <div class="page-header">
                 <div class="page-header-left d-flex align-items-center">
-                    <div class="page-header-title"><h5 class="m-b-10">Services</h5></div>
+                    <div class="page-header-title"><h5 class="m-b-10">Service Catalog</h5></div>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="dashboard.php">Home</a></li>
-                        <li class="breadcrumb-item">Services</li>
+                        <li class="breadcrumb-item">Service Catalog</li>
                     </ul>
                 </div>
                 <div class="page-header-right ms-auto">
@@ -76,7 +80,7 @@ $pageData = [
                 </div>
             </div>
 
-            <div class="main-content">
+            <div class="main-content an-page ar-page">
                 <?php if ($svcData['needs_migration']): ?>
                 <div class="alert alert-warning d-flex align-items-start gap-2 small">
                     <i class="feather-alert-triangle mt-1"></i>
@@ -94,9 +98,10 @@ $pageData = [
                     <div class="col-lg-4">
                         <div class="card stretch stretch-full sr-list-card">
                             <div class="card-header">
-                                <h5 class="card-title">
+                                <h5 class="card-title mb-0">
                                     Services
                                     <span class="badge bg-soft-primary text-primary ms-2" id="srCount">0</span>
+                                    <span class="rec-card-sub">Pick a service to see or edit it</span>
                                 </h5>
                             </div>
                             <div class="sr-filters">
@@ -120,7 +125,7 @@ $pageData = [
                                 </div>
                             </div>
                             <div class="card-body p-0">
-                                <div class="list-group list-group-flush sr-list" id="srList" role="listbox" aria-label="Services"></div>
+                                <div class="list-group list-group-flush sr-list" id="srList" role="listbox" aria-label="Service Catalog"></div>
                             </div>
                         </div>
                     </div>
@@ -130,9 +135,10 @@ $pageData = [
                         <div class="card stretch stretch-full" id="srPanelCard">
 
                             <!-- Nothing selected -->
-                            <div id="srEmpty" class="card-body text-center py-5 text-muted">
-                                <i class="feather-arrow-left fs-2 mb-2 d-block sr-empty-arrow"></i>
-                                Select a service to view or edit its details and materials.
+                            <div id="srEmpty" class="card-body rec-empty">
+                                <div class="rec-empty-icon"><i class="feather-arrow-left sr-empty-arrow"></i></div>
+                                <h6 class="rec-empty-title">No service selected</h6>
+                                <p class="rec-empty-text mb-0">Select a service from the list to view or edit its details and materials.</p>
                             </div>
 
                             <!-- Selected / new service -->
@@ -239,18 +245,18 @@ $pageData = [
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                        <div class="card-footer ar-foot d-flex align-items-center justify-content-between flex-wrap gap-2">
                                             <span class="text-muted small" id="srDirtyNote">No unsaved changes</span>
                                             <div class="d-flex gap-2">
+                                                <button type="button" class="btn btn-primary px-4" id="srSaveBtn" onclick="srSaveService()">
+                                                    <i class="feather-save me-1"></i> Save Changes
+                                                </button>
                                                 <?php if ($canOwner): ?>
                                                 <button type="button" class="btn btn-outline-danger" id="srDeleteBtn" onclick="srDeleteService()">
                                                     <i class="feather-trash-2 me-1"></i> Delete
                                                 </button>
                                                 <?php endif; ?>
                                                 <button type="button" class="btn btn-light" id="srCancelBtn" onclick="srCancelEdit()">Cancel</button>
-                                                <button type="button" class="btn btn-primary px-4" id="srSaveBtn" onclick="srSaveService()">
-                                                    <i class="feather-save me-1"></i> Save Changes
-                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -266,30 +272,33 @@ $pageData = [
                                         <div id="srMatLoading" class="card-body text-center py-5 text-muted" style="display:none;">
                                             <span class="spinner-border spinner-border-sm me-2"></span> Loading materials…
                                         </div>
-                                        <div id="srMatError" class="card-body text-center py-5 text-muted" style="display:none;">
-                                            <i class="feather-alert-circle fs-2 mb-2 d-block text-danger"></i>Failed to load materials.
-                                            <a href="javascript:void(0);" onclick="srLoadMaterials()">Try again</a>
+                                        <div id="srMatError" class="card-body rec-empty" style="display:none;">
+                                            <div class="rec-empty-icon rec-empty-icon-danger"><i class="feather-alert-circle"></i></div>
+                                            <h6 class="rec-empty-title">Could not load the materials</h6>
+                                            <p class="rec-empty-text">Please check your connection and try again.</p>
+                                            <button type="button" class="btn btn-light-brand btn-sm" onclick="srLoadMaterials()"><i class="feather-refresh-cw me-1"></i> Try Again</button>
                                         </div>
                                         <div id="srMatWrap" style="display:none;">
                                             <div class="card-body custom-card-action p-0 pt-2">
                                                 <div class="table-responsive">
-                                                    <table class="table table-hover mb-0">
+                                                    <table class="table table-hover mb-0 rec-table ar-table">
                                                         <thead>
                                                             <tr>
                                                                 <th>Item</th>
                                                                 <th>Category</th>
                                                                 <th>Current Stock</th>
                                                                 <th>Qty to Deduct</th>
-                                                                <th class="text-end">Action</th>
+                                                                <th class="rec-col-action text-end">Action</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody id="srMatBody"></tbody>
                                                     </table>
                                                 </div>
                                             </div>
-                                            <div id="srMatNone" class="text-center py-4 text-muted" style="display:none;">
-                                                <i class="feather-package me-2"></i>No materials configured yet.
-                                                <a href="javascript:void(0);" onclick="srOpenAddMaterial()">Add the first one.</a>
+                                            <div id="srMatNone" class="rec-empty" style="display:none;">
+                                                <div class="rec-empty-icon"><i class="feather-package"></i></div>
+                                                <h6 class="rec-empty-title">No materials yet</h6>
+                                                <p class="rec-empty-text mb-0">Use <strong>Add Material</strong> above to choose the supplies this service uses.</p>
                                             </div>
                                         </div>
                                     </div>
@@ -305,47 +314,57 @@ $pageData = [
     </main>
 
     <!-- ADD MATERIAL MODAL -->
-    <div class="modal fade" id="addMaterialModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header border-0 pb-0">
-                    <div>
-                        <h5 class="modal-title fw-bold mb-0">Add Material</h5>
-                        <p class="text-muted small mb-0">Add an inventory item to <strong id="addMat_serviceName"></strong></p>
+    <div class="modal fade es-detail-modal" id="addMaterialModal" tabindex="-1" aria-labelledby="addMatTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down apt-form-dialog rec-form-dialog rec-form-narrow">
+            <div class="modal-content apt-record-content">
+                <div class="modal-header apt-record-header">
+                    <div class="apt-record-title-wrap">
+                        <div class="apt-record-icon" aria-hidden="true"><i class="feather-package"></i></div>
+                        <div class="min-w-0">
+                            <h5 class="apt-record-title mb-0" id="addMatTitle">Add Material</h5>
+                            <div class="apt-record-meta">Add an inventory item to <strong id="addMat_serviceName"></strong></div>
+                        </div>
                     </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
-                    <div id="addMatError" class="alert alert-danger small py-2 px-3 mb-3" style="display:none;"></div>
+                <div class="modal-body apt-form-body">
+                    <div id="addMatError" class="apt-form-alert" role="alert" style="display:none;"></div>
+                    <div class="apt-field">
+                        <label class="apt-label" for="addMat_item">Inventory Item <span class="apt-req" aria-hidden="true">*</span></label>
+                        <select id="addMat_item" class="form-select js-custom-select" data-cs-float data-cs-search>
+                            <option value="">Select item</option>
+                            <?php foreach ($inventory as $item): ?>
+                            <option value="<?= (int)$item['item_id'] ?>" data-stock="<?= (int)$item['stock_quantity'] ?>">
+                                <?= htmlspecialchars($item['item_name']) ?>
+                                (<?= htmlspecialchars($item['category'] ?? 'Uncategorized') ?>)
+                                — Stock: <?= (int)$item['stock_quantity'] ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                     <div class="row g-3">
-                        <div class="col-12">
-                            <label class="form-label fw-semibold small" for="addMat_item">Inventory Item</label>
-                            <select id="addMat_item" class="form-select js-custom-select" data-cs-float data-cs-search>
-                                <option value="">Select item</option>
-                                <?php foreach ($inventory as $item): ?>
-                                <option value="<?= (int)$item['item_id'] ?>" data-stock="<?= (int)$item['stock_quantity'] ?>">
-                                    <?= htmlspecialchars($item['item_name']) ?>
-                                    (<?= htmlspecialchars($item['category'] ?? 'Uncategorized') ?>)
-                                    — Stock: <?= (int)$item['stock_quantity'] ?>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
+                        <div class="col-6">
+                            <div class="apt-field mb-0">
+                                <label class="apt-label" for="addMat_qty">Quantity to Deduct <span class="apt-req" aria-hidden="true">*</span></label>
+                                <input type="number" id="addMat_qty" class="form-control" value="1" min="1" placeholder="e.g. 2">
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small" for="addMat_qty">Quantity to Deduct</label>
-                            <input type="number" id="addMat_qty" class="form-control" value="1" min="1" placeholder="e.g. 2">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Current Stock</label>
-                            <div class="form-control bg-light text-muted" id="addMat_stockPreview">—</div>
+                        <div class="col-6">
+                            <div class="apt-field mb-0">
+                                <span class="apt-label">Current Stock</span>
+                                <div class="form-control bg-light text-muted" id="addMat_stockPreview">—</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary px-4" id="addMatSaveBtn" onclick="srSaveMaterial()">
-                        <i class="feather-save me-1"></i> Save
-                    </button>
+                <div class="modal-footer apt-record-footer apt-form-footer">
+                    <span class="apt-form-hint"><span class="apt-req">*</span> Required</span>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary px-4" id="addMatSaveBtn" onclick="srSaveMaterial()">
+                            <i class="feather-save me-1"></i> Save
+                        </button>
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -358,9 +377,11 @@ $pageData = [
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/admin.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
-    <script src="assets/js/es-swal.js?v=2"></script>
-    <script src="assets/js/service-records.js?v=3"></script>
+    <script src="assets/js/admin.js?v=7"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
+    <script src="assets/js/es-records.js?v=3"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
+    <script src="assets/js/service-records.js?v=5"></script>
 </body>
 </html>

@@ -13,6 +13,7 @@ require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../controllers/auth_controller.php';
 require_once __DIR__ . '/../controllers/notification_helper.php';
 require_once __DIR__ . '/../controllers/audit_controller.php';
+require_once __DIR__ . '/../controllers/invoice_view_helper.php';
 
 header('Content-Type: application/json');
 requireLogin();
@@ -20,6 +21,9 @@ requireStaffApi('owner', 'admin', 'dentist');   // staff only; non-owners are pi
 
 $method = $_SERVER['REQUEST_METHOD'];
 $id     = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+// Read-only GET: release the session lock ($_SESSION stays readable) so the
+// Add Payment wizard's invoice + voucher requests run side by side.
+if ($method === 'GET' && session_status() === PHP_SESSION_ACTIVE) session_write_close();
 
 // ── GET the invoice of an appointment (Appointment Records → Billing) ──
 if ($method === 'GET' && !$id && isset($_GET['appointment_id'])) {
@@ -44,9 +48,22 @@ if ($method === 'GET' && !$id && isset($_GET['appointment_id'])) {
 }
 
 // ── GET single invoice with payments ────────────────────────
+//  One wave (controllers/invoice_view_helper.php): the invoice with its
+//  services, procedure lines, payments and vouchers embedded + the active
+//  vouchers. 'discounts' is what api/invoice_discounts.php GET returns, so the
+//  invoice view and Add Payment need no second request.
 if ($method === 'GET') {
     if (!$id) { echo json_encode(['success' => false, 'message' => 'Invoice ID required.']); exit; }
 
+    $view = invoice_view_fetch($id);
+    if ($view !== null) {
+        if (!$view['row']) { echo json_encode(['success' => false, 'message' => 'Invoice not found.']); exit; }
+        requireBranchAccess($view['row']['branch_id'] ?? null);   // the invoice's real branch, from the database
+        echo json_encode(invoice_view_payload($view['row'], $view['vouchers']));
+        exit;
+    }
+
+    // Fallback (database without the discount tables/columns): the per-table reads
     $inv = supabase_request('invoices', 'GET', [],
         'invoice_id=eq.' . $id .
         '&select=invoice_id,invoice_code,invoice_date,total_amount,amount_paid,' .
@@ -109,6 +126,7 @@ if ($method === 'GET') {
         'service_names' => $serviceNames,
         'lines'         => $lines,
         'payments'      => $pmts['data'] ?? [],
+        'discounts'     => null,   // the page then asks api/invoice_discounts.php
     ]);
     exit;
 }

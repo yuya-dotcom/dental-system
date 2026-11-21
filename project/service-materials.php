@@ -41,9 +41,11 @@ sort($svcTypes);
     <link rel="stylesheet" type="text/css" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
-    <link rel="stylesheet" href="assets/css/custom.css">
+    <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -54,7 +56,7 @@ sort($svcTypes);
 
             <div class="page-header">
                 <div class="page-header-left d-flex align-items-center">
-                    <div class="page-header-title"><h5 class="m-b-10">Services</h5></div>
+                    <div class="page-header-title"><h5 class="m-b-10">Service Catalog</h5></div>
                     <ul class="breadcrumb">
                         <li class="breadcrumb-item"><a href="dashboard.php">Home</a></li>
                         <li class="breadcrumb-item">Service Materials</li>
@@ -89,7 +91,7 @@ sort($svcTypes);
                                     </div>
                                 </div></div>
                             </div>
-                            <div class="list-toolbar is-compact">
+                            <div class="list-toolbar is-compact" data-es-static>
                                 <div class="list-field list-field-search">
                                     <label class="list-label" for="smSearch">Search</label>
                                     <div class="list-search"><i class="feather-search" aria-hidden="true"></i>
@@ -274,10 +276,10 @@ sort($svcTypes);
                 <div class="modal-footer border-0 d-flex justify-content-between">
                     <span class="text-muted small"><span class="text-danger"></span></span>
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-primary px-4" id="addMatSaveBtn" onclick="saveMaterial()">
                             <i class="feather-save me-1"></i> Save
                         </button>
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -288,8 +290,10 @@ sort($svcTypes);
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/admin.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
+    <script src="assets/js/admin.js?v=7"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
     <script src="assets/js/service-materials.js"></script>
 </body>
 </html>

@@ -79,7 +79,6 @@
             showCancelButton: true,
             confirmButtonText: confirmText,
             cancelButtonText: cancelText,
-            reverseButtons: true,
             focusCancel: true,
             buttonsStyling: false,
             customClass: ES_SWAL_TONE(tone),
@@ -103,8 +102,10 @@
         $('srCount').textContent = list.length;
 
         if (!list.length) {
-            $('srList').innerHTML = `<div class="text-center py-5 text-muted small">
-                <i class="feather-search fs-3 d-block mb-2"></i>No services match your filters.</div>`;
+            $('srList').innerHTML = `<div class="rec-empty">
+                <div class="rec-empty-icon"><i class="feather-search"></i></div>
+                <h6 class="rec-empty-title">No services match your filters</h6>
+                <p class="rec-empty-text mb-0">Try a different name, type or status.</p></div>`;
             return;
         }
 

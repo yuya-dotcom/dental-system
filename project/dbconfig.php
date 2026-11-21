@@ -24,6 +24,9 @@ define('SUPABASE_URL', $_secrets['supabase_url']);
 define('SUPABASE_KEY', $_secrets['supabase_key']);
 unset($_secrets);
 
+// Shared read cache (navbar bell, branch list); every write below invalidates it
+require_once __DIR__ . '/controllers/shared_cache.php';
+
 // The clinic runs on Philippine time. Without this, date()/strtotime() use the
 // server's php.ini zone (Europe/Berlin locally, likely UTC on the host), which
 // saved invoices made after midnight under the previous day and shifted times
@@ -156,6 +159,7 @@ function supabase_request(
     $statusCode = curl_getinfo($_supabase_ch, CURLINFO_HTTP_CODE);
     $curlError  = curl_error($_supabase_ch);
     $curlErrno  = curl_errno($_supabase_ch);
+    es_scache_note($method);   // a write (finished or failed) invalidates the shared cache
 
     if ($curlError) {
         error_log('Supabase curl error: ' . $curlError);

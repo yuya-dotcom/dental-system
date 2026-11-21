@@ -35,6 +35,7 @@
 			<script src="https:oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
 			<script src="https:oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
 		<![endif]-->
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
 </head>
 
 <body>
@@ -319,6 +320,9 @@
     <!--! ================================================================ !-->
     <!--! BEGIN: Vendors JS !-->
     <script src="assets/vendors/js/vendors.min.js"></script>
+    <!-- SweetAlert2 v11 (self-hosted, same build as every other admin page): replaces the
+         v9 bundled in vendors.min.js, whose result has no isConfirmed (Sign Out never ran) -->
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <!-- vendors.min.js {always must need to be top} -->
     <script src="assets/vendors/js/daterangepicker.min.js"></script>
     <script src="assets/vendors/js/apexcharts.min.js"></script>
@@ -327,6 +331,7 @@
     <!--! END: Vendors JS !-->
     <!--! BEGIN: Apps Init  !-->
     <script src="assets/js/common-init.min.js"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
     <script src="assets/js/analytics-init.min.js"></script>
     <!--! END: Apps Init !-->
     <!--! BEGIN: Theme Customizer  !-->

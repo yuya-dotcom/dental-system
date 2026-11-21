@@ -117,12 +117,61 @@
 }
 .es-swal-btn-danger:hover { background: #b91c1c; transform: translateY(-1px); }
 
+/* Compact, balanced pair (customClass.actions: 'es-swal-actions es-swal-actions-compact'):
+   both buttons share one size and the longer label never wraps taller. */
+.es-swal-actions-compact .es-swal-btn {
+  padding: 9px 12px;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.es-swal-actions-compact .es-swal-btn i { margin-right: 5px; }
+.es-swal-actions-compact .es-swal-btn-primary { box-shadow: 0 3px 8px rgba(37, 99, 235, 0.22); }
+.es-swal-actions-compact .es-swal-btn-danger  { box-shadow: 0 3px 8px rgba(220, 38, 38, 0.2); }
+
 @media (max-width: 480px) {
   .swal2-popup.es-swal-popup { padding: 24px 18px 18px; }
   .swal2-title.es-swal-title { font-size: 1.18rem; }
   .swal2-actions.es-swal-actions { flex-direction: column-reverse; }
   .es-swal-btn { width: 100%; }
 }
+
+/* Single input inside a Swal (e.g. admin "Confirm Your Password"): replaces
+   SweetAlert's oversized default .swal2-input with a standard form field. */
+.swal2-popup.es-swal-popup .swal2-input.es-swal-input {
+  box-sizing: border-box;
+  width: 100%; max-width: 100%;
+  height: 40px;
+  margin: 16px 0 0;
+  padding: 0 12px;
+  border: 1px solid #c9d6ea;
+  border-radius: 10px;
+  box-shadow: none;
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: #1e293b;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.swal2-popup.es-swal-popup .swal2-input.es-swal-input::placeholder { color: #94a3b8; }
+.swal2-popup.es-swal-popup .swal2-input.es-swal-input:focus {
+  outline: none; border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+.swal2-popup.es-swal-popup .swal2-input.es-swal-input.swal2-inputerror { border-color: #f87171; box-shadow: none; }
+.swal2-popup.es-swal-popup .swal2-validation-message.es-swal-validation {
+  margin: 10px 0 0; padding: 8px 10px;
+  border-radius: 8px;
+  background: #fef2f2; color: #b91c1c;
+  font-size: 0.8rem; line-height: 1.45;
+  justify-content: flex-start; text-align: left;
+}
+.swal2-popup.es-swal-popup .swal2-validation-message.es-swal-validation::before {
+  min-width: 16px; width: 16px; height: 16px; margin: 1px 8px 0 0;
+  font-size: 0.7rem; line-height: 16px; background: #dc2626;
+}
+/* Icon + label buttons keep exactly the height of a text-only button */
+/* (the icon's own baseline would otherwise stretch the line box by ~2px) */
+.es-swal-popup-pw .es-swal-actions-compact .es-swal-btn i { font-size: 1em; line-height: 1; vertical-align: -1px; }
 
 /* Password fields inside a Swal (Change Password) */
 .es-pw-form { margin-top: 16px; text-align: left; }
@@ -149,3 +198,11 @@
 .es-pw-eye:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.35); }
 .es-pw-err { min-height: 0; margin-top: 5px; font-size: 0.78rem; color: #b91c1c; }
 .es-pw-err:empty { display: none; }
+
+/* Multi-line text field in a dialog (e.g. the appointment cancellation reason) */
+.es-pw-input.es-cancel-reason {
+  height: auto; min-height: 92px;
+  padding: 10px 14px;
+  line-height: 1.5;
+  resize: vertical;
+}

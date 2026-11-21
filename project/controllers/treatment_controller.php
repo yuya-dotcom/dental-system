@@ -72,7 +72,7 @@ function treatmentRecordsQuery(int $page, int $branchId, string $status, string 
         'select=treatment_id,treatment_code,treatment_date,status,current_stage,'
             . 'tooth_number,cost,procedure_notes,appointment_id,patient_id,'
             . 'dentist_id,branch_id,service_id,'
-            . 'patients(full_name),branches(branch_name),'
+            . 'patients(full_name,patient_code),branches(branch_name),'
             . 'dentists(full_name),services(service_name,requires_tooth_selection),'
             . 'appointments!treatments_appointment_id_fkey(appointment_code,appointment_time),'
             . 'treatment_procedures(tooth_number,surfaces,unit_price,status,services(service_name))',
@@ -112,8 +112,10 @@ function getActiveTreatments(int $page, int $branchId, string $order = 'order=tr
     $apptData     = is_array($apptRes['data']) ? $apptRes['data'] : [];
     $checkedInIds = array_column($apptData, 'appointment_id');
     $apptCodeMap  = [];
+    $apptWhenMap  = [];   // appointment_id => [date, time] for the list's Date/Time column
     foreach ($apptData as $a) {
         $apptCodeMap[(int)$a['appointment_id']] = $a['appointment_code'] ?? '—';
+        $apptWhenMap[(int)$a['appointment_id']] = [$a['appointment_date'] ?? null, $a['appointment_time'] ?? null];
     }
     if (empty($checkedInIds)) {
         return buildPageResult([], 0, $page, $offset, TRT_PER_PAGE);
@@ -125,7 +127,7 @@ function getActiveTreatments(int $page, int $branchId, string $order = 'order=tr
         'select=treatment_id,treatment_code,treatment_date,status,current_stage,'
             . 'tooth_number,cost,procedure_notes,appointment_id,patient_id,'
             . 'dentist_id,branch_id,service_id,'
-            . 'patients(full_name),branches(branch_name),'
+            . 'patients(full_name,patient_code),branches(branch_name),'
             . 'dentists(full_name),services(service_name,requires_tooth_selection)',
         'appointment_id=in.(' . $idList . ')',
         'status=in.(pending,ongoing,in_progress)',
@@ -142,6 +144,8 @@ function getActiveTreatments(int $page, int $branchId, string $order = 'order=tr
     foreach ($rows as &$row) {
         $aid = isset($row['appointment_id']) ? (int)$row['appointment_id'] : null;
         $row['appointment_code'] = $aid ? ($apptCodeMap[$aid] ?? '—') : '—';
+        $row['appointment_date'] = $aid ? ($apptWhenMap[$aid][0] ?? null) : null;
+        $row['appointment_time'] = $aid ? ($apptWhenMap[$aid][1] ?? null) : null;
     }
     unset($row);
 
@@ -151,7 +155,7 @@ function getActiveTreatments(int $page, int $branchId, string $order = 'order=tr
 /** Step 1 of getActiveTreatments(): the checked-in appointments (also used to prefetch it). */
 function activeTreatmentsApptQuery(int $branchId): array
 {
-    $apptQ = ['select=appointment_id,appointment_code', 'status=eq.checked_in', 'limit=500'];
+    $apptQ = ['select=appointment_id,appointment_code,appointment_date,appointment_time', 'status=eq.checked_in', 'limit=500'];
     if ($branchId > 0) $apptQ[] = 'branch_id=eq.' . $branchId;
     return $apptQ;
 }
@@ -241,4 +245,10 @@ function formatCost(?float $amount): string
 function formatTrtDate(?string $date): string
 {
     return empty($date) ? '—' : date('M. d, Y', strtotime($date));
+}
+
+/** "9:30 AM" from an appointment_time like "09:30:00"; '' when missing. */
+function formatTrtTime(?string $time): string
+{
+    return empty($time) ? '' : date('g:i A', strtotime('2000-01-01 ' . $time));
 }

@@ -17,6 +17,7 @@ require_once __DIR__ . '/controllers/admin_batch.php';
 admin_release_session();   // read-only page render: don't hold the session lock while querying
 require_once __DIR__ . '/dbconfig.php';
 require_once __DIR__ . '/controllers/list_filters.php';
+require_once __DIR__ . '/controllers/record_ui.php';   // Appointment Records cell markup
 
 requireLogin();
 
@@ -26,8 +27,14 @@ $currentRole   = $_SESSION['role']    ?? '';
 $currentUserId = $_SESSION['user_id'] ?? null;
 $isOwner       = $currentRole === 'owner';
 
-$filterModule = trim($_GET['module'] ?? '');
-$filterAction = trim($_GET['action'] ?? '');
+$viewLogins   = ($_GET['view'] ?? '') === 'logins';      // Login Attempts view (module 'authentication')
+$filterView   = $viewLogins ? 'logins' : '';
+$filterModule = $viewLogins ? '' : trim($_GET['module'] ?? '');
+$filterAction = $viewLogins ? '' : trim($_GET['action'] ?? '');
+$filterLogin  = $viewLogins && in_array($_GET['login'] ?? '', ['success', 'failed'], true) ? $_GET['login'] : '';
+// Branch / account filters: owner only (others already see only their own logs)
+$filterBranch = $isOwner ? max(0, (int)($_GET['branch'] ?? 0)) : 0;
+$filterUser   = $isOwner ? max(0, (int)($_GET['user'] ?? 0)) : 0;
 $page         = max(1, (int)($_GET['page'] ?? 1));
 $offset       = ($page - 1) * LOGS_PER_PAGE;
 
@@ -63,18 +70,33 @@ if (!$isOwner && $currentUserId) {
     $q[] = 'user_id=eq.' . (int)$currentUserId;
 }
 
+if ($viewLogins) {
+    $q[] = 'module=eq.authentication';
+    // Status lives in after_data (works whatever action name the row was stored with)
+    if ($filterLogin) $q[] = 'after_data->>status=eq.' . ($filterLogin === 'success' ? 'Successful' : 'Failed');
+}
 if ($filterModule) $q[] = 'module=eq.'  . urlencode($filterModule);
 if ($filterAction) $q[] = 'action=eq.'  . urlencode(strtoupper($filterAction));
+if ($filterBranch) $q[] = 'branch_id=eq.' . $filterBranch;
+if ($filterUser)   $q[] = 'user_id=eq.' . $filterUser;
 array_push($q, ...listSearchFilter($search, ['username', 'entity_name', 'description']));
 array_push($q, ...listDateRange('created_at', $dateFrom, $dateTo, true));
-$filtersOn  = listActiveCount([$filterModule, $filterAction, $search, $dateFrom, $dateTo, $sortKey !== 'newest']);
-$pageUrl    = listUrl('audit-records.php', ['module' => $filterModule, 'action' => $filterAction, 'q' => $search, 'from' => $dateFrom, 'to' => $dateTo, 'sort' => $sortKey === 'newest' ? '' : $sortKey]);
-$sortBase = listUrl('audit-records.php', ['module' => $filterModule, 'action' => $filterAction, 'q' => $search, 'from' => $dateFrom, 'to' => $dateTo]);
+$filtersOn  = listActiveCount([$filterModule, $filterAction, $filterLogin, $filterBranch, $filterUser, $search, $dateFrom, $dateTo, $sortKey !== 'newest']);
+$listParams = ['view' => $filterView, 'module' => $filterModule, 'action' => $filterAction, 'login' => $filterLogin, 'branch' => $filterBranch, 'user' => $filterUser, 'q' => $search, 'from' => $dateFrom, 'to' => $dateTo];
+$pageUrl    = listUrl('audit-records.php', $listParams + ['sort' => $sortKey === 'newest' ? '' : $sortKey]);
+$sortBase   = listUrl('audit-records.php', $listParams);
+$resetUrl   = $viewLogins ? 'audit-records.php?view=logins' : 'audit-records.php';
 
-// One parallel wave: list + navbar bell (controllers/admin_batch.php)
-admin_prefetch(['list' => admin_q('audit_logs', implode('&', $q), ['Prefer: count=exact'])], ['navbar']);
+// One parallel wave: list + navbar bell (+ branch / account lists for the owner's filters)
+$_auditSpecs = ['list' => admin_q('audit_logs', implode('&', $q), ['Prefer: count=exact'])];
+if ($isOwner) $_auditSpecs['users'] = admin_q('users', 'select=user_id,full_name,username,role&order=full_name.asc');
+$_auditRes   = admin_prefetch($_auditSpecs, $isOwner ? ['navbar', 'branches'] : ['navbar']);
+$auditUsers  = $isOwner && is_array($_auditRes['users']['data'] ?? null) ? $_auditRes['users']['data'] : [];
+$auditBranches = [];
+if ($isOwner) { require_once __DIR__ . '/controllers/branch_controller.php'; $auditBranches = getAllBranches(); }
 $result     = admin_get('audit_logs', implode('&', $q), ['Prefer: count=exact']);
-$logs       = is_array($result['data']) ? $result['data'] : [];
+$auditOk    = ($result['status'] ?? 0) >= 200 && ($result['status'] ?? 0) < 300 && is_array($result['data']) && array_is_list($result['data']);
+$logs       = $auditOk ? $result['data'] : [];   // an error object (e.g. 416 past the last page) is never rendered as rows
 $total      = (int)(explode('/', ($result['headers']['content-range'] ?? '0/0'))[1] ?? 0);
 $totalPages = max(1, (int)ceil($total / LOGS_PER_PAGE));
 $from       = $total > 0 ? $offset + 1 : 0;
@@ -86,6 +108,8 @@ function actionBadgeClass(string $action): string {
         'INSERT' => 'bg-soft-success text-success',
         'UPDATE' => 'bg-soft-warning text-warning',
         'DELETE' => 'bg-soft-danger  text-danger',
+        'LOGIN_SUCCESS' => 'bg-soft-success text-success',
+        'LOGIN_FAILED'  => 'bg-soft-danger  text-danger',
         default  => 'bg-soft-secondary text-secondary',
     };
 }
@@ -101,8 +125,8 @@ function roleBadgeClass(string $role): string {
 
 $allModules = [
     'appointment-schedules', 'appointment-records', 'patients',
-    'treatments', 'billing', 'inventory', 'accounts',
-    'branches', 'dentists', 'services', 'service-records', 'patient-accounts',
+    'treatments', 'billing', 'inventory', 'stock-transfers', 'procurement', 'accounts',
+    'branches', 'dentists', 'services', 'service-records', 'patient-accounts', 'authentication', 'notifications',
 ];
 ?>
 <!DOCTYPE html>
@@ -116,7 +140,7 @@ $allModules = [
     <link rel="stylesheet" type="text/css" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
-    <link rel="stylesheet" href="assets/css/custom.css?v=5">
+    <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <style>
@@ -125,9 +149,19 @@ $allModules = [
         .module-badge     { font-size: .72rem; letter-spacing: .3px; }
         .action-badge     { font-size: .78rem; font-weight: 700; letter-spacing: .5px; min-width: 68px; text-align: center; }
         .user-role-badge  { font-size: .68rem; }
+        .audit-views { display: inline-flex; gap: 4px; padding: 3px; border: 1.2px solid #e5e7eb; border-radius: 7px; background: #fbfcfe; }
+        .audit-views a { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 5px; font-size: .8rem; font-weight: 500; color: #6b7a90; white-space: nowrap; }
+        .audit-views a:hover { color: #185fa5; }
+        .audit-views a.active { background: #185fa5; color: #fff; }
+        .login-ip { font-family: monospace; font-size: .78rem; }
 
         /* View Details modal: shared .es-detail-modal styles (assets/css/custom.css) */
     </style>
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-records.css?v=7">
+    <link rel="stylesheet" href="assets/css/analytics.css?v=8">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
 </head>
 
 <body>
@@ -151,20 +185,25 @@ $allModules = [
 
                             </div><!-- /page-header -->
 
-            <div class="main-content">
+            <div class="main-content an-page ar-page">
                 <div class="row">
                     <div class="col-lg-12">
                         <div class="card stretch stretch-full">
 
                             <div class="card-header">
-                                <h5 class="card-title">
-                                    <?= $isOwner ? 'All Activity Logs' : 'My Activity Logs' ?>
-                                    <span class="badge bg-soft-primary text-primary ms-2"><?= $total ?> total</span>
+                                <h5 class="card-title mb-0">
+                                    <?= $viewLogins ? ($isOwner ? 'Login Attempts' : 'My Login Attempts') : ($isOwner ? 'All Activity Logs' : 'My Activity Logs') ?>
+                                    <span class="an-pill info ms-2"><?= $total ?> <?= $filtersOn ? 'found' : 'total' ?></span>
+                                    <span class="rec-card-sub"><?= $viewLogins ? 'Every sign-in to the staff portal, successful or not' : 'Who added, changed or removed records, and when' ?></span>
                                 </h5>
+                                <div class="audit-views" role="tablist" aria-label="Audit view">
+                                    <a href="audit-records.php" role="tab" aria-selected="<?= $viewLogins ? 'false' : 'true' ?>" class="<?= $viewLogins ? '' : 'active' ?>"><i class="feather-activity"></i> All Activity</a>
+                                    <a href="audit-records.php?view=logins" role="tab" aria-selected="<?= $viewLogins ? 'true' : 'false' ?>" class="<?= $viewLogins ? 'active' : '' ?>"><i class="feather-log-in"></i> Login Attempts</a>
+                                </div>
                                 <div class="card-header-action">
                                     <div class="card-header-btn">
                                         <div data-bs-toggle="tooltip" title="Refresh">
-                                            <a href="audit-records.php" class="avatar-text avatar-xs bg-warning"></a>
+                                            <a href="<?= $resetUrl ?>" class="avatar-text avatar-xs bg-warning"></a>
                                         </div>
                                         <div data-bs-toggle="tooltip" title="Maximize/Minimize">
                                             <a href="javascript:void(0);" class="avatar-text avatar-xs bg-success" data-bs-toggle="expand"></a>
@@ -174,8 +213,34 @@ $allModules = [
                             </div>
 
                             <div class="list-toolbar">
-                                <?= listSearchControl($search, 'User, entity or description') ?>
+                                <input type="hidden" id="filterView" value="<?= $filterView ?>">
+                                <?= listSearchControl($search, $viewLogins ? 'Name or username tried' : 'User, entity or description') ?>
                                 <?= listDateRangeControl($dateFrom, $dateTo) ?>
+                                <?php if ($viewLogins): ?>
+                                <div class="list-field"><label class="list-label" for="filterLogin">Login Status</label>
+                                <select id="filterLogin" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                    <option value="">All Attempts</option>
+                                    <option value="success" <?= $filterLogin === 'success' ? 'selected' : '' ?>>Successful</option>
+                                    <option value="failed"  <?= $filterLogin === 'failed'  ? 'selected' : '' ?>>Failed</option>
+                                </select></div>
+                                <?php endif; ?>
+                                <?php if ($isOwner): ?>
+                                <div class="list-field"><label class="list-label" for="filterBranch">Branch</label>
+                                <select id="filterBranch" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                    <option value="0">All Branches</option>
+                                    <?php foreach ($auditBranches as $b): ?>
+                                    <option value="<?= (int)$b['branch_id'] ?>" <?= (int)$b['branch_id'] === $filterBranch ? 'selected' : '' ?>><?= htmlspecialchars($b['branch_name']) ?></option>
+                                    <?php endforeach; ?>
+                                </select></div>
+                                <div class="list-field"><label class="list-label" for="filterUser">Account</label>
+                                <select id="filterUser" class="js-custom-select" data-cs-filter="wide" data-cs-search onchange="applyFilters()">
+                                    <option value="0">All Accounts</option>
+                                    <?php foreach ($auditUsers as $u): ?>
+                                    <option value="<?= (int)$u['user_id'] ?>" <?= (int)$u['user_id'] === $filterUser ? 'selected' : '' ?>><?= htmlspecialchars(($u['full_name'] ?? '') . ' (' . ($u['username'] ?? '') . ')') ?></option>
+                                    <?php endforeach; ?>
+                                </select></div>
+                                <?php endif; ?>
+                                <?php if (!$viewLogins): ?>
                                 <div class="list-field"><label class="list-label" for="filterModule">Module</label>
                                 <select id="filterModule" class="js-custom-select" data-cs-filter="wide" data-cs-search onchange="applyFilters()">
                                     <option value="">All Modules</option>
@@ -189,13 +254,17 @@ $allModules = [
                                     <option value="INSERT" <?= $filterAction === 'INSERT' ? 'selected' : '' ?>>INSERT (Added)</option>
                                     <option value="UPDATE" <?= $filterAction === 'UPDATE' ? 'selected' : '' ?>>UPDATE (Modified)</option>
                                     <option value="DELETE" <?= $filterAction === 'DELETE' ? 'selected' : '' ?>>DELETE (Removed)</option>
+                                    <option value="LOGIN_SUCCESS" <?= $filterAction === 'LOGIN_SUCCESS' ? 'selected' : '' ?>>LOGIN SUCCESS</option>
+                                    <option value="LOGIN_FAILED"  <?= $filterAction === 'LOGIN_FAILED'  ? 'selected' : '' ?>>LOGIN FAILED</option>
                                 </select></div>
-                                <?= listResetControl('audit-records.php', $filtersOn) ?>
+                                <?php endif; ?>
+                                <?= listResetControl($resetUrl, $filtersOn) ?>
                             </div>
 
-                            <div class="card-body p-0">
-                                <div class="table-responsive">
-                                    <table class="table table-hover align-middle mb-0" id="auditTable">
+                            <div class="card-body custom-card-action p-0" style="overflow:visible;">
+                                <!-- overflow:visible (same as appointments-schedule.php) so the ⋮ menu opens outside the table instead of being clipped -->
+                                <div class="table-responsive" style="overflow:visible;">
+                                    <table class="table table-hover align-middle mb-0 rec-table ar-table" id="auditTable">
                                         <thead class="table-light">
                                             <tr>
                                                 <?= listTh('Timestamp', 'newest', 'oldest', $sortKey, $sortBase, 'style="min-width:110px;"') ?>
@@ -203,20 +272,30 @@ $allModules = [
                                                 <?php if ($isOwner): ?>
                                                 <?= listTh('Branch', 'branch_asc', 'branch_desc', $sortKey, $sortBase, 'style="min-width:110px;"') ?>
                                                 <?php endif; ?>
+                                                <?php if ($viewLogins): ?>
+                                                <?= listTh('Username Tried', 'entity_asc', 'entity_desc', $sortKey, $sortBase, 'style="min-width:140px;"') ?>
+                                                <?= listTh('Status', 'action_asc', 'action_desc', $sortKey, $sortBase, 'style="min-width:100px;"') ?>
+                                                <th style="min-width:180px;">Reason</th>
+                                                <th>IP Address</th>
+                                                <?php else: ?>
                                                 <?= listTh('Module', 'module_asc', 'module_desc', $sortKey, $sortBase, 'style="min-width:150px;"') ?>
                                                 <?= listTh('Action Type', 'action_asc', 'action_desc', $sortKey, $sortBase, 'style="min-width:90px;"') ?>
                                                 <?= listTh('Entity', 'entity_asc', 'entity_desc', $sortKey, $sortBase, 'style="min-width:160px;"') ?>
-                                                <th class="text-end">Action</th>
+                                                <?php endif; ?>
+                                                <th class="rec-col-action text-end">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <?php if (empty($logs)): ?>
-                                                <tr>
-                                                    <td colspan="<?= $isOwner ? 7 : 6 ?>" class="text-center py-5">
-                                                        <img src="assets/images/empty.png" alt="" style="width:80px;" class="mb-3 opacity-50">
-                                                        <p class="text-muted mb-0"><?php if ($filtersOn): ?>No logs match the selected filters. <a href="audit-records.php" class="fw-semibold">Reset filters</a><?php else: ?>No activity logs recorded yet.<?php endif; ?></p>
-                                                    </td>
-                                                </tr>
+                                            <?php if (empty($logs)):
+                                                $auditCols = ($isOwner ? 7 : 6) + ($viewLogins ? 1 : 0);
+                                                if (!$auditOk && $total === 0 && ($result['status'] ?? 0) >= 400 && ($result['status'] ?? 0) !== 416): ?>
+                                                <?= listEmpty($auditCols, false, 'The logs could not be loaded', 'Please check your connection and refresh the page.', 'danger:feather-alert-triangle') ?>
+                                                <?php else: ?>
+                                                <?= listEmpty($auditCols, (bool)$filtersOn,
+                                                        $viewLogins ? 'No login attempts yet' : 'No activity yet',
+                                                        $viewLogins ? 'Sign-ins to the staff portal are recorded here.' : 'Changes made to records are listed here as they happen.',
+                                                        $viewLogins ? 'feather-log-in' : 'feather-shield', $resetUrl) ?>
+                                                <?php endif; ?>
                                             <?php endif; ?>
 
                                             <?php foreach ($logs as $log): ?>
@@ -230,6 +309,9 @@ $allModules = [
                                                     $entityId    = htmlspecialchars($log['entity_id']   ?? '');
                                                     $entityName  = htmlspecialchars($log['entity_name'] ?? '—');
                                                     $moduleLabel = ucwords(str_replace('-', ' ', $module));
+                                                    // Login attempts: status / reason / IP from after_data (decoded jsonb)
+                                                    $ad          = is_array($log['after_data'] ?? null) ? $log['after_data'] : (json_decode((string)($log['after_data'] ?? ''), true) ?: []);
+                                                    $loginOk     = ($ad['status'] ?? '') === 'Successful' || $action === 'LOGIN_SUCCESS';
 
                                                     // Everything the View Details modal shows (escaped again by JS on display)
                                                     $detail = [
@@ -243,23 +325,19 @@ $allModules = [
                                                         'entity_id'   => $log['entity_id']   ?? null,
                                                         'description' => $log['description'] ?? $log['details'] ?? null,
                                                     ];
-                                                    // Before/after data, only if the log row carries it
                                                     $detail['action_class'] = actionBadgeClass($action);
                                                     $detail['description']  = $detail['description'] ?? ($log['description_old'] ?? null);
-                                                    foreach (['before_data', 'after_data', 'old_values', 'new_values', 'old_data', 'new_data', 'before', 'after', 'changes'] as $k) {
-                                                        if (isset($log[$k]) && $log[$k] !== '') $detail['changes'][$k] = $log[$k];
-                                                    }
+                                                    // Before / after data is not shown (and not sent to the browser); it stays in audit_logs.
                                                 ?>
                                                 <tr>
                                                     <!-- Timestamp -->
                                                     <td>
-                                                        <span class="text-dark fw-medium d-block"><?= date('M d, Y', $ts) ?></span>
-                                                        <small class="text-muted"><?= date('h:i A', $ts) ?></small>
+                                                        <?= recWhen(date('M d, Y', $ts), date('h:i A', $ts)) ?>
                                                     </td>
 
                                                     <!-- User + Role -->
                                                     <td>
-                                                        <span class="d-block fw-medium text-dark"><?= $username ?></span>
+                                                        <span class="d-block rec-strong"><?= $username ?></span>
                                                         <?php if ($role): ?>
                                                             <span class="badge user-role-badge <?= roleBadgeClass($role) ?> text-uppercase">
                                                                 <?= $role ?>
@@ -270,10 +348,18 @@ $allModules = [
                                                     <!-- Branch (owner only) -->
                                                     <?php if ($isOwner): ?>
                                                     <td>
-                                                        <small class="text-dark"><?= $branchName ?></small>
+                                                        <?= recBranch($log['branch_name'] ?? '', $auditBranches ?? []) ?>
                                                     </td>
                                                     <?php endif; ?>
 
+                                                    <?php if ($viewLogins): ?>
+                                                    <td><span class="rec-strong"><?= $entityName ?></span></td>
+                                                    <td>
+                                                        <?= recPill($loginOk ? 'Successful' : 'Failed', $loginOk ? 'up' : 'down') ?>
+                                                    </td>
+                                                    <td class="text-wrap"><small class="text-dark"><?= htmlspecialchars($ad['reason_text'] ?? ($log['description'] ?? '—')) ?></small></td>
+                                                    <td><span class="login-ip text-muted"><?= htmlspecialchars($ad['ip'] ?? '—') ?></span></td>
+                                                    <?php else: ?>
                                                     <!-- Module -->
                                                     <td>
                                                         <span class="badge module-badge bg-soft-info text-info text-uppercase">
@@ -291,17 +377,18 @@ $allModules = [
                                                     <!-- Entity ID + Name -->
                                                     <td>
                                                         <?php if ($entityName && $entityName !== '—'): ?>
-                                                            <span class="d-block text-dark fw-medium"><?= $entityName ?></span>
+                                                            <span class="d-block rec-strong"><?= $entityName ?></span>
                                                         <?php endif; ?>
                                                         <?php if ($entityId): ?>
                                                             <span class="audit-entity-id text-muted">ID: <?= $entityId ?></span>
                                                         <?php endif; ?>
                                                     </td>
+                                                    <?php endif; ?>
 
                                                     <!-- Action -->
-                                                    <td class="text-end">
+                                                    <td class="rec-col-action">
                                                         <div class="dropdown">
-                                                            <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed" aria-label="Actions"><i class="feather-more-vertical"></i></a>
+                                                            <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed" aria-label="Actions for this log entry"><i class="feather-more-vertical"></i></a>
                                                             <div class="dropdown-menu dropdown-menu-end action-dropdown">
                                                                 <a href="javascript:void(0);" class="dropdown-item" data-log="<?= htmlspecialchars(json_encode($detail, JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>" onclick="viewAuditLog(this)">
                                                                     <i class="feather-eye"></i> View Details
@@ -317,48 +404,10 @@ $allModules = [
                             </div><!-- /card-body -->
 
                             <!-- Pagination -->
-                            <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                <p class="text-muted small mb-0">
-                                    Showing <?= $from ?>–<?= $to ?> of <?= $total ?> log(s)
-                                </p>
+                            <div class="card-footer ar-foot d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <?= listFootCount($from, $to, $total, $viewLogins ? 'login attempt' : 'log entry', $resetUrl, (bool)$filtersOn, $viewLogins ? 'login attempts' : 'log entries') ?>
 
-                                <?php if ($totalPages > 1): ?>
-                                    <ul class="list-unstyled d-flex align-items-center gap-1 mb-0 pagination-common-style">
-                                        <li>
-                                            <?php if ($page <= 1): ?>
-                                                <span class="text-muted" style="opacity:.4;"><i class="bi bi-arrow-left"></i></span>
-                                            <?php else: ?>
-                                                <a href="<?= $pageUrl ?>&page=<?= $page - 1 ?>">
-                                                    <i class="bi bi-arrow-left"></i>
-                                                </a>
-                                            <?php endif; ?>
-                                        </li>
-
-                                        <?php
-                                        // Show max 7 page links around current page
-                                        $start = max(1, $page - 3);
-                                        $end   = min($totalPages, $page + 3);
-                                        for ($i = $start; $i <= $end; $i++):
-                                        ?>
-                                            <li>
-                                                <a href="<?= $pageUrl ?>&page=<?= $i ?>"
-                                                    class="<?= ($i === $page) ? 'active' : '' ?>">
-                                                    <?= $i ?>
-                                                </a>
-                                            </li>
-                                        <?php endfor; ?>
-
-                                        <li>
-                                            <?php if ($page >= $totalPages): ?>
-                                                <span class="text-muted" style="opacity:.4;"><i class="bi bi-arrow-right"></i></span>
-                                            <?php else: ?>
-                                                <a href="<?= $pageUrl ?>&page=<?= $page + 1 ?>">
-                                                    <i class="bi bi-arrow-right"></i>
-                                                </a>
-                                            <?php endif; ?>
-                                        </li>
-                                    </ul>
-                                <?php endif; ?>
+                                <?= listPager($pageUrl, $page, $totalPages) ?>
                             </div>
 
                         </div><!-- /card -->
@@ -370,7 +419,7 @@ $allModules = [
     </main>
 
     <!-- VIEW DETAILS MODAL (shared .es-detail-modal design) -->
-    <div class="modal fade es-detail-modal" id="auditViewModal" tabindex="-1" aria-labelledby="auditViewTitle" aria-hidden="true">
+    <div class="modal fade es-detail-modal ar-detail-modal" id="auditViewModal" tabindex="-1" aria-labelledby="auditViewTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down apt-record-dialog">
             <div class="modal-content apt-record-content">
                 <div class="modal-header apt-record-header">
@@ -394,16 +443,19 @@ $allModules = [
     </div>
 
     <script src="assets/vendors/js/vendors.min.js"></script>
+    <!-- SweetAlert2 v11 (self-hosted, same build as every other admin page): replaces the
+         v9 bundled in vendors.min.js, whose result has no isConfirmed (Sign Out never ran) -->
+    <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
-    <script src="assets/js/admin.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
+    <script src="assets/js/admin.js?v=7"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
+    <script src="assets/js/es-records.js?v=3"></script>
     <script>
     function applyFilters() {
-        window._applyFilters('audit-records.php', { module: 'filterModule', action: 'filterAction' });
-    }
-    function resetFilters() {
-        window.location.href = 'audit-records.php';
+        window._applyFilters('audit-records.php', { view: 'filterView', module: 'filterModule', action: 'filterAction', login: 'filterLogin', branch: 'filterBranch', user: 'filterUser' });
     }
 
     // ── View Details ─────────────────────────────────────────────
@@ -421,13 +473,6 @@ $allModules = [
             return n;
         };
         const label = k => String(k).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        const parse = v => {
-            if (typeof v !== 'string') return v;
-            try { return JSON.parse(v); } catch (e) { return v; }
-        };
-        const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
-        const pretty = v => (v === null || v === undefined || v === '') ? '—'
-            : (typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v));
 
         const card = (icon, title, content, wide) => {
             const sec = el('section', 'ar-card' + (wide ? ' ar-card-wide' : ''));
@@ -482,47 +527,6 @@ $allModules = [
             card('feather-file-text', 'Description',
                 has(log.description) ? el('p', 'ar-notes', log.description) : el('p', 'es-json-empty', 'No description recorded.'), true)
         );
-
-        // Before / after data (only what the log row carries)
-        const ch = log.changes || {};
-        const pairs = [['before_data', 'after_data'], ['old_values', 'new_values'], ['old_data', 'new_data'], ['before', 'after']];
-        const used = new Set();
-        const changes = document.createDocumentFragment();
-        pairs.forEach(([bk, ak]) => {
-            if (!(bk in ch) && !(ak in ch)) return;
-            used.add(bk); used.add(ak);
-            const before = parse(ch[bk]), after = parse(ch[ak]);
-            if (isObj(before) && isObj(after)) {
-                // Field-by-field comparison; changed rows highlighted
-                const wrap = el('div', 'table-responsive es-detail-table-wrap');
-                const table = el('table', 'table table-sm mb-0 es-detail-table');
-                const thead = el('thead'), hr = el('tr');
-                ['Field', 'Before', 'After'].forEach(h => hr.append(el('th', '', h)));
-                thead.append(hr);
-                const tb = el('tbody');
-                new Set([...Object.keys(before), ...Object.keys(after)]).forEach(k => {
-                    const o = before[k], n = after[k];
-                    const tr = el('tr', JSON.stringify(o) !== JSON.stringify(n) ? 'table-warning' : '');
-                    const td = v => { const c = el('td'); const t = pretty(v); t.includes('\n') ? c.append(el('pre', 'es-json mb-0', t)) : (c.textContent = t); return c; };
-                    tr.append(el('th', '', label(k)), td(o), td(n));
-                    tb.append(tr);
-                });
-                table.append(thead, tb);
-                wrap.append(table);
-                changes.append(wrap);
-            } else {
-                [['Before', before], ['After', after]].forEach(([t, v]) => {
-                    changes.append(el('div', 'es-json-label', t));
-                    changes.append(has(v) || isObj(v) || Array.isArray(v) ? el('pre', 'es-json', pretty(v)) : el('div', 'es-json-empty', 'No data recorded.'));
-                });
-            }
-        });
-        Object.keys(ch).filter(k => !used.has(k)).forEach(k => {
-            changes.append(el('div', 'es-json-label', label(k)));
-            changes.append(el('pre', 'es-json', pretty(parse(ch[k]))));
-        });
-        grid.append(card('feather-git-commit', 'Before & After Data',
-            changes.childNodes.length ? changes : el('p', 'es-json-empty', 'No before/after data was recorded for this entry.'), true));
 
         body.append(grid);
         bootstrap.Modal.getOrCreateInstance(document.getElementById('auditViewModal')).show();

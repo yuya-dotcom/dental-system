@@ -56,27 +56,52 @@ function loginUser(string $email, string $password): array
 {
     bootSession();
 
+    // Every attempt is recorded in the Audit Trail (module 'authentication').
+    // The user only ever sees the generic message, whatever the real reason.
+    require_once __DIR__ . '/audit_controller.php';
+    $generic = ['success' => false, 'message' => 'Invalid email or password.'];
+
     if (empty($email) || empty($password)) {
+        logLoginAttempt(false, (string)$email, null, 'missing_credentials', 'Username or password was left blank');
         return ['success' => false, 'message' => 'Email and password are required.'];
     }
 
-    // Fetch user by email
+    // Fetch user by username. Inactive accounts are looked up too (no status
+    // filter) so the log can say why the sign-in was refused; they are still
+    // refused below exactly as before.
     $result = supabase_request('users', 'GET', [], implode('&', [
         'username=eq.' . urlencode(trim($email)),
-        'status=eq.active',
-        'select=user_id,user_code,full_name,email,username,password,role,branch_id',
+        'select=user_id,user_code,full_name,email,username,password,role,branch_id,status',
         'limit=1',
     ]));
 
-    if ($result['error'] || empty($result['data'])) {
-        return ['success' => false, 'message' => 'Invalid email or password.'];
+    if ($result['error']) {
+        logLoginAttempt(false, $email, null, 'lookup_failed', 'Account lookup failed (database unavailable)');
+        return $generic;
+    }
+    if (empty($result['data'])) {
+        logLoginAttempt(false, $email, null, 'unknown_account', 'No account with this username');
+        return $generic;
     }
 
     $user = $result['data'][0];
+    $logUser = array_intersect_key($user, array_flip(['user_id', 'full_name', 'role', 'branch_id']));   // never the hash
+
+    if (($user['status'] ?? '') !== 'active') {
+        logLoginAttempt(false, $email, $logUser, 'inactive_account', 'Account is ' . (($user['status'] ?? '') !== '' ? $user['status'] : 'not active'));
+        return $generic;
+    }
 
     // Verify password
     if (!password_verify($password, $user['password'])) {
-        return ['success' => false, 'message' => 'Invalid email or password.'];
+        logLoginAttempt(false, $email, $logUser, 'incorrect_password', 'Incorrect password');
+        return $generic;
+    }
+
+    // Only staff roles may use the admin portal
+    if (!in_array($user['role'] ?? '', ['owner', 'admin', 'dentist'], true)) {
+        logLoginAttempt(false, $email, $logUser, 'role_not_permitted', 'Role "' . ($user['role'] ?? '') . '" may not use the admin portal');
+        return $generic;
     }
 
     // Store in session
@@ -101,6 +126,11 @@ function loginUser(string $email, string $password): array
     } else {
         $_SESSION['branch_name'] = null;
     }
+
+    $noBranch = $user['role'] !== 'owner' && empty($user['branch_id']);
+    logLoginAttempt(true, $email, $logUser, 'success',
+        $noBranch ? 'Signed in, but the account has no branch assigned (pages stay blocked)' : 'Signed in',
+        $_SESSION['branch_name']);
 
     return ['success' => true, 'message' => 'Login successful.'];
 }
@@ -276,6 +306,40 @@ function requireAppointmentBranch(int $appointmentId): int
 function requireBranchAccess($recordBranchId): void
 {
     if (!canAccessBranch($recordBranchId)) apiDeny(403);
+}
+
+/**
+ * May the current staff user see this patient? Patients have no permanent
+ * branch (they choose one per booking), so for an admin / dentist the link
+ * is the appointments table: at least one appointment of the patient (any
+ * status) at the user's own session branch. The owner sees every patient.
+ * Same rule as the Patient List (controllers/patient_controller.php).
+ *
+ * A positive answer is remembered in the session for 10 minutes (per
+ * patient + branch) so the patient record's several API calls don't each
+ * repeat the lookup; a negative answer is never cached.
+ */
+function canAccessPatient(int $patientId): bool
+{
+    if (($_SESSION['role'] ?? '') === 'owner') return true;
+    if ($patientId <= 0 || !staffBranchValid()) return false;
+    $branch = (int)$_SESSION['branch_id'];
+    $key    = $patientId . ':' . $branch;
+    $seen   = $_SESSION['es_patient_access'][$key] ?? 0;
+    if ($seen && time() - (int)$seen < 600) return true;
+
+    $r  = supabase_request('appointments', 'GET', [],
+        'patient_id=eq.' . $patientId . '&branch_id=eq.' . $branch . '&select=appointment_id&limit=1');
+    $ok = !empty($r['data'][0]);
+    // Only while the session is still open for writing (pages that released it just re-check next time)
+    if ($ok && session_status() === PHP_SESSION_ACTIVE) $_SESSION['es_patient_access'][$key] = time();
+    return $ok;
+}
+
+/** JSON APIs: stop with 403 unless the current user may see this patient. */
+function requirePatientAccess(int $patientId): void
+{
+    if (!canAccessPatient($patientId)) apiDeny(403);
 }
 
 // ─────────────────────────────────────────────────────────────

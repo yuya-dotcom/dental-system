@@ -2,6 +2,8 @@
 require_once __DIR__ . '/controllers/auth_controller.php';
 requireLogin();
 $user = getCurrentUser();
+require_once __DIR__ . '/controllers/module_access.php';
+$homePage = esModuleHome();   // first page this account may open (owner-assigned modules)
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -36,9 +38,11 @@ $user = getCurrentUser();
             <a href="javascript:history.back()" class="btn btn-light-brand me-2">
                 <i class="feather-arrow-left me-1"></i> Go Back
             </a>
-            <a href="dashboard.php" class="btn btn-primary">
-                <i class="feather-home me-1"></i> Dashboard
+            <?php if ($homePage): ?>
+            <a href="<?= htmlspecialchars($homePage) ?>" class="btn btn-primary">
+                <i class="feather-home me-1"></i> <?= $homePage === 'dashboard.php' ? 'Dashboard' : 'Home' ?>
             </a>
+            <?php endif; ?>
         </div>
     </div>
     <script src="assets/vendors/js/vendors.min.js"></script>

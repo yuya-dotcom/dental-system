@@ -24,6 +24,7 @@ if ($method === 'GET') {
         echo json_encode(['success' => false, 'message' => 'patient_id required.']);
         exit;
     }
+    requirePatientAccess($patientId);   // non-owners: only patients with an appointment at their branch
 
     // Fetch base dental_chart rows
     $chartRes = supabase_request(
@@ -79,6 +80,7 @@ if ($method === 'POST') {
         echo json_encode(['success' => false, 'message' => 'patient_id is required.']);
         exit;
     }
+    requirePatientAccess($patientId);
 
     // tooth_number only required for single-tooth actions, not for batch
     if (!in_array($action, ['upsert_batch', 'get_history']) && !$toothNum) {

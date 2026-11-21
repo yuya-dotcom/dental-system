@@ -109,6 +109,77 @@ function getPatientInvoices(int $patientId): array {
 }
 
 /**
+ * Everything the Patient Record header/Overview (and, with $forPrint, the
+ * printable record) needs, in ONE request: the patient with its invoices,
+ * treatments, upcoming appointments and clinical notes embedded.
+ *
+ * It replaces 4 (page) / 7 (print) separate reads that ran one after another
+ * on the host (no curl_multi): getPatientById, getPatientFinancialSummary,
+ * getPatientActiveTreatments, getPatientUpcomingAppointments and, for print,
+ * getPatientInvoices, getPatientTreatments, getPatientClinicalNotes. Every
+ * list keeps the same filters, order and limits as those functions.
+ *
+ * Returns null when the combined read is not available (the caller then uses
+ * the individual functions), or ['patient' => null] when there is no patient.
+ */
+function getPatientRecordBundle(int $patientId, bool $forPrint = false): ?array
+{
+    $today = date('Y-m-d');
+    $invCols = $forPrint
+        ? 'invoice_id,invoice_code,invoice_date,total_amount,amount_paid,balance,payment_status,payments(payment_id,amount,payment_method,payment_date,notes)'
+        : 'total_amount,amount_paid,balance,payment_status';
+    $sel = [
+        'patient_id,patient_code,full_name,contact_number,gender,birthdate,last_visit,status,branch_id,created_at,branches(branch_name)',
+        'inv:invoices(' . $invCols . ')',
+        // Active treatments (Overview): same filter / order / limit as getPatientActiveTreatments()
+        'act:treatments(treatment_id,treatment_code,current_stage,status,tooth_number,services(service_name))',
+        // Upcoming (Overview): same as getPatientUpcomingAppointments(), services embedded
+        'up:appointments(appointment_id,appointment_code,appointment_date,appointment_time,appointment_type,status,'
+            . 'services(service_name),dentists(full_name),appointment_services(sort_order,services(service_name)))',
+    ];
+    $q = [
+        'act.status=in.(ongoing,in_progress,pending)', 'act.order=created_at.desc', 'act.limit=5',
+        'up.appointment_date=gte.' . $today, 'up.status=in.(pending,confirmed)',
+        'up.order=appointment_date.asc,appointment_time.asc', 'up.limit=10',
+    ];
+    if ($forPrint) {
+        $q[]   = 'inv.order=invoice_date.desc';
+        $sel[] = 'trt:treatments(treatment_id,treatment_code,tooth_number,current_stage,status,treatment_date,cost,procedure_notes,'
+               . 'services(service_name),dentists(full_name),branches(branch_name))';
+        $q[]   = 'trt.order=treatment_date.desc';
+        $sel[] = 'cn:clinical_notes(note_id,note_text,note_date,created_by,is_private,created_at,updated_at,dentists(full_name),appointments(appointment_code))';
+        array_push($q, 'cn.order=note_date.desc,created_at.desc', 'cn.limit=20');
+    }
+
+    $res = supabase_request('patients', 'GET', [],
+        'select=' . implode(',', $sel) . '&' . implode('&', $q) . '&patient_id=eq.' . $patientId . '&limit=1');
+    if (!empty($res['error']) || !is_array($res['data'] ?? null)) return null;
+    $row = $res['data'][0] ?? null;
+    if (!$row) return ['patient' => null];
+
+    $list = fn(string $k) => is_array($row[$k] ?? null) ? $row[$k] : [];
+    $invoices = $list('inv');
+    $billed = 0; $paid = 0; $balance = 0;
+    foreach ($invoices as $r) {
+        $billed  += (float)($r['total_amount'] ?? 0);
+        $paid    += (float)($r['amount_paid'] ?? 0);
+        $balance += (float)($r['balance'] ?? 0);
+    }
+    $out = [
+        'summary'  => ['total_billed' => $billed, 'total_paid' => $paid, 'total_balance' => $balance, 'invoice_count' => count($invoices)],
+        'active'   => $list('act'),
+        'upcoming' => attachAppointmentServiceNames($list('up')),
+    ];
+    if ($forPrint) {
+        $out['invoices']   = $invoices;
+        $out['treatments'] = $list('trt');
+        $out['notes']      = $list('cn');
+    }
+    foreach (['inv', 'act', 'up', 'trt', 'cn'] as $k) unset($row[$k]);
+    return ['patient' => $row] + $out;
+}
+
+/**
  * CRUD: Add clinical note
  */
 function addClinicalNote(int $patientId, int $branchId, string $noteText, string $noteDate, ?int $dentistId, ?int $appointmentId, string $createdBy, bool $isPrivate): array {

@@ -29,6 +29,9 @@ const BR_DEFAULT_OPERATING_DAYS = [1, 2, 3, 4, 5, 6];
  * Used by: branches-records.php
  */
 // $order: validated 'order=…' clause; $extra: prebuilt PostgREST filters (list_filters.php)
+/** Address parts added by database/proposed/2026-11-16_owner_records_eval2.sql. */
+if (!defined('BR_ADDRESS_COLS')) define('BR_ADDRESS_COLS', ',street,province,city,barangay,zip_code');
+
 function getBranchRecords(int $page, string $order = 'order=branch_name.asc', array $extra = []): array
 {
     $offset = ($page - 1) * BR_PER_PAGE;
@@ -37,8 +40,13 @@ function getBranchRecords(int $page, string $order = 'order=branch_name.asc', ar
     // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
     $result = (function_exists('admin_get') ? admin_get('branches', implode('&', $q), ['Prefer: count=exact']) : supabase_request('branches', 'GET', [], implode('&', $q), ['Prefer: count=exact']));
     if ($result['error']) {
+        // Address parts not added yet (2026-11-16 SQL file) — load without them
+        $q[0]   = str_replace(BR_ADDRESS_COLS, '', $q[0]);
+        $result = supabase_request('branches', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
+    }
+    if ($result['error']) {
         // operating_days not added yet (SQL file not run) — load without it, Mon–Sat is shown
-        $q[0]   = 'select=branch_id,branch_code,branch_name,address,contact_number,open_time,close_time,status,created_at';
+        $q[0]   = 'select=branch_id,branch_code,branch_name,address,contact_number,open_time,close_time,status,created_at,updated_at';
         $result = supabase_request('branches', 'GET', [], implode('&', $q), ['Prefer: count=exact']);
     }
     $rows   = is_array($result['data']) ? $result['data'] : [];
@@ -53,7 +61,7 @@ function branchRecordsQuery(int $page, string $order = 'order=branch_name.asc', 
     $offset = ($page - 1) * BR_PER_PAGE;
 
     $q = [
-        'select=branch_id,branch_code,branch_name,address,contact_number,open_time,close_time,operating_days,status,created_at',
+        'select=branch_id,branch_code,branch_name,address' . BR_ADDRESS_COLS . ',contact_number,open_time,close_time,operating_days,status,created_at,updated_at',
         $order,
         'limit='  . BR_PER_PAGE,
         'offset=' . $offset,
@@ -73,6 +81,12 @@ function getAllBranches(): array
     // admin_get(): reuses the result when the page already fetched it in
     // parallel with admin_prefetch() (controllers/admin_batch.php). Not
     // required here on purpose: portal/API callers keep plain supabase_request().
+    // Remembered for the rest of this request: the page, the navbar bell and
+    // inventory helpers all ask for the same list (no request writes branches
+    // and then lists them). Failures are not remembered.
+    static $memo = null;
+    if ($memo !== null) return $memo;
+
     $query  = 'select=branch_id,branch_name&order=branch_name.asc';
     $result = function_exists('admin_get')
         ? admin_get('branches', $query)
@@ -82,7 +96,7 @@ function getAllBranches(): array
         return [];
     }
 
-    return $result['data'];
+    return $memo = $result['data'];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -111,6 +125,34 @@ function normalizeOperatingDays(mixed $raw): array
     }
     sort($days);
     return array_values($days);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  SCHEDULE EXCEPTIONS  (branch_schedule_exceptions)
+//  A date that differs from the usual weekly schedule: is_open = true
+//  opens a normally closed day, false closes a normally open one.
+//  SQL: database/proposed/2026-11-12_branch_schedule_exceptions.sql
+// ─────────────────────────────────────────────────────────────
+
+const BR_EXCEPTIONS_TABLE      = 'branch_schedule_exceptions';
+const BR_EXCEPTION_REASON_MAX  = 200;
+
+/**
+ * Exception rows ordered by date, optionally for one branch and/or a date
+ * range (inclusive). Returns null when the table can't be read (SQL file
+ * not run yet, or Supabase down) so callers can fall back to the weekly
+ * schedule alone.
+ */
+function getBranchExceptions(?int $branchId = null, ?string $from = null, ?string $to = null): ?array
+{
+    $q = ['select=exception_id,branch_id,exception_date,is_open,reason,created_at', 'order=exception_date.asc'];
+    if ($branchId) $q[] = 'branch_id=eq.' . $branchId;
+    if ($from)     $q[] = 'exception_date=gte.' . $from;
+    if ($to)       $q[] = 'exception_date=lte.' . $to;
+
+    $r = supabase_request(BR_EXCEPTIONS_TABLE, 'GET', [], implode('&', $q));
+    if ($r['error'] || !is_array($r['data'])) return null;
+    return $r['data'];
 }
 
 /** Operating days of a branch row, falling back to Mon–Sat. */
@@ -152,36 +194,4 @@ function _branchDayRun(array $run, array $names): string
 {
     if (count($run) >= 3) return $names[$run[0]] . '–' . $names[end($run)];
     return implode(', ', array_map(fn($d) => $names[$d], $run));
-}
-
-// ─────────────────────────────────────────────────────────────
-//  HELPERS
-// ─────────────────────────────────────────────────────────────
-
-function branchStatusBadge(?string $status): string
-{
-    return match (strtolower($status ?? 'active')) {
-        'active'   => 'bg-soft-success text-success',
-        'inactive',
-        'closed'   => 'bg-soft-danger text-danger',
-        default    => 'bg-soft-secondary text-secondary',
-    };
-}
-
-/**
- * Render a <select> branch filter with options from the DB.
- * Pass in the current selected branch_id and the page filename for the URL.
- */
-function renderBranchSelect(array $branches, int $selected, string $page): string
-{
-    $html  = '<select id="filterBranch" class="form-select form-select-sm" ';
-    $html .= 'onchange="applyFilters()" style="max-width:180px;">';
-    $html .= '<option value="0">All Branches</option>';
-    foreach ($branches as $b) {
-        $sel   = (int)$b['branch_id'] === $selected ? ' selected' : '';
-        $html .= '<option value="' . (int)$b['branch_id'] . '"' . $sel . '>'
-               . htmlspecialchars($b['branch_name']) . '</option>';
-    }
-    $html .= '</select>';
-    return $html;
 }

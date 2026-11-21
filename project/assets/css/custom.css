@@ -803,18 +803,18 @@
     background-color: #f8f9fa;
 }
 
-/* Column sizing — Owner: Patient ID | Patient Name | Branch | Last Visit | Status | Action
-                  Admin/Dentist: Patient ID | Patient Name | Last Visit | Status | Action */
+/* Column sizing — Owner: Last Visit | Patient (name + ID) | Branch | Status | Action
+                  Admin/Dentist: Last Visit | Patient (name + ID) | Status | Action */
 .pat-patients-table th:first-child,
 .pat-patients-table td:first-child {
-    min-width: 110px;  /* Patient ID */
-    width: 14%;
+    min-width: 140px;  /* Last Visit */
+    width: 20%;
 }
 
 .pat-patients-table th:nth-child(2),
 .pat-patients-table td:nth-child(2) {
-    min-width: 190px;  /* Patient Name (includes avatar) */
-    width: 30%;
+    min-width: 220px;  /* Patient: avatar, name, patient ID */
+    width: 36%;
 }
 
 .pat-patients-table th:last-child,
@@ -1379,8 +1379,7 @@
 .bil-records-table tbody td { padding: 12px; vertical-align: middle; font-size: 0.875rem; }
 .bil-records-table tbody tr:hover { background-color: #f8f9fa; }
 .bil-records-table th:nth-child(1), .bil-records-table td:nth-child(1) { min-width: 120px; }  /* Date / Time */
-.bil-records-table th:nth-child(2), .bil-records-table td:nth-child(2) { min-width: 100px; }  /* Patient ID */
-.bil-records-table th:nth-child(3), .bil-records-table td:nth-child(3) { min-width: 170px; }  /* Patient Name */
+.bil-records-table th:nth-child(2), .bil-records-table td:nth-child(2) { min-width: 210px; }  /* Patient: name + patient ID */
 .bil-records-table .bil-amt { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .bil-records-table th:last-child, .bil-records-table td:last-child { width: 60px; text-align: right; }
 @media (max-width: 768px) {
@@ -1449,6 +1448,71 @@
 }
 #addPaymentModal .pm-quick-btn:hover { background: #dbeafe; }
 #addPaymentModal .pm-hint { margin-left: auto; font-size: 0.75rem; color: var(--ar-muted); }
+/* Payment method: 2x2 category cards → options → fields (UI only, see billing.js) */
+#addPaymentModal .pm-cats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+#addPaymentModal .pm-cat {
+    position: relative; display: flex; align-items: center; gap: 12px; min-width: 0; margin: 0;
+    padding: 11px 12px; border: 1px solid var(--ar-border); border-radius: 10px; background: #fff;
+    cursor: pointer; transition: border-color .15s, background-color .15s, box-shadow .15s;
+}
+#addPaymentModal .pm-cat:hover { border-color: #bfd3f6; background: #fbfdff; }
+#addPaymentModal .pm-cat input,
+#addPaymentModal .pm-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+#addPaymentModal .pm-cat-icon {
+    display: inline-grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 9px;
+    background: #f1f5f9; color: var(--ar-muted); font-size: 1rem; transition: background-color .15s, color .15s;
+}
+#addPaymentModal .pm-cat-text { display: flex; flex-direction: column; min-width: 0; }
+#addPaymentModal .pm-cat-name { font-size: 0.86rem; font-weight: 700; color: var(--ar-text); line-height: 1.3; }
+#addPaymentModal .pm-cat-desc { font-size: 0.74rem; color: var(--ar-muted); line-height: 1.35; }
+#addPaymentModal .pm-cat.is-selected,
+#addPaymentModal .pm-opt.is-selected { border-color: var(--ar-primary); background: var(--ar-primary-light); box-shadow: 0 0 0 1px var(--ar-primary) inset; }
+#addPaymentModal .pm-cat.is-selected .pm-cat-icon { background: var(--ar-primary); color: #fff; }
+#addPaymentModal .pm-cat.is-selected::after {
+    content: '\e92b'; font-family: 'feather'; position: absolute; top: 7px; right: 8px;
+    font-size: 0.7rem; color: var(--ar-primary);
+}
+#addPaymentModal .pm-cat:has(input:focus-visible),
+#addPaymentModal .pm-opt:has(input:focus-visible) { outline: 3px solid rgba(37, 99, 235, 0.3); outline-offset: 1px; }
+#addPaymentModal .pm-panel {
+    margin-top: 12px; padding: 14px; border: 1px solid var(--ar-border); border-radius: 10px; background: #f8fafc;
+}
+#addPaymentModal .pm-panel-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+#addPaymentModal .pm-opts { display: grid; gap: 8px; }
+#addPaymentModal .pm-opts-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#addPaymentModal .pm-opts-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#addPaymentModal .pm-opt {
+    position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; margin: 0;
+    height: 42px; padding: 0 10px; border: 1px solid var(--ar-border); border-radius: 9px; background: #fff;
+    font-size: 0.84rem; font-weight: 600; color: var(--ar-text); cursor: pointer; transition: border-color .15s, background-color .15s;
+}
+#addPaymentModal .pm-opt:hover { border-color: #bfd3f6; }
+#addPaymentModal .pm-opt > i { color: var(--ar-muted); }
+#addPaymentModal .pm-opt.is-selected > i { color: var(--ar-primary); }
+#addPaymentModal .pm-opt-logo { display: block; height: 18px; width: auto; max-width: 100%; object-fit: contain; }  /* official wordmarks (same files as the Patient Portal) */
+#addPaymentModal .pm-opt span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#addPaymentModal .pm-reveal { margin-top: 14px; }
+#addPaymentModal .pm-auto { color: var(--ar-muted); font-variant-numeric: tabular-nums; }
+#addPaymentModal .pm-sub-hint { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; font-size: 0.74rem; line-height: 1.45; color: var(--ar-muted); }
+#addPaymentModal .pm-sub-hint i { margin-top: 2px; }
+#addPaymentModal .pm-method-note {
+    display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; padding: 8px 11px; border-radius: 9px;
+    background: #fffbeb; border: 1px solid #fde68a; font-size: 0.78rem; line-height: 1.45; color: #92400e;
+}
+#addPaymentModal .pm-method-note[hidden],
+#addPaymentModal .pm-panel[hidden],
+#addPaymentModal .pm-reveal[hidden] { display: none; }
+#addPaymentModal .pm-method-note i { margin-top: 2px; }
+@media (max-width: 575.98px) {
+    #addPaymentModal .pm-panel-grid { grid-template-columns: 1fr; }
+    #addPaymentModal .pm-cat { padding: 10px; gap: 10px; }
+    #addPaymentModal .pm-cat-icon { width: 32px; height: 32px; }
+    #addPaymentModal .pm-cat-desc { display: none; }
+}
+@media (max-width: 359.98px) {
+    #addPaymentModal .pm-cats, #addPaymentModal .pm-opts-3 { grid-template-columns: 1fr; }
+}
+
 /* Voucher list/picker reuse the invoice view styles */
 #addPaymentModal .bv-discounts { display: grid; gap: 6px; width: 100%; }
 #addPaymentModal .bv-discount {
@@ -1512,4 +1576,270 @@
     :is(#billingViewModal, #addPaymentModal) .bv-voucher-row { flex-wrap: wrap; }
     :is(#billingViewModal, #addPaymentModal) .bv-voucher-row .btn { flex: 1 1 100%; }
     :is(#billingViewModal, #addPaymentModal) .bv-vp-rows { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ADD / EDIT APPOINTMENT — schedule first (date + time slots side by side)
+   ══════════════════════════════════════════════════════════════════════ */
+.apt-form-dialog .apt-form-grid.apt-form-stack { grid-template-columns: minmax(0, 1fr); gap: 0.85rem; }
+.apt-form-dialog .apt-form-body { padding-top: 0.15rem; padding-bottom: 1rem; }
+.apt-form-dialog .apt-sched-card .ar-card-header { gap: 0.5rem; }
+.apt-form-dialog .apt-sched-hint { margin-left: auto; font-size: 0.72rem; color: var(--ar-muted); }
+.apt-form-dialog .apt-sched-body {
+    display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: 1.1rem; align-items: start; padding: 0.85rem 1rem 0.95rem;
+}
+.apt-form-dialog .apt-sched-left .apt-field { margin-bottom: 0.6rem; }
+.apt-form-dialog .apt-slots-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.45rem; min-height: 26px; }
+.apt-form-dialog .apt-slots-refresh {
+    display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.55rem;
+    border: 1px solid var(--ar-border); border-radius: 7px; background: #fff;
+    font-size: 0.72rem; font-weight: 600; color: var(--ar-primary); cursor: pointer;
+}
+.apt-form-dialog .apt-slots-refresh[hidden] { display: none; }
+.apt-form-dialog .apt-slots-refresh:hover { background: #eff6ff; }
+.apt-form-dialog #adminTimeSlots { border: 1px solid var(--ar-border); border-radius: 12px; padding: 0.65rem; min-height: 120px; }
+/* Beside the calendar there is room for every start time (admin.css capped it at 150px) */
+.apt-form-dialog #adminTimeSlotsGrid { max-height: 320px; }
+.apt-form-dialog .apt-slots-placeholder i { font-size: 1.2rem; opacity: 0.45; }
+.apt-form-dialog .apt-slot-warn { margin: 0 0 0.5rem; padding: 0.4rem 0.6rem; border-radius: 8px; background: #fffbeb; color: #92400e; font-size: 0.76rem; }
+.apt-form-dialog .apt-slot-keep { display: inline-block; margin-top: 0.35rem; color: #15803d; font-weight: 600; }
+.apt-form-dialog .slot-visit { margin-left: auto; font-weight: 600 !important; color: var(--ar-text) !important; }
+.apt-form-dialog .apt-dt-summary { margin-top: 0.6rem; }
+.apt-form-dialog .apt-form-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.85rem; align-items: start; }
+.apt-form-dialog .apt-form-card-body { padding: 0.85rem 1rem 0.95rem; }
+.apt-form-dialog .apt-svc-note { margin-top: 0.4rem; font-size: 0.72rem; color: var(--ar-muted); }
+/* Compact calendar so the slots beside it are the same height */
+.apt-form-dialog .apt-cal .fc .fc-toolbar.fc-header-toolbar { margin-bottom: 0.35rem; }
+.apt-form-dialog .apt-cal .fc .fc-daygrid-day-frame { min-height: 0; }
+.apt-form-dialog .apt-cal .fc .fc-daygrid-day-events { min-height: 0.35rem; margin: 0; }
+.apt-form-dialog .apt-cal .fc .fc-daygrid-day-top { justify-content: center; }
+#adminCalendarWrap .fc-day-closed { background: #f8fafc !important; cursor: not-allowed !important; }
+#adminCalendarWrap .fc-day-closed .fc-daygrid-day-number { color: #cbd5e1 !important; }
+@media (max-width: 991.98px) {
+    .apt-form-dialog .apt-sched-body { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 767.98px) {
+    .apt-form-dialog .apt-form-pair { grid-template-columns: minmax(0, 1fr); }
+    .apt-form-dialog .apt-sched-hint { display: none; }
+}
+
+/* ── Add / Edit Appointment, compact layout (2026-11-12 rev 16) ─────────────
+   Wide column: Schedule = date calendar | time slots side by side, so both are
+   visible without scrolling. Narrow column: patient · dentist · services ·
+   notes. ≤1199px: stacked (schedule first), details as a 2 × 2 grid.
+   ≤575px (full-screen modal): one column. */
+.apt-form-dialog .apt-form-layout {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(270px, 310px);
+    gap: 0.85rem; align-items: start;
+}
+.apt-form-dialog .apt-sched-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.9rem; padding: 0.75rem 0.9rem 0.85rem; }
+.apt-form-dialog .apt-branch-field { margin-bottom: 0.55rem; }
+.apt-form-dialog .apt-branch-chip {
+    display: inline-flex; align-items: center; gap: 0.3rem; max-width: 50%;
+    padding: 0.15rem 0.6rem; border: 1px solid #bfdbfe; border-radius: 999px;
+    background: #eff6ff; color: #1d4ed8; font-size: 0.74rem; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.apt-form-dialog .apt-details-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; padding: 0.75rem 0.9rem 0.85rem; }
+.apt-form-dialog .apt-details-body .apt-field { margin-bottom: 0; }
+.apt-form-dialog .apt-notes-field textarea { min-height: 62px; resize: vertical; }
+.apt-form-dialog .apt-form-hint strong { color: #15803d; font-weight: 600; }
+/* Slots beside the calendar scroll inside their own box */
+.apt-form-dialog #adminTimeSlotsGrid { max-height: 300px; overflow-y: auto; }
+@media (max-width: 1199.98px) {
+    .apt-form-dialog .apt-form-layout { grid-template-columns: minmax(0, 1fr); }
+    .apt-form-dialog .apt-details-body { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 0.9rem; }
+}
+@media (min-width: 576px) and (max-width: 991.98px) {
+    /* still side by side on tablets (the older rule stacked them below 992px) */
+    .apt-form-dialog .apt-sched-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .apt-form-dialog #adminTimeSlotsGrid { max-height: 300px; overflow-y: auto; }
+}
+@media (max-width: 767.98px) {
+    .apt-form-dialog .apt-details-body { grid-template-columns: minmax(0, 1fr); }
+    .apt-form-dialog .apt-branch-chip { max-width: 60%; }
+}
+@media (max-width: 575.98px) {
+    .apt-form-dialog .apt-sched-body { grid-template-columns: minmax(0, 1fr); }
+    .apt-form-dialog #adminTimeSlotsGrid { max-height: none; overflow: visible; }
+}
+/* es-admin.css gives every phone calendar a 320px minimum (for the big
+   schedule calendars); this compact month picker is sized by its rows */
+.apt-form-dialog .apt-cal .fc .fc-view-harness { min-height: 0; }
+
+/* Cancel Appointment: reason box in the SweetAlert */
+.es-swal-popup .apt-cancel-label { display: block; margin: 0.9rem 0 0; font-size: 0.82rem; font-weight: 600; color: #334155; text-align: left; }
+.swal2-popup.es-swal-popup textarea.swal2-textarea.apt-cancel-reason {
+    box-sizing: border-box; width: 100%; max-width: 100%; min-height: 88px;
+    margin: 0.4rem 0 0; padding: 0.55rem 0.75rem;
+    border: 1px solid #c9d6ea; border-radius: 10px; box-shadow: none; background: #fff;
+    font-family: inherit; font-size: 0.86rem; color: #1e293b; resize: vertical;
+}
+.swal2-popup.es-swal-popup textarea.swal2-textarea.apt-cancel-reason:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15); }
+.swal2-popup.es-swal-popup textarea.swal2-textarea.apt-cancel-reason.swal2-inputerror { border-color: #f87171; box-shadow: none; }
+
+/* Appointment Records → Cancellation Information (only for cancelled appointments) */
+#aptRecordModal .ar-cancel-card { grid-column: 1 / -1; border-color: #fecaca; }
+#aptRecordModal .ar-cancel-card .ar-card-header { background: #fef2f2; border-bottom-color: #fde2e2; }
+#aptRecordModal .ar-cancel-card .ar-card-icon { color: #dc2626; }
+#aptRecordModal .ar-cancel-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 1.25rem; }
+#aptRecordModal .ar-cancel-fields .ar-card-field { grid-template-columns: 176px minmax(0, 1fr); }
+#aptRecordModal .ar-cancel-fields .ar-card-field.ar-cancel-reason { grid-column: 1 / -1; border-bottom: none; }
+#aptRecordModal .ar-cancel-reason .ar-card-value { white-space: pre-wrap; overflow-wrap: anywhere; }
+#aptRecordModal .ar-cancel-by-type { margin-left: 0.35rem; font-size: 0.72rem; font-weight: 600; color: var(--ar-muted); }
+#aptRecordModal .ar-not-recorded { color: var(--ar-muted); font-style: italic; }
+@media (max-width: 767.98px) {
+    #aptRecordModal .ar-cancel-fields { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Appointments Schedule table: at most two services, then "+N more" */
+.sch-svc-cell { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
+.sch-svc-more {
+    display: inline-flex; align-items: center; padding: 0.2rem 0.5rem; border-radius: 6px;
+    border: 1px solid #c7d7fb; background: #fff; color: #2563eb;
+    font-size: 0.72rem; font-weight: 600; line-height: 1.3; cursor: pointer;
+}
+.sch-svc-more:hover { background: #eff6ff; }
+.sch-svc-more:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25); }
+:is(#viewAppointmentModal) .ar-card-sub { margin-left: auto; font-size: 0.72rem; color: var(--ar-muted); }
+
+/* Edit Appointment: "Save Changes?" summary */
+.apt-confirm-sum { margin: 0.25rem auto 0.25rem; max-width: 380px; padding: 0.55rem 0.85rem; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; text-align: left; }
+.apt-confirm-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.2rem 0; font-size: 0.84rem; color: #64748b; }
+.apt-confirm-row strong { color: #1e293b; text-align: right; overflow-wrap: anywhere; }
+@media (max-width: 991.98px) {
+    .apt-form-dialog #adminTimeSlotsGrid { max-height: none; overflow: visible; }
+}
+
+/* ── Receipt preview modal (billing-records.php #receiptPreviewModal) ── */
+#receiptPreviewModal .rcp-body { position: relative; padding: 16px; background: #eef2f7; min-height: 340px; }
+#receiptPreviewModal .rcp-loading {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 0.85rem; color: var(--ar-muted);
+}
+#receiptPreviewModal .rcp-frame {
+    display: block; width: 100%; height: 640px; border: 0; border-radius: 10px; background: #fff;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08); opacity: 0; transition: opacity .15s;
+}
+#receiptPreviewModal .rcp-frame.ready { opacity: 1; }
+@media (max-width: 575.98px) { #receiptPreviewModal .rcp-body { padding: 8px; } }
+
+/* ── Download PDF in progress (Billing Records action menu) ── */
+.action-dropdown .dropdown-item.rc-pdf-pending { cursor: progress; }
+.action-dropdown .dropdown-item.rc-pdf-busy { color: var(--ar-primary, #2563eb); background: #f1f6ff; }
+.action-dropdown .dropdown-item .rc-pdf-spin { width: 14px; height: 14px; border-width: 2px; margin-right: 2px; vertical-align: -2px; }
+
+/* ── Add Payment wizard (billing-records.php #addPaymentModal) ──────────
+   Landscape: vertical stepper left, active step right. Only the step
+   content scrolls; header and footer stay put. */
+#addPaymentModal .pm-wiz-dialog { max-width: 1060px; }
+@media (min-width: 768px) {
+    #addPaymentModal .pm-wiz-dialog .modal-content { height: min(700px, calc(100vh - 3.5rem)); }
+}
+#addPaymentModal .modal-body { display: flex; min-height: 0; overflow: hidden; }
+#addPaymentModal .pm-wiz { display: flex; flex: 1; min-width: 0; min-height: 0; }
+#addPaymentModal .pm-steps {
+    flex: 0 0 248px; padding: 1.25rem 1rem 1.25rem 1.75rem;
+    border-right: 1px solid var(--ar-border); background: #fbfdff; overflow-y: auto;
+}
+#addPaymentModal .pm-steps ol { list-style: none; margin: 0; padding: 0; }
+#addPaymentModal .pm-step { position: relative; padding-bottom: 1.35rem; }
+#addPaymentModal .pm-step:last-child { padding-bottom: 0; }
+#addPaymentModal .pm-step:not(:last-child)::after {   /* connector line */
+    content: ""; position: absolute; left: 15px; top: 34px; bottom: 2px; width: 2px;
+    background: var(--ar-border); border-radius: 2px;
+}
+#addPaymentModal .pm-step.is-done:not(:last-child)::after { background: var(--ar-primary); }
+#addPaymentModal .pm-step-btn {
+    display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 0; border: 0;
+    background: none; text-align: left; color: inherit; cursor: pointer;
+}
+#addPaymentModal .pm-step-btn:disabled { cursor: default; }
+#addPaymentModal .pm-step-btn:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.3); outline-offset: 3px; border-radius: 10px; }
+#addPaymentModal .pm-step-dot {
+    display: inline-grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+    border: 2px solid var(--ar-border); background: #fff; color: var(--ar-muted);
+    font-size: 0.85rem; font-weight: 700; transition: background-color .15s, border-color .15s, color .15s;
+}
+#addPaymentModal .pm-step-dot i { display: none; font-size: 0.95rem; }
+#addPaymentModal .pm-step.is-active .pm-step-dot { border-color: var(--ar-primary); background: var(--ar-primary); color: #fff; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15); }
+#addPaymentModal .pm-step.is-done .pm-step-dot { border-color: var(--ar-primary); background: var(--ar-primary-light); color: var(--ar-primary); }
+#addPaymentModal .pm-step.is-done .pm-step-num { display: none; }
+#addPaymentModal .pm-step.is-done .pm-step-dot i { display: block; }
+#addPaymentModal .pm-step-text { display: flex; flex-direction: column; min-width: 0; padding-top: 5px; }
+#addPaymentModal .pm-step-title { font-size: 0.86rem; font-weight: 700; color: var(--ar-muted); line-height: 1.3; }
+#addPaymentModal .pm-step.is-done .pm-step-title { color: var(--ar-text); }
+#addPaymentModal .pm-step.is-active .pm-step-title { color: var(--ar-primary); }
+#addPaymentModal .pm-step-sub { font-size: 0.74rem; color: var(--ar-muted); line-height: 1.35; }
+#addPaymentModal .pm-step-btn:not(:disabled):hover .pm-step-title { text-decoration: underline; text-underline-offset: 2px; }
+
+#addPaymentModal .pm-wiz-main { flex: 1; min-width: 0; overflow-y: auto; padding: 1.25rem 1.75rem 1.5rem; }
+#addPaymentModal .pm-pane[hidden] { display: none; }
+#addPaymentModal .pm-pane-title { margin: 0 0 2px; font-size: 1.02rem; font-weight: 800; color: var(--ar-text); outline: none; }
+#addPaymentModal .pm-pane-lead { margin: 0 0 1rem; font-size: 0.82rem; color: var(--ar-muted); }
+#addPaymentModal .pm-pane .ar-summary { margin: 1rem 0 0; }
+#addPaymentModal .pm-pane .pm-form { padding: 0; }
+#addPaymentModal .pm-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.5rem; }
+#addPaymentModal .pm-info-grid .ar-card-field:nth-last-child(2) { border-bottom: none; }
+#addPaymentModal .pm-loading { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 0.82rem; color: var(--ar-muted); }
+#addPaymentModal .pm-loading[hidden] { display: none; }
+#addPaymentModal .pm-retry { border: 1px solid #d6e4ff; border-radius: 6px; background: #fff; color: var(--ar-primary); font-size: 0.78rem; padding: 1px 10px; }
+#addPaymentModal .pm-adjusted-row .ar-card-value { color: var(--ar-primary); }
+#addPaymentModal #pm_voucher_apply { padding-bottom: 12px; }
+#addPaymentModal .pm-empty-note {
+    display: flex; gap: 8px; align-items: flex-start; padding: 12px 14px; border-radius: 10px;
+    background: #f8fafc; border: 1px dashed var(--ar-border); font-size: 0.84rem; color: var(--ar-muted);
+}
+#addPaymentModal .pm-empty-note[hidden] { display: none; }
+#addPaymentModal .pm-empty-note i { margin-top: 3px; }
+
+/* Review */
+#addPaymentModal .pm-review { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+#addPaymentModal .pm-review-amounts { grid-column: 1 / -1; }
+#addPaymentModal .pm-review .ar-card-field { grid-template-columns: 170px minmax(0, 1fr); }
+#addPaymentModal .pm-review-amounts .ar-card-value { text-align: right; font-variant-numeric: tabular-nums; }
+#addPaymentModal .pm-review .pm-rv-current { background: var(--ar-primary-light); margin: 0 -1.1rem; padding-left: 1.1rem; padding-right: 1.1rem; }
+#addPaymentModal .pm-review .pm-rv-current .ar-card-value { font-weight: 800; color: var(--ar-primary); }
+#addPaymentModal .pm-review .pm-rv-remaining .ar-card-label { font-weight: 700; color: var(--ar-text); }
+#addPaymentModal .pm-rv-note { display: block; margin-top: 2px; font-size: 0.74rem; color: var(--ar-muted); }
+#addPaymentModal .pm-edit-link {
+    margin-left: auto; padding: 2px 10px; border: 1px solid #d6e4ff; border-radius: 999px; background: #fff;
+    font-size: 0.74rem; font-weight: 600; color: var(--ar-primary);
+}
+#addPaymentModal .pm-edit-link:hover { background: var(--ar-primary-light); }
+#addPaymentModal .pm-review-foot {
+    display: flex; gap: 8px; align-items: flex-start; margin: 1rem 0 0; padding: 10px 12px; border-radius: 10px;
+    background: #f0f6ff; border: 1px solid #dbe7fb; font-size: 0.82rem; color: #1e3a6e;
+}
+#addPaymentModal .pm-review-foot i { margin-top: 3px; color: var(--ar-primary); }
+
+/* Footer: Cancel left, Back + Next / Record Payment right */
+#addPaymentModal .pm-wiz-footer { justify-content: space-between; flex-wrap: nowrap; gap: 10px; }
+#addPaymentModal .pm-wiz-nav { display: flex; gap: 10px; margin: 0; }
+#addPaymentModal .pm-wiz-nav [hidden] { display: none !important; }
+
+@media (max-width: 991.98px) {
+    #addPaymentModal .pm-steps { flex-basis: 212px; padding-left: 1.25rem; }
+    #addPaymentModal .pm-wiz-main { padding: 1.1rem 1.25rem 1.25rem; }
+}
+/* Small screens: the stepper becomes a compact bar above the content */
+@media (max-width: 767.98px) {
+    #addPaymentModal .pm-wiz { flex-direction: column; }
+    #addPaymentModal .pm-steps { flex: 0 0 auto; padding: 0.75rem 1rem; border-right: 0; border-bottom: 1px solid var(--ar-border); overflow: visible; }
+    #addPaymentModal .pm-steps ol { display: flex; justify-content: space-between; gap: 6px; }
+    #addPaymentModal .pm-step { flex: 1; padding-bottom: 0; }
+    #addPaymentModal .pm-step:not(:last-child)::after { left: calc(50% + 20px); right: calc(-50% + 20px); top: 15px; bottom: auto; width: auto; height: 2px; }
+    #addPaymentModal .pm-step-btn { flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+    #addPaymentModal .pm-step-text { padding-top: 0; }
+    #addPaymentModal .pm-step-title { font-size: 0.72rem; }
+    #addPaymentModal .pm-step-sub { display: none; }
+    #addPaymentModal .pm-info-grid, #addPaymentModal .pm-review { grid-template-columns: 1fr; }
+    #addPaymentModal .pm-info-grid .ar-card-field:nth-last-child(2) { border-bottom: 1px solid #eef2f7; }
+    #addPaymentModal .pm-review .ar-card-field { grid-template-columns: 128px minmax(0, 1fr); }
+    #addPaymentModal .pm-wiz-footer .btn { padding-left: 14px; padding-right: 14px; }
+}
+@media (max-width: 400px) {
+    #addPaymentModal .pm-step-title { display: none; }
+    #addPaymentModal .pm-step.is-active .pm-step-title { display: block; }
 }

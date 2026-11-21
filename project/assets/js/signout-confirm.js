@@ -14,7 +14,12 @@
   'use strict';
   if (window.essenciaSignOut) return; // loaded twice → keep the first copy (no duplicate handlers)
 
-  const SWAL_SRC = 'https://cdn.jsdelivr.net/npm/sweetalert2@11';
+  // Self-hosted SweetAlert2 v11 (the same file every page includes). The
+  // theme's vendors.min.js bundles an OLD v9 as window.Swal: its result has
+  // no isConfirmed, so "Yes, Sign Out" was read as a cancel on pages that
+  // only had that copy (Dashboard, Audit Records…). Require v11+.
+  const SWAL_SRC = 'assets/vendors/js/sweetalert2-11.26.25.all.min.js';
+  const swalOk = function (S) { return !!S && parseInt(String(S.version || '0'), 10) >= 11; };
 
   // ── Styles (scoped to .es-signout so other Swal dialogs are untouched) ──
   const css = `
@@ -81,12 +86,12 @@
   // Pages that don't already include SweetAlert2 get the same CDN build the project uses
   let swalLoading = null;
   function loadSwal() {
-    if (window.Swal) return Promise.resolve(window.Swal);
+    if (swalOk(window.Swal)) return Promise.resolve(window.Swal);
     if (!swalLoading) {
       swalLoading = new Promise(function (resolve, reject) {
         const s = document.createElement('script');
         s.src = SWAL_SRC;
-        s.onload = function () { window.Swal ? resolve(window.Swal) : reject(); };
+        s.onload = function () { swalOk(window.Swal) ? resolve(window.Swal) : reject(); };
         s.onerror = reject;
         document.head.appendChild(s);
       }).catch(function () { swalLoading = null; return null; });
@@ -135,7 +140,8 @@
             cancelButton: 'es-signout-btn es-signout-cancel',
           },
         });
-        confirmed = res.isConfirmed === true;
+        // v11 sets isConfirmed; tolerate an older result shape ({ value: true }) too
+        confirmed = res.isConfirmed === true || (res.isConfirmed === undefined && res.value === true);
       } else {
         // SweetAlert2 couldn't load (offline CDN): still ask before signing out
         confirmed = window.confirm('Sign out of your account?\n\n' + text);

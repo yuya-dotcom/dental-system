@@ -132,7 +132,8 @@ if ($method === 'PATCH') {
     if (array_key_exists('status', $body))          $payload['status']          = $body['status'];
     if (array_key_exists('treatment_date', $body))  $payload['treatment_date']  = $body['treatment_date'];
 
-    $prevTrt = supabase_request('treatments', 'GET', [], 'treatment_id=eq.' . (int)$id . '&select=status&limit=1');
+    // Previous values: the patient bell compares status, the staff bell the key fields
+    $prevTrt = supabase_request('treatments', 'GET', [], 'treatment_id=eq.' . (int)$id . '&select=status,dentist_id,service_id,tooth_number,treatment_date,current_stage&limit=1');
     $res = supabase_request('treatments', 'PATCH', $payload, 'treatment_id=eq.' . $id);
 
     if ($res['status'] >= 200 && $res['status'] < 300) {

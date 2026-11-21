@@ -123,13 +123,8 @@ if ($materials) {
 // Puts the stock back if the treatment itself could not be saved
 $restoreStock = function (string $why) use (&$branchItems, $branchId, $treatmentId, $performedBy) {
     foreach ($branchItems as $id => $q) {
-        if (stock_apply($id, $q)['ok']) {
-            supabase_request('inventory_movements', 'POST', [
-                'item_id' => $id, 'branch_id' => $branchId ?: null, 'quantity_change' => $q,
-                'reason' => 'Reversed: treatment #' . $treatmentId . ' ' . $why, 'performed_by' => $performedBy,
-                'movement_date' => date('Y-m-d'),
-            ]);
-        }
+        // stock + "reversal" movement together (controllers/inventory_v2.php)
+        inv_move($id, $q, 'reversal', ['reason' => 'Reversed: treatment #' . $treatmentId . ' ' . $why, 'performed_by' => $performedBy]);
     }
     $branchItems = [];
 };
