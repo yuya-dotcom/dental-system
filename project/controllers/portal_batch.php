@@ -109,6 +109,7 @@ function portal_sb_multi(array $reqs): array
         $status = curl_multi_exec($mh, $running);
         if ($running && curl_multi_select($mh, 1.0) === -1) usleep(1000);
     } while ($running && $status === CURLM_OK);
+    foreach ($reqs as $r) es_scache_note($r['method'] ?? 'GET');   // writes invalidate the shared cache
 
     // Per-transfer result codes (curl_errno() is not set for multi transfers)
     $errnos = [];
@@ -169,7 +170,7 @@ function portal_run(array $loaders): array
         foreach ($active as $name => $gen) {
             foreach ((array)$gen->current() as $k => $req) $batch[$name . "\x1F" . $k] = $req;
         }
-        $res = portal_sb_multi($batch);
+        $res = portal_sb_multi_merged($batch);
 
         foreach ($active as $name => $gen) {
             $mine = [];
@@ -191,6 +192,78 @@ function portal_run(array $loaders): array
     // Keep the caller's order
     $ordered = [];
     foreach ($loaders as $name => $_) $ordered[$name] = $results[$name] ?? null;
+    return $ordered;
+}
+
+/**
+ * portal_sb_multi() for one wave of loader requests, with fewer round trips:
+ *   • identical GETs are sent once;
+ *   • GETs on the same table with the SAME filters / order / limit whose
+ *     select lists are plain columns (no embeds, aliases or casts) are sent
+ *     as ONE request for the union of columns, and every loader gets its
+ *     rows cut back to exactly the columns it asked for, in its own order —
+ *     the same result it would have received on its own.
+ * If a merged request fails (e.g. one loader names a column that does not
+ * exist yet), its loaders are re-run separately, so one failure never
+ * spreads to another loader. Writes and POST RPCs are never merged.
+ */
+function portal_sb_multi_merged(array $batch): array
+{
+    $groups = [];   // group key => [members: key => cols|null]
+    $send   = [];   // request key => spec
+    $of     = [];   // original key => request key
+    foreach ($batch as $key => $r) {
+        $method = strtoupper($r['method'] ?? 'GET');
+        if ($method !== 'GET' || !empty($r['data'])) { $send[$key] = $r; $of[$key] = $key; continue; }
+        $sel = null; $rest = [];
+        foreach (explode('&', (string)($r['query'] ?? '')) as $part) {
+            if (str_starts_with($part, 'select=') && $sel === null) $sel = substr($part, 7);
+            else $rest[] = $part;
+        }
+        $plain = $sel !== null && preg_match('/^[a-z_][a-z0-9_]*(,[a-z_][a-z0-9_]*)*$/', $sel);
+        // plain column lists group by table + filters; anything else only with exact duplicates
+        $g = $plain ? 'P|' . $r['table'] . '?' . implode('&', $rest) : 'X|' . $r['table'] . '?' . $r['query'];
+        $groups[$g]['members'][$key] = $plain ? explode(',', $sel) : null;
+        $groups[$g]['spec'] ??= $r;
+        $groups[$g]['rest'] = $rest;
+    }
+    $merged = [];   // request key => [original key => cols|null]
+    foreach ($groups as $g => $grp) {
+        $first = array_key_first($grp['members']);
+        if (count($grp['members']) === 1) { $send[$first] = $batch[$first]; $of[$first] = $first; continue; }
+        $spec = $grp['spec'];
+        if ($g[0] === 'P') {
+            $cols = [];
+            foreach ($grp['members'] as $c) foreach ($c as $col) $cols[$col] = true;
+            $spec['query'] = implode('&', array_merge(['select=' . implode(',', array_keys($cols))], array_filter($grp['rest'], fn($p) => $p !== '')));
+        }
+        $send[$first] = $spec;
+        $merged[$first] = $grp['members'];
+        foreach ($grp['members'] as $k => $_) $of[$k] = $first;
+    }
+    if (!$merged) return portal_sb_multi($batch);
+
+    $res = portal_sb_multi($send);
+    $out = []; $retry = [];
+    foreach ($batch as $key => $_) {
+        $rk = $of[$key];
+        $r  = $res[$rk];
+        if (!isset($merged[$rk])) { $out[$key] = $r; continue; }
+        $ok = empty($r['error']) && ($r['status'] ?? 0) >= 200 && ($r['status'] ?? 0) < 300 && is_array($r['data']);
+        if (!$ok) { $retry[$key] = $batch[$key]; continue; }
+        $cols = $merged[$rk][$key];
+        if ($cols !== null) {
+            $r['data'] = array_map(function ($row) use ($cols) {
+                $o = [];
+                foreach ($cols as $c) if (is_array($row) && array_key_exists($c, $row)) $o[$c] = $row[$c];
+                return $o;
+            }, $r['data']);
+        }
+        $out[$key] = $r;
+    }
+    if ($retry) foreach (portal_sb_multi($retry) as $k => $r) $out[$k] = $r;
+    $ordered = [];
+    foreach ($batch as $key => $_) $ordered[$key] = $out[$key];
     return $ordered;
 }
 

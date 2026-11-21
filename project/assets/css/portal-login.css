@@ -1064,3 +1064,64 @@ html {
         transform: none;
     }
 }
+
+/* ── Registration: gender choice (four pill buttons in one row, one selected) ── */
+.gender-choice {
+    display: flex;              /* one row; each pill sized to its label */
+    gap: .4rem;
+}
+.gender-choice .gender-opt { flex: 1 1 auto; min-width: 0; }
+.gender-opt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    min-height: 46px;
+    padding: .35rem .7rem;
+    border: 2.5px solid var(--border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--slate);
+    font-family: var(--font-body);
+    font-size: .74rem;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .18s, background .18s, color .18s, box-shadow .18s;
+}
+.gender-opt i {
+    flex-shrink: 0;
+    font-size: 1rem;
+    color: #9fb3cc;
+    transition: color .18s;
+}
+.gender-opt:hover { border-color: #7fd0f3; }
+.gender-opt:hover i { color: #7cc0fa; }
+.gender-opt:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3.5px rgba(14,165,233,.25);
+}
+/* Selected: light-blue pill, bright blue outline, blue icon, white label */
+.gender-opt.active {
+    border-color: #06a7e8;
+    background: #bdeafd;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(3,105,161,.45);   /* keeps the white label readable on the light fill */
+}
+.gender-opt.active i { color: #7cc0fa; text-shadow: none; }
+
+/* Narrow phones: still one row — icon above the label */
+@media (max-width: 480px) {
+    .gender-choice { gap: .3rem; }
+    .gender-choice .gender-opt { flex: 1 1 0; }   /* equal widths on phones */
+    .gender-opt {
+        flex-direction: column;
+        gap: .2rem;
+        min-height: 58px;
+        padding: .4rem .25rem;
+        border-radius: 18px;
+        font-size: .68rem;
+        text-align: center;
+    }
+}

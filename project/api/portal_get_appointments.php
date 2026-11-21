@@ -38,5 +38,7 @@ if (!$accountId || portal_session_expired() !== null) {
 session_write_close();
 
 require_once __DIR__ . '/../controllers/portal_loaders.php';
+require_once __DIR__ . '/../controllers/appointment_lifecycle.php';
+aptSweepNoShows();   // ended, never-checked-in appointments → no_show (throttled)
 
 echo json_encode(portal_run_one(pl_appointments((int)$accountId, trim($_GET['status'] ?? ''))));

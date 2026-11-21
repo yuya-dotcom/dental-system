@@ -37,13 +37,15 @@
             <li><a href="#services"><i class="fa-solid fa-star"></i> Services</a></li>
             <li><a href="#footer"><i class="fa-solid fa-envelope"></i> Contacts</a></li>
             <li class="nav-mobile-cta">
-                <a href="portal-login.php" class="btn btn-create-account-mobile rounded-pill">
-                    Create an Account
+                <a href="portal-web-scheduling.php" class="btn btn-create-account-mobile rounded-pill">
+                    Book an Appointment
                 </a>
             </li>
         </ul>
-        <a href="portal-login.php" class="btn btn-create-account rounded-3 px-3 py-2">
-            Create an Account
+        <!-- Booking needs a signed-in patient: portal-web-scheduling.php sends
+             signed-out visitors to the portal sign-in page first -->
+        <a href="portal-web-scheduling.php" class="btn btn-create-account rounded-3 px-3 py-2">
+            Book an Appointment
         </a>
     </section>
 
@@ -347,7 +349,7 @@
     <section class="cta">
         <h1>Ready For Your Best Smile?</h1>
         <p>Join thousands of satisfied patients. Create your account today and schedule your first visit in minutes.</p>
-        <a href="portal-login.php" class="btn btn-cta rounded-pill px-4 py-2">Book Your Appointment Now!</a>
+        <a href="portal-login.php?tab=register" class="btn btn-cta rounded-pill px-4 py-2">Create an Account</a>
     </section>
 
     <footer class="footer" id="footer">

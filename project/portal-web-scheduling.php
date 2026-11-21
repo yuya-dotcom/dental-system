@@ -35,6 +35,8 @@ $bookingData = [
         'name'     => $b['branch_name'],
         'address'  => $b['address'],
         'days'     => $b['days'],
+        // Date overrides: { 'YYYY-MM-DD': {open: bool, reason: string} } (empty → {} in JSON)
+        'exceptions' => (object)$b['exceptions'],
         'daysText' => $b['days_label'],
         'hours'    => $b['hours_label'],
         'openMin'  => $b['open_min'],
@@ -58,9 +60,9 @@ function e(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8')
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="assets/css/es-swal.css?v=4">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
     <link rel="stylesheet" href="assets/css/portalLogin-navbar.css?v=4">
-    <link rel="stylesheet" href="assets/css/portal-web-scheduling.css?v=4">
+    <link rel="stylesheet" href="assets/css/portal-web-scheduling.css?v=5">
 </head>
 <body>
 
@@ -193,12 +195,12 @@ function e(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8')
 
                 <!-- Navigation -->
                 <footer class="bk-nav">
-                    <button type="button" class="bk-btn bk-btn-ghost" id="bkBack">
-                        <i class="fa-solid fa-arrow-left"></i> Back
-                    </button>
-                    <span class="bk-nav-hint" id="bkHint"></span>
                     <button type="button" class="bk-btn bk-btn-primary" id="bkNext">
                         Next <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                    <span class="bk-nav-hint" id="bkHint"></span>
+                    <button type="button" class="bk-btn bk-btn-ghost" id="bkBack">
+                        <i class="fa-solid fa-arrow-left"></i> Back
                     </button>
                 </footer>
             </section>
@@ -219,8 +221,8 @@ function e(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8')
     </script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/es-swal.js?v=2"></script>
-    <script src="assets/js/portal-web-scheduling.js?v=3"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
+    <script src="assets/js/portal-web-scheduling.js?v=4"></script>
     <?php endif; ?>
 </body>
 </html>

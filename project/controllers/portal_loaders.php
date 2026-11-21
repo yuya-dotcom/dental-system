@@ -15,6 +15,28 @@
 
 require_once __DIR__ . '/portal_batch.php';
 
+// ── Local (email) password vs. Google-only accounts ─────────────────────────
+// Patient passwords live in patient_accounts.password_hash. An account created
+// by "Sign in with Google" never had a password the patient knows, so it is
+// stored as PORTAL_NO_PASSWORD_PREFIX + random hex — not a valid hash, so
+// password_verify() always fails and email sign-in stays impossible, exactly as
+// before. Registering with email, or setting one via Forgot Password
+// (password_reset_controller.php), writes a real hash. So "has a password"
+// comes from the stored credential itself, never from the sign-in method of
+// the current session or the email domain. A patient who signed in with Google
+// but also has a real password keeps Change Password.
+if (!defined('PORTAL_NO_PASSWORD_PREFIX')) define('PORTAL_NO_PASSWORD_PREFIX', '!nopw:');
+
+if (!function_exists('portal_has_local_password')) {
+    function portal_has_local_password(?string $hash): bool
+    {
+        $hash = (string)$hash;
+        if ($hash === '' || str_starts_with($hash, PORTAL_NO_PASSWORD_PREFIX)) return false;
+        // Only a real password_hash() value counts (bcrypt / argon)
+        return !empty(password_get_info($hash)['algo']);
+    }
+}
+
 // Parent / guardian columns on patient_profiles (database/2026-10-17_patient_guardian_fields.sql)
 if (!defined('GUARDIAN_COLS')) define('GUARDIAN_COLS', 'guardian_name,guardian_relation,guardian_phone,guardian_address');
 
@@ -80,7 +102,7 @@ function pl_profile(int $accountId): Generator
     $w1 = [
         'acc' => sbq('patient_accounts', 'account_id=eq.' . $accountId .
             '&select=account_id,email,first_name,last_name,middle_name,suffix,' .
-            'birthdate,contact_number,is_profile_complete,is_verified,phone_verified,patient_id&limit=1'),
+            'birthdate,contact_number,is_profile_complete,is_verified,phone_verified,patient_id,password_hash&limit=1'),
         'mq'  => sbq('medical_questionnaire', 'account_id=eq.' . $accountId . '&select=questionnaire_id&limit=1'),
     ];
     if ($patientId) {
@@ -92,6 +114,9 @@ function pl_profile(int $accountId): Generator
     if (empty($r['acc']['data'])) return ['success' => false, 'message' => 'Account not found.'];
 
     $account    = $r['acc']['data'][0];
+    // Only a yes/no leaves the server — the hash itself is never sent
+    $account['has_password'] = portal_has_local_password($account['password_hash'] ?? null);
+    unset($account['password_hash']);
     $patientRow = $patientId ? ($r['pat']['data'][0] ?? []) : [];
 
     if (empty($account['contact_number']) && !empty($patientRow['contact_number']))
@@ -362,6 +387,135 @@ function pl_billing(int $accountId): Generator
     return ['success' => true, 'invoices' => $invoices];
 }
 
+// ── MAKE A PAYMENT: QUOTE (read-only) ──────────────────────────────────────────
+// Billing & Payments → Make a Payment. The browser sends the invoice ids, the
+// chosen e-wallet and the amount the patient wants to pay. The outstanding
+// balance is worked out here from the invoices table (never taken from the
+// browser) and the amount is checked against it: more than ₱0, at most the
+// selected balance, two decimals at most. A partial amount is applied to the
+// oldest selected invoice first (portal_allocate_payment).
+// Nothing is written: no payment row, no invoice change. No payment gateway is
+// connected yet, so the reply always says gateway_available:false — balances
+// may only change once a gateway confirms a payment.
+const PORTAL_EWALLET_METHODS = ['gcash' => 'GCash', 'maya' => 'Maya', 'grabpay' => 'GrabPay'];
+const PORTAL_EWALLET_MAX_INVOICES = 50;
+
+/** Outstanding amount of one invoice row; 0 when it can't be paid online. */
+function portal_invoice_outstanding(array $row): float
+{
+    $status = strtolower((string)($row['payment_status'] ?? '')) ?: 'unpaid';
+    if (!in_array($status, ['unpaid', 'partial'], true)) return 0.0; // paid, cancelled, void…
+    return round(max(0, (float)($row['total_amount'] ?? 0) - (float)($row['amount_paid'] ?? 0)), 2);
+}
+
+/** A peso amount typed by the patient → centavos, or null when it isn't a valid amount. */
+function portal_amount_cents($v): ?int
+{
+    if (is_int($v)) return $v >= 0 && $v < 10000000 ? $v * 100 : null;
+    if (is_float($v)) {
+        if (!is_finite($v) || $v < 0 || $v >= 10000000) return null;
+        $c = round($v * 100);
+        return abs($c - $v * 100) < 1e-6 ? (int)$c : null;
+    }
+    if (!is_string($v)) return null;
+    $v = str_replace(',', '', trim($v));
+    if (!preg_match('/^\d{1,7}(\.\d{1,2})?$/', $v)) return null;
+    $parts = explode('.', $v);
+    return (int)$parts[0] * 100 + (int)str_pad($parts[1] ?? '', 2, '0');
+}
+
+/**
+ * Splits a payment over invoices, oldest invoice first (by invoice_date, then id).
+ * $lines: [['invoice_id','invoice_date','due_cents'], …]. Returns the lines with
+ * pay_cents and remaining_cents. Pure: used for the quote now and meant for the
+ * step that records a gateway-confirmed payment later.
+ */
+function portal_allocate_payment(array $lines, int $payCents): array
+{
+    usort($lines, fn($a, $b) => [(string)$a['invoice_date'], $a['invoice_id']] <=> [(string)$b['invoice_date'], $b['invoice_id']]);
+    $left = $payCents;
+    foreach ($lines as &$l) {
+        $l['pay_cents'] = min($l['due_cents'], max(0, $left));
+        $l['remaining_cents'] = $l['due_cents'] - $l['pay_cents'];
+        $left -= $l['pay_cents'];
+    }
+    unset($l);
+    return $lines;
+}
+
+function pl_ewallet_quote(int $accountId, $invoiceIds, $method, $amount = null): Generator
+{
+    $fail = fn(string $code, string $msg) => ['success' => false, 'code' => $code, 'message' => $msg];
+    $peso = fn(int $c) => '₱' . number_format($c / 100, 2);
+
+    $method = strtolower(trim((string)$method));
+    if (!isset(PORTAL_EWALLET_METHODS[$method])) {
+        return $fail('INVALID_METHOD', 'Please choose GCash, Maya or GrabPay.');
+    }
+    $ids = [];
+    foreach ((is_array($invoiceIds) ? $invoiceIds : []) as $v) {
+        if (is_int($v) || (is_string($v) && ctype_digit($v))) {
+            if ((int)$v > 0) $ids[(int)$v] = true;   // keys → duplicates collapse
+        }
+    }
+    $ids = array_keys($ids);
+    if (!$ids) return $fail('NO_INVOICES', 'Please select at least one invoice to pay.');
+    if (count($ids) > PORTAL_EWALLET_MAX_INVOICES) return $fail('TOO_MANY', 'Too many invoices were selected.');
+
+    $payCents = portal_amount_cents($amount);
+    if ($payCents === null) return $fail('INVALID_AMOUNT', 'Please enter a valid amount, for example 500 or 500.50.');
+    if ($payCents <= 0) return $fail('INVALID_AMOUNT', 'Please enter an amount greater than ₱0.00.');
+
+    $patientId = yield from pl_patient_id($accountId);
+    if (!$patientId) return $fail('INVALID_INVOICE', 'Some of the selected invoices could not be found.');
+
+    $r = yield ['inv' => sbq('invoices', 'patient_id=eq.' . $patientId .
+        '&invoice_id=in.(' . implode(',', $ids) . ')' .
+        '&select=invoice_id,invoice_date,total_amount,amount_paid,payment_status')];
+    if (($r['inv']['status'] ?? 500) >= 400 || !is_array($r['inv']['data'] ?? null)) {
+        return $fail('UNAVAILABLE', "We couldn't check your invoices right now. Please try again.");
+    }
+    $rows = [];
+    foreach ($r['inv']['data'] as $row) $rows[(int)$row['invoice_id']] = $row;
+
+    $dueCents = 0;
+    $lines = [];
+    foreach ($ids as $id) {
+        // Another patient's invoice (or a made-up id) is simply not returned above
+        if (!isset($rows[$id])) return $fail('INVALID_INVOICE', 'Some of the selected invoices could not be found.');
+        $due = (int)round(portal_invoice_outstanding($rows[$id]) * 100);
+        if ($due <= 0) {
+            return $fail('NOT_PAYABLE', 'One of the selected invoices no longer has a balance. Your billing list has been refreshed.');
+        }
+        $lines[] = ['invoice_id' => $id, 'invoice_date' => $rows[$id]['invoice_date'] ?? '', 'due_cents' => $due];
+        $dueCents += $due;
+    }
+    if ($payCents > $dueCents) {
+        return $fail('AMOUNT_TOO_HIGH', "The amount can't be more than the selected balance of " . $peso($dueCents) . '.');
+    }
+
+    $label = PORTAL_EWALLET_METHODS[$method];
+    $alloc = portal_allocate_payment($lines, $payCents);
+    return [
+        'success'           => true,
+        'gateway_available' => false,
+        'method'            => $method,
+        'method_label'      => $label,
+        'amount'            => $payCents / 100,                 // what the patient would pay
+        'outstanding'       => $dueCents / 100,                 // selected balance, from the DB
+        'remaining'         => ($dueCents - $payCents) / 100,   // after a confirmed payment
+        'is_partial'        => $payCents < $dueCents,
+        'invoice_count'     => count($lines),
+        'invoices'          => array_map(fn($l) => [
+            'invoice_id' => $l['invoice_id'],
+            'amount_due' => $l['due_cents'] / 100,
+            'pay'        => $l['pay_cents'] / 100,
+            'remaining'  => $l['remaining_cents'] / 100,
+        ], $alloc),
+        'message'           => "Paying with {$label} isn't available yet. Nothing has been charged and your balance hasn't changed.",
+    ];
+}
+
 // ── GET FILES ──────────────────────────────────────────────────────────────────
 function pl_files(int $accountId): Generator
 {
@@ -408,7 +562,11 @@ function pl_appointments(int $accountId, string $status = ''): Generator
 {
     $patientId = yield from pl_patient_id($accountId);
 
-    $query = 'account_id=eq.' . $accountId
+    // One source of truth: the appointments of THIS account's patient — booked in
+    // the portal or made by staff (Add Appointment) — and nobody else's. Before a
+    // patient record is linked, only the account's own bookings exist.
+    $owner = $patientId ? 'patient_id=eq.' . (int)$patientId : 'account_id=eq.' . $accountId;
+    $query = $owner
         . '&select=appointment_id,appointment_code,appointment_date,appointment_time,'
         . 'appointment_type,status,payment_status,notes,service_id,created_at,updated_at,'
         . 'branches(branch_name,address),'

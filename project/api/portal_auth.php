@@ -18,6 +18,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../portal-session-guard.php';
 require_once __DIR__ . '/../controllers/name_helper.php';   // name + address capitalisation
+require_once __DIR__ . '/../controllers/portal_validation.php';   // registration / profile field rules
 require_once __DIR__ . '/../controllers/notification_helper.php';
 require_once __DIR__ . '/../controllers/appointment_services_helper.php';
 require_once __DIR__ . '/../controllers/portal_loaders.php';   // parallel read loaders
@@ -79,10 +80,33 @@ if ($action === 'register') {
         exit;
     }
 
-    // Gender must be one of GENDER_OPTIONS (checked before the account is created)
-    if (normalize_gender($input['gender'] ?? '') === null) {
-        echo json_encode(['success' => false, 'message' => 'Please select a valid gender.']);
-        exit;
+    // Field rules (controllers/portal_validation.php) — checked before the
+    // account is created, so an invalid request never leaves a partial account.
+    // 'field' names the form field so the page can show the message beside it.
+    $civilStatusIn = null;
+    $regErrors = [
+        'first_name'     => pv_name_error($input['first_name']  ?? '', 'First name', true),
+        'last_name'      => pv_name_error($input['last_name']   ?? '', 'Last name', true),
+        'middle_name'    => pv_name_error($input['middle_name'] ?? '', 'Middle name', false),
+        'birthdate'      => pv_birthdate_error($input['birthdate'] ?? '', true),
+        'civil_status'   => pv_civil_status_error($input['civil_status'] ?? '', true, $civilStatusIn),
+        'nationality'    => pv_nationality_error($input['nationality'] ?? '', true),
+        // Registration offers four gender choices (REGISTRATION_GENDER_OPTIONS)
+        'gender'         => in_array(normalize_gender($input['gender'] ?? ''), REGISTRATION_GENDER_OPTIONS, true)
+                                ? null : 'Please select your gender.',
+        'contact_number' => pv_mobile_error($input['contact_number'] ?? '', true),
+        'home_phone'     => pv_home_phone_error($input['home_phone'] ?? ''),
+        'address'        => trim((string)($input['address']  ?? '')) === '' ? 'Home address is required.' : null,
+        'province'       => trim((string)($input['province'] ?? '')) === '' ? 'Please select a province.' : null,
+        'city'           => trim((string)($input['city']     ?? '')) === '' ? 'Please select a city.' : null,
+        'barangay'       => trim((string)($input['barangay'] ?? '')) === '' ? 'Please select a barangay.' : null,
+        'zip'            => pv_zip_error($input['zip'] ?? '', true),
+    ];
+    foreach ($regErrors as $field => $err) {
+        if ($err !== null) {
+            echo json_encode(['success' => false, 'code' => 'INVALID_FIELD', 'field' => $field, 'message' => $err]);
+            exit;
+        }
     }
 
     $check = supabase_request(
@@ -120,11 +144,12 @@ if ($action === 'register') {
 
     if ($result['status'] === 201 && !empty($result['data'][0]['account_id'])) {
         $accountId = (int)$result['data'][0]['account_id'];
+        staffn_patient_registered($accountId, trim($firstName . ' ' . $lastName));   // staff bell
 
         // $firstName, $lastName, $middleName, $suffix are already normalised above
         $birthdate   = $input['birthdate']         ?? null;
         $gender      = normalize_gender($input['gender'] ?? '') ?? '';
-        $civilStatus = trim($input['civil_status'] ?? '');
+        $civilStatus = $civilStatusIn ?? '';   // canonical value checked above
         $nationality = trim($input['nationality']  ?? '');
         $homePhone   = trim($input['home_phone']   ?? '');
         // Consistent address capitalisation (controllers/name_helper.php)
@@ -271,17 +296,28 @@ if ($action === 'google_auth') {
     $firstName = trim($nameParts[0] ?? '');
     $lastName  = trim($nameParts[1] ?? '');
 
-    $result = supabase_request('patient_accounts', 'POST', [
+    // Google-only account: no password the patient knows (portal_has_local_password)
+    $newGoogleAccount = [
         'email'               => $email,
-        'password_hash'       => password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT),
+        'password_hash'       => PORTAL_NO_PASSWORD_PREFIX . bin2hex(random_bytes(16)),
         'first_name'          => $firstName,
         'last_name'           => $lastName,
         'is_verified'         => true,
         'is_profile_complete' => false,
-    ]);
+    ];
+    $result = supabase_request('patient_accounts', 'POST', $newGoogleAccount);
+    // Safety net: should the database reject the marker (e.g. a constraint on
+    // password_hash), fall back to the previous random hash so Google sign-up
+    // never breaks. The account then looks like it has a password (old behaviour).
+    if (($result['status'] ?? 0) >= 400 && stripos(json_encode($result['error'] ?? ''), 'password_hash') !== false) {
+        error_log('[portal_auth] google_auth: password_hash marker rejected, using a random hash');
+        $newGoogleAccount['password_hash'] = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
+        $result = supabase_request('patient_accounts', 'POST', $newGoogleAccount);
+    }
 
     if ($result['status'] === 201 && !empty($result['data'][0]['account_id'])) {
         $accountId = (int)$result['data'][0]['account_id'];
+        staffn_patient_registered($accountId, trim($firstName . ' ' . $lastName), true);   // staff bell
 
         $patientCode = 'PAT-P' . str_pad($accountId, 5, '0', STR_PAD_LEFT);
         $cn          = '__PORTAL_' . $accountId . '__';
@@ -439,6 +475,9 @@ $accountId = $_SESSION['portal_account_id'];
 // its own TLS handshake). The payload per key is identical to the single action.
 if ($action === 'bootstrap') {
     $aid = (int)$accountId;
+    // Ended, never-checked-in appointments show as No Show (server-side, throttled)
+    require_once __DIR__ . "/../controllers/appointment_lifecycle.php";
+    aptSweepNoShows();
     getPatientId($aid);   // resolve + cache once, instead of once per loader
     echo json_encode(['success' => true] + portal_run([
         'dashboard_summary'   => pl_dashboard_summary($aid, $dashCache),
@@ -560,6 +599,11 @@ if ($action === 'submit_questionnaire') {
         $_SESSION['portal_profile_complete'] = $isComplete;
         session_write_close();
 
+        // Staff bell: medical questionnaire submitted (contents are never put in the notification)
+        $qid = $res['data'][0]['questionnaire_id'] ?? null;
+        staffn_patient_info($pId ? (int)$pId : null, (int)$accountId, 'medical questionnaire',
+            'pq:' . (int)$accountId . ':' . ($qid ? (int)$qid : date('Y-m-d\TH:i')));
+
         echo json_encode(['success' => true, 'is_profile_complete' => $isComplete]);
     } else {
         echo json_encode(['success' => false, 'message' => $res['error'] ?? 'Failed to save questionnaire.']);
@@ -601,6 +645,36 @@ if ($action === 'update_profile') {
     if (!$firstName || !$lastName) {
         echo json_encode(['success' => false, 'message' => 'First and last name are required.']);
         exit;
+    }
+
+    // Same field rules as registration (controllers/portal_validation.php).
+    // Optional fields are only checked when filled in.
+    $civilStatusIn = null;
+    // Names: no hyphens in new input; the saved names are only read when a
+    // hyphen is present (an unchanged hyphenated name on file is kept).
+    $storedNames = [];
+    if (strpos(($input['first_name'] ?? '') . ($input['middle_name'] ?? '') . ($input['last_name'] ?? ''), '-') !== false) {
+        $sn = supabase_request('patient_accounts', 'GET', [],
+            'account_id=eq.' . (int)$accountId . '&select=first_name,middle_name,last_name&limit=1');
+        $storedNames = $sn['data'][0] ?? [];
+    }
+    $profErrors = [
+        'first_name'     => pv_profile_name_error($input['first_name']  ?? '', 'First name', true, $storedNames['first_name'] ?? null),
+        'last_name'      => pv_profile_name_error($input['last_name']   ?? '', 'Last name', true, $storedNames['last_name'] ?? null),
+        'middle_name'    => pv_profile_name_error($input['middle_name'] ?? '', 'Middle name', false, $storedNames['middle_name'] ?? null),
+        'birthdate'      => pv_birthdate_error($input['birthdate'] ?? '', true),
+        'civil_status'   => pv_civil_status_error($input['civil_status'] ?? '', false, $civilStatusIn),
+        'contact_number' => pv_mobile_error($input['contact_number'] ?? '', false),
+        'home_phone'     => pv_home_phone_error($input['home_phone'] ?? ''),
+        'zip'            => pv_zip_error($input['zip'] ?? '', false),
+        'referred_by'    => pv_name_error($input['referred_by']  ?? '', 'Referred by', false, true),
+        'prev_dentist'   => pv_name_error($input['prev_dentist'] ?? '', 'Previous dentist', false, true),
+    ];
+    foreach ($profErrors as $field => $err) {
+        if ($err !== null) {
+            echo json_encode(['success' => false, 'code' => 'INVALID_FIELD', 'field' => $field, 'message' => $err]);
+            exit;
+        }
     }
 
     // Parent / guardian (optional). Phone: +63 followed by a 10-digit mobile number.
@@ -647,9 +721,16 @@ if (!empty($newContact)) {
 
     // A verified phone only counts for the number that received the OTP:
     // a different number (compared by its last 10 digits) must be re-verified.
-    $curRes  = supabase_request('patient_accounts', 'GET', [], 'account_id=eq.' . (int)$accountId . '&select=contact_number&limit=1');
+    $curRes  = supabase_request('patient_accounts', 'GET', [], 'account_id=eq.' . (int)$accountId . '&select=contact_number,phone_verified&limit=1');
     $digits  = fn($n) => substr(preg_replace('/\D/', '', (string)$n), -10);
     if ($digits($curRes['data'][0]['contact_number'] ?? '') !== $digits($newContact)) {
+        // A verified number is only replaced through "Change number", which
+        // confirms the new one by SMS first (controllers/verify_phone_controller.php).
+        if (!empty($curRes['data'][0]['phone_verified'])) {
+            echo json_encode(['success' => false, 'code' => 'PHONE_LOCKED', 'field' => 'contact_number',
+                'message' => 'Your verified number can only be changed with "Change number", which confirms the new number by SMS.']);
+            exit;
+        }
         $accountPatch['phone_verified']       = false;
         $accountPatch['phone_otp_code']       = null;
         $accountPatch['phone_otp_expires_at'] = null;
@@ -719,7 +800,7 @@ if (($accSave['status'] ?? 0) === 0 || $accSave['status'] >= 400) {
             return $v === '' ? null : $v;
         };
         $profilePayload = [
-            'civil_status'      => $input['civil_status']      ?? null,
+            'civil_status'      => $civilStatusIn,   // canonical value or null (checked above)
             // Free value (legacy entries are preserved); trimmed, capped, empty → null
             'nationality'       => ($nat = trim((string)($input['nationality'] ?? ''))) === '' ? null : mb_substr($nat, 0, 60),
             'home_phone'        => $input['home_phone']        ?? null,
@@ -746,7 +827,7 @@ if (($accSave['status'] ?? 0) === 0 || $accSave['status'] >= 400) {
             'patient_profiles',
             'GET',
             [],
-            'patient_id=eq.' . $patientId . '&select=profile_id&limit=1'
+            'patient_id=eq.' . $patientId . '&select=profile_id,allergies,other_allergies,allergy_reaction,conditions,other_conditions&limit=1'
         );
 
         $saveProfileRow = function (array $payload) use ($existCheck, $patientId) {
@@ -773,6 +854,24 @@ if (($accSave['status'] ?? 0) === 0 || $accSave['status'] >= 400) {
         if ($failed($profSave)) {
             echo json_encode(['success' => false, 'message' => 'We could not save your profile details. Please try again.']);
             exit;
+        }
+
+        // Staff bell: the patient changed their allergies / medical conditions
+        $medKeys = ['allergies', 'other_allergies', 'allergy_reaction', 'conditions', 'other_conditions'];
+        $medNorm = function ($v) {
+            if (is_string($v) && $v !== '' && ($j = json_decode($v, true)) !== null) $v = $j;
+            if (is_array($v)) { $v = array_map('strval', $v); sort($v); return json_encode(array_values($v)); }
+            return trim((string)$v);
+        };
+        $medOld = $existCheck['data'][0] ?? [];
+        $medNew = []; $medChanged = false;
+        foreach ($medKeys as $k) {
+            $medNew[$k] = $medNorm($profilePayload[$k] ?? null);
+            if ($medNew[$k] !== $medNorm($medOld[$k] ?? null)) $medChanged = true;
+        }
+        if ($medChanged && array_filter($medNew, fn($v) => $v !== '' && $v !== '[]')) {
+            staffn_patient_info((int)$patientId, (int)$accountId, 'updated allergies / medical conditions',
+                'pmed:' . (int)$patientId . ':' . substr(md5(json_encode($medNew)), 0, 16));
         }
     }
 
@@ -807,6 +906,29 @@ if (($accSave['status'] ?? 0) === 0 || $accSave['status'] >= 400) {
 // ── CHANGE PASSWORD ───────────────────────────────────────────────────────────
 // Requires the current password. Passwords are never echoed or logged.
 if ($action === 'change_password') {
+    // Google-only accounts have no password to change (the UI disables the
+    // form too; this is the server-side rule). Checked against the stored
+    // credential, not the session's sign-in method.
+    $accRes = supabase_request(
+        'patient_accounts',
+        'GET',
+        [],
+        'account_id=eq.' . (int)$accountId . '&select=password_hash&limit=1'
+    );
+    if (($accRes['status'] ?? 0) === 0 || ($accRes['status'] ?? 0) >= 400 || empty($accRes['data'])) {
+        echo json_encode(['success' => false, 'message' => 'We could not update your password. Please try again.']);
+        exit;
+    }
+    $hash = (string)($accRes['data'][0]['password_hash'] ?? '');
+    if (!portal_has_local_password($hash)) {
+        echo json_encode([
+            'success' => false,
+            'code'    => 'NO_PASSWORD',
+            'message' => "You don't have a password because you signed in with Google.",
+        ]);
+        exit;
+    }
+
     $current = $input['current_password'] ?? '';
     $new     = $input['new_password']     ?? '';
     $confirm = $input['confirm_password'] ?? '';
@@ -838,14 +960,8 @@ if ($action === 'change_password') {
         exit;
     }
 
-    $accRes = supabase_request(
-        'patient_accounts',
-        'GET',
-        [],
-        'account_id=eq.' . (int)$accountId . '&select=password_hash&limit=1'
-    );
-    $hash = $accRes['data'][0]['password_hash'] ?? '';
-    if (!$hash || !password_verify($current, $hash)) {
+    // $hash was loaded at the top of this action
+    if (!password_verify($current, $hash)) {
         session_start();
         $_SESSION['pw_change_fails'][] = time();
         session_write_close();
@@ -882,39 +998,63 @@ if ($action === 'change_password') {
 }
 
 // ── CANCEL APPOINTMENT ────────────────────────────────────────────────────────
+// Patients may cancel PENDING or CONFIRMED appointments at any time (no notice
+// period). Completed, cancelled and no-show appointments cannot be cancelled.
+// A reason is required. It is kept in the appointment's notes as a labelled
+// line ("Cancelled by patient on … — Reason: …"), shown in the staff
+// Appointment Records details and the portal's View Details. updated_at is the
+// cancellation time (as before). The row is never deleted, and a cancelled
+// appointment no longer holds its slot (availability and the active-only
+// unique index ignore cancelled rows).
+const PORTAL_CANCELLABLE = ['pending', 'confirmed'];
+const PORTAL_CANCEL_REASON_MAX = 500;
+
 if ($action === 'cancel_appointment') {
     $apptId    = (int)($input['appointment_id'] ?? 0);
     $patientId = getPatientId($accountId);
+    $reason    = trim(preg_replace('/\s+/u', ' ', (string)($input['reason'] ?? '')));
 
     if (!$apptId || !$patientId) {
         echo json_encode(['success' => false, 'message' => 'Invalid request.']);
         exit;
     }
-
-    $chk = supabase_request(
-        'appointments',
-        'GET',
-        [],
-        'appointment_id=eq.' . $apptId .
-            '&patient_id=eq.'    . $patientId .
-            '&status=eq.pending&select=appointment_id&limit=1'
-    );
-
-    if (empty($chk['data'])) {
-        echo json_encode(['success' => false, 'message' => 'Appointment not found or cannot be cancelled.']);
+    if ($reason === '') {
+        echo json_encode(['success' => false, 'code' => 'REASON_REQUIRED', 'message' => 'Please tell us why you are cancelling this appointment.']);
+        exit;
+    }
+    if (mb_strlen($reason) > PORTAL_CANCEL_REASON_MAX) {
+        echo json_encode(['success' => false, 'code' => 'REASON_TOO_LONG', 'message' => 'Please keep the reason under ' . PORTAL_CANCEL_REASON_MAX . ' characters.']);
         exit;
     }
 
-    $cancelRes = supabase_request(
-        'appointments',
-        'PATCH',
-        ['status' => 'cancelled', 'updated_at' => date('c')],   // updated_at = cancellation time
-        'appointment_id=eq.' . $apptId
-    );
+    // Ended appointments become no-show first (same rule as the staff side)
+    require_once __DIR__ . '/../controllers/appointment_lifecycle.php';
+    require_once __DIR__ . '/../controllers/audit_controller.php';
+    aptSweepNoShows();
 
-    if (!empty($cancelRes['data'][0])) {
-        notif_appointment($cancelRes['data'][0], ['status' => 'pending'] + $cancelRes['data'][0]);
+    // One cancellation write for patients and staff (controllers/appointment_lifecycle.php):
+    // ownership (patient_id) and a cancellable status are part of the filter, so a
+    // status change that happened in the meantime (e.g. staff check-in) is never
+    // overwritten. Who / when / why are stored with the appointment.
+    $pn = supabase_request('patients', 'GET', [], 'patient_id=eq.' . (int)$patientId . '&select=full_name&limit=1');
+    $patientName = trim((string)($pn['data'][0]['full_name'] ?? '')) ?: 'Patient';
+    $c = aptCancel($apptId, ['type' => 'patient', 'account_id' => (int)$accountId, 'name' => $patientName],
+        $reason, PORTAL_CANCELLABLE, '&patient_id=eq.' . (int)$patientId);
+    if (!$c['ok']) {
+        if ($c['code'] === 'NOT_FOUND') {
+            echo json_encode(['success' => false, 'message' => 'Appointment not found.']);
+        } elseif ($c['code'] === 'NOT_CANCELLABLE') {
+            echo json_encode(['success' => false, 'code' => 'NOT_CANCELLABLE',
+                'message' => $c['message'] . ' Only pending or confirmed appointments can be cancelled.']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'We could not cancel this appointment. Its status may have just changed — please refresh and try again.']);
+        }
+        exit;
     }
+    logActivity('appointment-schedules', 'UPDATE', $apptId, $patientName,
+        'Status changed from ' . ucfirst(str_replace('_', ' ', (string)$c['prev'])) . ' to Cancelled by the patient (Patient Portal) — Reason: ' . $reason,
+        !empty($c['row']['branch_id']) ? (int)$c['row']['branch_id'] : null, null,
+        ['username' => $patientName, 'role' => 'patient']);
 
     // The upcoming / completed counts changed: drop the 60 s dashboard cache
     portal_session_set([], ['dash_cache_' . $accountId]);
@@ -939,6 +1079,12 @@ if ($action === 'get_dental_chart') {
 
 if ($action === 'get_billing') {
     echo json_encode(portal_run_one(pl_billing((int)$accountId)));
+    exit;
+}
+
+// ── MAKE A PAYMENT QUOTE — read-only; balance recomputed from the invoices table
+if ($action === 'ewallet_quote') {
+    echo json_encode(portal_run_one(pl_ewallet_quote((int)$accountId, $input['invoice_ids'] ?? [], $input['method'] ?? '', $input['amount'] ?? null)));
     exit;
 }
 

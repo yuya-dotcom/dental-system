@@ -8,11 +8,8 @@
    .info-sidebar / .info-nav), and the content styles for Contact Us
    and Terms and Conditions.
 
-   All three Information pages (contact-us.php, portal-terms.php,
-   patient-feedbacks.php) link this file for the shared layout.
-   Patient Feedback also loads its own assets/css/patient-feedback.css
-   on top of this one for its form-specific styles — nothing
-   feedback-specific lives in this file.
+   Both Information pages (contact-us-page.php, portal-terms.php)
+   link this file for the shared layout.
 
    portal-login.php is untouched and keeps using portal-login.css.
    ───────────────────────────────────────────────────────────────────── */

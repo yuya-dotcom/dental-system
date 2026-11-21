@@ -75,7 +75,7 @@ if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $time))  bookFail('Invalid time form
 switch (dateUnavailableReason($branch, $date)) {
     case 'invalid': bookFail('Invalid appointment date.');
     case 'past':    bookFail('Please choose a date from tomorrow onwards.');
-    case 'closed':  bookFail('The ' . $branch['branch_name'] . ' branch is closed on that day. It is open ' . $branch['days_label'] . '.');
+    case 'closed':  bookFail(closedDateMessage($branch, $date));
     case 'inactive':bookFail('This branch is not accepting online bookings right now.');
 }
 // Same booking window as the calendar (about six months ahead)

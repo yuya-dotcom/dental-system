@@ -687,7 +687,7 @@ html {
     background: #fff;
     border-radius: 0 0 var(--bk-radius) var(--bk-radius);
 }
-.bk-nav-hint { flex: 1; text-align: right; font-size: .8rem; color: var(--bk-muted); }
+.bk-nav-hint { flex: 1; text-align: left; font-size: .8rem; color: var(--bk-muted); }
 .bk-btn {
     display: inline-flex;
     align-items: center;

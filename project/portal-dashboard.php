@@ -2,6 +2,7 @@
 // portal-dashboard.php
 session_start();
 require_once __DIR__ . '/portal-session-guard.php';
+require_once __DIR__ . '/partials/portal-filter-parts.php'; // Show Filters panels
 portal_require_login();
 
 $API_PATH = 'api/portal_auth.php';
@@ -51,11 +52,18 @@ session_write_close();
     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/portal-login.css">
+    <link rel="stylesheet" href="assets/css/portal-login.css?v=11">
     <link rel="stylesheet" href="assets/css/odontogram.css?v=3">
-    <link rel="stylesheet" href="assets/css/portal-dashboard.css?v=21">
-    <link rel="stylesheet" href="assets/css/es-swal.css?v=4">
+    <link rel="stylesheet" href="assets/css/portal-dashboard.css?v=25">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
+    <!-- Installable app + Web Push (assets/js/portal-notify.js, sw.js) -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0279BC">
+    <link rel="apple-touch-icon" href="assets/images/icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="EssenciaSmile">
+    <link rel="stylesheet" href="assets/css/portal-notify.css?v=1">
 </head>
 
 <body>
@@ -147,6 +155,11 @@ session_write_close();
                         <button type="button" class="notif-mark-read" id="notifMarkAllRead" onclick="markAllNotifsRead()">
                             Mark all as read
                         </button>
+                    </div>
+                    <!-- Filter: all / unread only (the list is already newest first) -->
+                    <div class="notif-tabs" role="group" aria-label="Show notifications">
+                        <button type="button" class="notif-tab active" data-nf="all" aria-pressed="true">All</button>
+                        <button type="button" class="notif-tab" data-nf="unread" aria-pressed="false">Unread <span class="notif-tab-count" id="notifTabCount" hidden></span></button>
                     </div>
                     <div class="notif-panel-body" id="notifPanelBody">
                         <div class="notif-empty">
@@ -268,12 +281,23 @@ session_write_close();
                 </div>
             </div>
 
-            <div class="appt-filter-bar">
-                <button class="appt-filter-btn active" data-status="all" onclick="filterAppts('all',this)">All</button>
-                <button class="appt-filter-btn" data-status="pending" onclick="filterAppts('pending',this)">Pending</button>
-                <button class="appt-filter-btn" data-status="confirmed" onclick="filterAppts('confirmed',this)">Confirmed</button>
-                <button class="appt-filter-btn" data-status="completed" onclick="filterAppts('completed',this)">Completed</button>
-                <button class="appt-filter-btn" data-status="cancelled" onclick="filterAppts('cancelled',this)">Cancelled</button>
+            <!-- Filters: status chips (quick) + Show Filters panel (assets/js/portal-filters.js) -->
+            <div class="pfl" data-pfl="appts">
+                <div class="pfl-bar">
+                    <div class="appt-filter-bar" role="group" aria-label="Filter by status">
+                        <button type="button" class="appt-filter-btn active" data-status="all" onclick="filterAppts('all',this)">All</button>
+                        <button type="button" class="appt-filter-btn" data-status="pending" onclick="filterAppts('pending',this)">Pending</button>
+                        <button type="button" class="appt-filter-btn" data-status="confirmed" onclick="filterAppts('confirmed',this)">Confirmed</button>
+                        <button type="button" class="appt-filter-btn" data-status="completed" onclick="filterAppts('completed',this)">Completed</button>
+                        <button type="button" class="appt-filter-btn" data-status="cancelled" onclick="filterAppts('cancelled',this)">Cancelled</button>
+                    </div>
+                    <?= pfl_toggle('appts') ?>
+                </div>
+                <?= pfl_panel_open('appts') ?>
+                    <?= pfl_dates('appts', 'Date') ?>
+                    <?= pfl_select('appts', 'branch', 'Branch', 'All branches') ?>
+                    <?= pfl_search('appts', 'service', 'Service', 'Search a service') ?>
+                <?= pfl_panel_close() ?>
             </div>
 
             <div class="content-card">
@@ -301,6 +325,15 @@ session_write_close();
             <div class="mb-3">
                 <h5 style="font-weight:800;margin:0;">My Treatment History</h5>
                 <p style="color:var(--text-muted);font-size:.85rem;margin:0;">Read-only view of all your procedures</p>
+            </div>
+            <div class="pfl" data-pfl="treat">
+                <div class="pfl-bar"><?= pfl_toggle('treat') ?></div>
+                <?= pfl_panel_open('treat') ?>
+                    <?= pfl_dates('treat', 'Date') ?>
+                    <?= pfl_select('treat', 'procedure', 'Procedure', 'All procedures') ?>
+                    <?= pfl_select('treat', 'dentist', 'Dentist', 'All dentists') ?>
+                    <?= pfl_select('treat', 'status', 'Status', 'All statuses') ?>
+                <?= pfl_panel_close() ?>
             </div>
             <div class="content-card">
                 <table class="portal-table pt-stack">
@@ -428,9 +461,16 @@ session_write_close();
 
         <!-- ── BILLING PAGE ── -->
         <div class="page-body" id="page-billing">
-            <div class="mb-3">
-                <h5 style="font-weight:800;margin:0;">My Billing & Payments</h5>
-                <p style="color:var(--text-muted);font-size:.85rem;margin:0;">Your invoices and payment history</p>
+            <div class="mb-3 bill-head">
+                <div>
+                    <h5 style="font-weight:800;margin:0;">My Billing & Payments</h5>
+                    <p style="color:var(--text-muted);font-size:.85rem;margin:0;">Your invoices and payment history</p>
+                </div>
+                <!-- Opens the Make a Payment modal (#ewalletModal; no gateway connected yet) -->
+                <button type="button" class="ew-open-btn" onclick="openEwalletModal()">
+                    <i class="fa-solid fa-wallet" aria-hidden="true"></i> Make a Payment
+                    <span class="ew-soon-pill">Soon</span>
+                </button>
             </div>
             <div class="row g-3 mb-3">
                 <div class="col-md-4">
@@ -461,11 +501,17 @@ session_write_close();
                     </div>
                 </div>
             </div>
+            <div class="pfl" data-pfl="bill">
+                <div class="pfl-bar"><?= pfl_toggle('bill') ?></div>
+                <?= pfl_panel_open('bill') ?>
+                    <?= pfl_select('bill', 'status', 'Payment Status', 'All statuses', ['unpaid' => 'Unpaid', 'partial' => 'Partially Paid', 'paid' => 'Paid']) ?>
+                    <?= pfl_dates('bill', 'Invoice date') ?>
+                <?= pfl_panel_close() ?>
+            </div>
             <div class="content-card">
                 <table class="portal-table pt-stack">
                     <thead>
                         <tr>
-                            <th>Invoice #</th>
                             <th>Date</th>
                             <th>Total</th>
                             <th>Paid</th>
@@ -476,7 +522,7 @@ session_write_close();
                     </thead>
                     <tbody id="billingTableBody">
                         <tr>
-                            <td colspan="7" class="text-center py-4" style="color:var(--text-muted);">Loading…</td>
+                            <td colspan="6" class="text-center py-4" style="color:var(--text-muted);">Loading…</td>
                         </tr>
                     </tbody>
                 </table>
@@ -488,6 +534,14 @@ session_write_close();
             <div class="mb-3">
                 <h5 style="font-weight:800;margin:0;">My Files</h5>
                 <p style="color:var(--text-muted);font-size:.85rem;margin:0;">X-rays, referrals, and medical certificates (view/download only)</p>
+            </div>
+            <div class="pfl" data-pfl="files">
+                <div class="pfl-bar"><?= pfl_toggle('files') ?></div>
+                <?= pfl_panel_open('files') ?>
+                    <?= pfl_search('files', 'name', 'File name', 'Search a file') ?>
+                    <?= pfl_select('files', 'type', 'Type', 'All types') ?>
+                    <?= pfl_dates('files', 'Uploaded') ?>
+                <?= pfl_panel_close() ?>
             </div>
             <div class="content-card">
                 <table class="portal-table pt-stack">
@@ -515,6 +569,13 @@ session_write_close();
                 <h5 style="font-weight:800;margin:0;">My Waivers</h5>
                 <p style="color:var(--text-muted);font-size:.85rem;margin:0;">View your consent and waiver documents</p>
             </div>
+            <div class="pfl" data-pfl="waivers">
+                <div class="pfl-bar"><?= pfl_toggle('waivers') ?></div>
+                <?= pfl_panel_open('waivers') ?>
+                    <?= pfl_select('waivers', 'status', 'Status', 'All statuses', ['pending' => 'Pending', 'signed' => 'Signed']) ?>
+                    <?= pfl_select('waivers', 'type', 'Waiver', 'All waivers') ?>
+                <?= pfl_panel_close(false) ?>
+            </div>
             <div class="content-card">
                 <table class="portal-table pt-stack">
                     <thead>
@@ -537,15 +598,15 @@ session_write_close();
 
         <!-- ══════════════════════════════════════════════════
              ── FEEDBACK PAGE ──
-             Opened from Treatment History → Give Feedback (no sidebar link).
+             Opened from My Appointments → Action → Give Feedback (no sidebar link).
              Dentist feedback, one per completed appointment with a completed
              treatment; api/portal_feedback.php re-checks everything and
              resolves the dentist itself. The stars are a radio group.
         ══════════════════════════════════════════════════ -->
         <div class="page-body" id="page-feedback">
             <div class="mb-3 fb-head">
-                <button type="button" class="fb-back" onclick="showPage('treatments', null)">
-                    <i class="fa-solid fa-arrow-left"></i> Treatment History
+                <button type="button" class="fb-back" onclick="showPage('appointments', null)">
+                    <i class="fa-solid fa-arrow-left"></i> My Appointments
                 </button>
                 <h5 style="font-weight:800;margin:0;">Give Feedback</h5>
                 <p style="color:var(--text-muted);font-size:.85rem;margin:0;">Your feedback helps us improve our care and clinic services.</p>
@@ -646,9 +707,17 @@ session_write_close();
                         <button type="button" class="prof-btn prof-btn-primary prof-edit-btn" id="profEditBtn" onclick="enterEditMode()">
                             <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> Edit Profile
                         </button>
-                        <button type="button" class="prof-btn prof-btn-light prof-pw-btn" onclick="openChangePassword()">
-                            <i class="fa-solid fa-key" aria-hidden="true"></i> Change Password
-                        </button>
+                        <!-- Disabled for Google-only accounts (no password): syncPasswordControls() -->
+                        <div class="prof-pw-row">
+                            <button type="button" class="prof-btn prof-btn-light prof-pw-btn" id="profPwBtn" onclick="openChangePassword()">
+                                <i class="fa-solid fa-key" aria-hidden="true"></i> Change Password
+                            </button>
+                            <button type="button" class="info-tip" id="profPwTip" hidden
+                                data-tip="You don't have a password because you signed in with Google."
+                                aria-label="Why is Change Password unavailable? You don't have a password because you signed in with Google.">
+                                <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                            </button>
+                        </div>
                         <div class="prof-editing-note" id="profEditingNote" hidden>
                             <i class="fa-solid fa-pen" aria-hidden="true"></i> Editing — remember to save your changes
                         </div>
@@ -674,6 +743,33 @@ session_write_close();
                                 <i class="fa-solid fa-file-medical fa-fw" aria-hidden="true"></i><span>Medical Conditions</span>
                             </a>
                     </nav>
+
+                    <!-- Notification settings (assets/js/portal-notify.js → api/portal_notification_settings.php) -->
+                    <section class="prof-card pn-card" id="pnCard" aria-labelledby="pnTitle" hidden>
+                        <div class="pn-head">
+                            <span class="pn-head-ico" aria-hidden="true"><i class="fa-solid fa-bell"></i></span>
+                            <div>
+                                <h3 class="pn-title" id="pnTitle">Notifications</h3>
+                                <p class="pn-sub">Appointment confirmations, changes and reminders</p>
+                            </div>
+                        </div>
+                        <div class="pn-row">
+                            <span class="pn-ico" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
+                            <label class="pn-txt" for="pnEmail"><span class="t">Email</span><span class="d" id="pnEmailNote">To your verified email address</span></label>
+                            <input type="checkbox" class="pn-switch" id="pnEmail" role="switch">
+                        </div>
+                        <div class="pn-row">
+                            <span class="pn-ico" aria-hidden="true"><i class="fa-solid fa-comment-sms"></i></span>
+                            <label class="pn-txt" for="pnSms"><span class="t">SMS</span><span class="d" id="pnSmsNote">Text messages to your mobile number</span></label>
+                            <input type="checkbox" class="pn-switch" id="pnSms" role="switch">
+                        </div>
+                        <div class="pn-row">
+                            <span class="pn-ico" aria-hidden="true"><i class="fa-solid fa-mobile-screen-button"></i></span>
+                            <label class="pn-txt" for="pnPush"><span class="t">Push on this device</span><span class="d" id="pnPushNote">Alerts even when the portal is closed</span></label>
+                            <input type="checkbox" class="pn-switch" id="pnPush" role="switch">
+                        </div>
+                        <p class="pn-hint" id="pnHint" hidden></p>
+                    </section>
                 </aside>
 
                 <!-- ── RIGHT: content ── -->
@@ -682,7 +778,7 @@ session_write_close();
                     <!-- ── VIEW PANEL ── -->
                     <div id="profileViewPanel">
                         <div class="prof-toolbar">
-                            <span class="prof-toolbar-text">Your personal details and health information</span>
+                            <span class="prof-toolbar-text"><i class="fa-solid fa-lock" aria-hidden="true"></i> View only — click <strong>Edit Profile</strong> to make changes</span>
                             <div class="prof-toolbar-actions">
                                 <button type="button" class="prof-link-btn" onclick="profSetAll(true)">Expand all</button>
                                 <span class="prof-toolbar-sep" aria-hidden="true">·</span>
@@ -707,15 +803,28 @@ session_write_close();
                                 <div class="prof-collapse-inner">
                                     <div class="prof-section-body">
                                     <div class="row g-3 prof-fields">
-                                        <div class="col-md-6">
-                                            <div class="view-field-label">Full Name</div>
-                                            <div class="view-field-value" id="vf_full_name">—</div>
+                                        <!-- Name parts as saved (patients.first_name / middle_name / last_name / suffix) -->
+                                        <div class="col-md-4">
+                                            <div class="view-field-label">First Name</div>
+                                            <div class="view-field-value" id="vf_first_name">—</div>
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-4">
+                                            <div class="view-field-label">Middle Name</div>
+                                            <div class="view-field-value" id="vf_middle_name" data-optional>—</div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="view-field-label">Last Name</div>
+                                            <div class="view-field-value" id="vf_last_name">—</div>
+                                        </div>
+                                        <div class="col-md-4" id="vf_suffix_row" hidden>
+                                            <div class="view-field-label">Suffix</div>
+                                            <div class="view-field-value" id="vf_suffix" data-optional>—</div>
+                                        </div>
+                                        <div class="col-md-4">
                                             <div class="view-field-label">Birthdate</div>
                                             <div class="view-field-value" id="vf_birthdate">—</div>
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-4">
                                             <div class="view-field-label">Age</div>
                                             <div class="view-field-value" id="vf_age_display">—</div>
                                         </div>
@@ -790,8 +899,18 @@ session_write_close();
                                 <div class="prof-collapse-inner">
                                     <div class="prof-section-body">
                                     <div class="row g-3 prof-fields">
+                                        <!-- Email / Contact Number: unverified → (i) icon beside the label
+                                             (syncVerifyTips) and the verify button inside the field, on the
+                                             right (same as Change Number in the edit form). Verified → the
+                                             "Verified" pill. Status: patient_accounts.is_verified / phone_verified.
+                                             Change Number is only in Edit Profile (inside the Contact Number field). -->
                                         <div class="col-md-6">
-                                            <div class="view-field-label">Email Address</div>
+                                            <div class="pf-label-row">
+                                                <div class="view-field-label" id="vfEmailLabel">Email Address</div>
+                                                <button type="button" class="info-tip" id="vfEmailTip" hidden data-tip="" aria-label="Email address status">
+                                                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
                                             <div class="prof-value-row">
                                                 <div class="view-field-value" id="vf_email">—</div>
                                                 <span id="emailVerifiedBadge" style="display:none;">
@@ -799,20 +918,20 @@ session_write_close();
                                                         <i class="fa-solid fa-circle-check"></i> Verified
                                                     </span>
                                                 </span>
-                                                <span id="emailUnverifiedBadge" style="display:none;">
-                                                    <span class="prof-badge prof-badge-warn">
-                                                        <i class="fa-solid fa-circle-exclamation"></i> Unverified
-                                                    </span>
+                                                <span id="emailVerifyBtnWrap" class="prof-field-action-wrap" style="display:none;">
+                                                    <button type="button" class="prof-field-action" onclick="sendVerificationEmail(this)" aria-label="Verify email: send a verification link">
+                                                        <i class="fa-solid fa-envelope" aria-hidden="true"></i><span>Verify Email</span>
+                                                    </button>
                                                 </span>
-                                            </div>
-                                            <div id="emailVerifyBtnWrap" class="prof-verify-wrap" style="display:none;">
-                                                <button type="button" class="prof-btn-verify" onclick="sendVerificationEmail(this)">
-                                                    <i class="fa-solid fa-envelope"></i> Send Verification Email
-                                                </button>
                                             </div>
                                         </div>
                                         <div class="col-md-6">
-                                            <div class="view-field-label">Contact Number</div>
+                                            <div class="pf-label-row">
+                                                <div class="view-field-label" id="vfPhoneLabel">Contact Number</div>
+                                                <button type="button" class="info-tip" id="vfPhoneTip" hidden data-tip="" aria-label="Contact number status">
+                                                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
                                             <div class="prof-value-row">
                                                 <div class="view-field-value" id="vf_contact">—</div>
                                                 <span id="phoneVerifiedBadge" style="display:none;">
@@ -820,16 +939,11 @@ session_write_close();
                                                         <i class="fa-solid fa-circle-check"></i> Verified
                                                     </span>
                                                 </span>
-                                                <span id="phoneUnverifiedBadge" style="display:none;">
-                                                    <span class="prof-badge prof-badge-warn">
-                                                        <i class="fa-solid fa-circle-exclamation"></i> Unverified
-                                                    </span>
+                                                <span id="phoneVerifyBtnWrap" class="prof-field-action-wrap" style="display:none;">
+                                                    <button type="button" class="prof-field-action" onclick="startPhoneVerification()" aria-label="Verify number by SMS">
+                                                        <i class="fa-solid fa-mobile-screen" aria-hidden="true"></i><span>Verify Number</span>
+                                                    </button>
                                                 </span>
-                                            </div>
-                                            <div id="phoneVerifyBtnWrap" class="prof-verify-wrap" style="display:none;">
-                                                <button type="button" class="prof-btn-verify" onclick="startPhoneVerification()">
-                                                    <i class="fa-solid fa-mobile-screen"></i> Verify Phone Number
-                                                </button>
                                             </div>
                                         </div>
                                         <div class="col-12">
@@ -1024,21 +1138,22 @@ session_write_close();
                                     <div class="row g-3">
                                         <div class="col-md-4">
                                             <label class="pf-label" for="pf_first">First Name <span class="req-star" aria-hidden="true">*</span></label>
-                                            <input type="text" id="pf_first" class="pf-input" placeholder="Juan" onblur="normalizeNameInput(this)">
+                                            <input type="text" id="pf_first" class="pf-input" placeholder="Juan" maxlength="100" data-pv="pname" onblur="normalizeNameInput(this)">
                                             <div class="pf-err" id="err_pf_first"></div>
                                         </div>
                                         <div class="col-md-4">
                                             <label class="pf-label" for="pf_middle">Middle Name <span class="pf-opt">(optional)</span></label>
-                                            <input type="text" id="pf_middle" class="pf-input" placeholder="Santos" onblur="normalizeNameInput(this)">
+                                            <input type="text" id="pf_middle" class="pf-input" placeholder="Santos" maxlength="100" data-pv="pname" onblur="normalizeNameInput(this)">
+                                            <div class="pf-err" id="err_pf_middle"></div>
                                         </div>
                                         <div class="col-md-4">
                                             <label class="pf-label" for="pf_last">Last Name <span class="req-star" aria-hidden="true">*</span></label>
-                                            <input type="text" id="pf_last" class="pf-input" placeholder="Dela Cruz" onblur="normalizeNameInput(this)">
+                                            <input type="text" id="pf_last" class="pf-input" placeholder="Dela Cruz" maxlength="100" data-pv="pname" onblur="normalizeNameInput(this)">
                                             <div class="pf-err" id="err_pf_last"></div>
                                         </div>
                                         <div class="col-md-3">
                                             <label class="pf-label" for="pf_suffix">Suffix <span class="pf-opt">(optional)</span></label>
-                                            <select id="pf_suffix" class="pf-select js-custom-select" data-cs-search data-cs-no-placeholder>
+                                            <select id="pf_suffix" class="pf-select js-custom-select" data-cs-no-placeholder>
                                                 <option value="">None</option>
                                                 <option>Jr.</option>
                                                 <option>Sr.</option>
@@ -1049,7 +1164,7 @@ session_write_close();
                                         </div>
                                         <div class="col-md-4">
                                             <label class="pf-label" for="pf_birthdate">Birthdate <span class="req-star" aria-hidden="true">*</span></label>
-                                            <input type="date" id="pf_birthdate" class="pf-input js-date-picker" data-dp-max="today" placeholder="Select birthdate" onchange="calcAge()">
+                                            <input type="date" id="pf_birthdate" class="pf-input js-date-picker" data-dp-max="yesterday" placeholder="Select birthdate" onchange="calcAge()">
                                             <div class="pf-err" id="err_pf_birthdate"></div>
                                         </div>
                                         <div class="col-md-2">
@@ -1058,7 +1173,7 @@ session_write_close();
                                         </div>
                                         <div class="col-md-3">
                                             <label class="pf-label" for="pf_gender">Gender</label>
-                                            <select id="pf_gender" class="pf-select js-custom-select" data-cs-search data-cs-no-placeholder>
+                                            <select id="pf_gender" class="pf-select js-custom-select" data-cs-no-placeholder>
                                                 <option value="">— Select —</option>
                                                 <option value="Male">Male</option>
                                                 <option value="Female">Female</option>
@@ -1069,7 +1184,7 @@ session_write_close();
                                         </div>
                                         <div class="col-md-4">
                                             <label class="pf-label" for="pf_civil_status">Civil Status</label>
-                                            <select id="pf_civil_status" class="pf-select js-custom-select" data-cs-search data-cs-no-placeholder>
+                                            <select id="pf_civil_status" class="pf-select js-custom-select" data-cs-no-placeholder>
                                                 <option value="">— Select —</option>
                                                 <option>Single</option>
                                                 <option>Married</option>
@@ -1148,23 +1263,45 @@ session_write_close();
                                     <div class="prof-section-body">
                                     <div class="row g-3">
                                         <div class="col-md-6">
-                                            <label class="pf-label" for="pf_email">Email Address</label>
+                                            <div class="pf-label-row">
+                                                <label class="pf-label" for="pf_email">Email Address</label>
+                                                <button type="button" class="info-tip" data-tip="Your sign-in email can't be changed here."
+                                                    aria-label="About your email: Your sign-in email can't be changed here.">
+                                                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
                                             <input type="email" id="pf_email" class="pf-input pf-readonly" readonly>
-                                            <div class="prof-hint">Your sign-in email can’t be changed here.</div>
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="pf-label" for="pf_contact">Contact Number</label>
+                                            <div class="pf-label-row">
+                                                <label class="pf-label" for="pf_contact">Contact Number</label>
+                                                <!-- Always shown; message follows the status (syncContactLock):
+                                                     verified → can't be edited here; not verified → "Verify phone number." -->
+                                                <button type="button" class="info-tip" id="pfContactTip"
+                                                    data-tip="Verified numbers can't be edited here. Use Change Number to confirm a new one by SMS."
+                                                    aria-label="About your contact number: Verified numbers can't be edited here. Use Change Number to confirm a new one by SMS.">
+                                                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
                                             <div class="pf-phone">
                                                 <span class="pf-phone-prefix">+63</span>
-                                                <input type="tel" id="pf_contact" class="pf-input" placeholder="9XX XXX XXXX" maxlength="10" inputmode="numeric"
-                                                    oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                                                <!-- +63 is shown above, not stored in this field: 10 digits starting with 9 -->
+                                                <input type="tel" id="pf_contact" class="pf-input" placeholder="9XX XXX XXXX" inputmode="numeric"
+                                                    data-pv="mobile">
+                                                <!-- Inside the field (right side); only for a verified number.
+                                                     Opens the SMS verification flow (startPhoneChange). -->
+                                                <button type="button" class="pf-phone-action" id="pfContactChangeWrap" hidden onclick="startPhoneChange()">
+                                                    <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i><span>Change Number</span>
+                                                </button>
                                             </div>
-                                            <div class="prof-hint">10-digit mobile number starting with 9</div>
+                                            <div class="prof-hint" id="pfContactHint">10-digit mobile number starting with 9</div>
                                             <div class="pf-err" id="err_pf_contact"></div>
                                         </div>
                                         <div class="col-md-6">
                                             <label class="pf-label" for="pf_home_phone">Home Phone</label>
-                                            <input type="text" id="pf_home_phone" class="pf-input" placeholder="(02) XXXX-XXXX">
+                                            <input type="tel" id="pf_home_phone" class="pf-input" placeholder="e.g. 81234567" inputmode="numeric" data-pv="digits" data-pv-max="8">
+                                            <div class="prof-hint">Numbers only, up to 8 digits</div>
+                                            <div class="pf-err" id="err_pf_home_phone"></div>
                                         </div>
                                         <div class="col-12">
                                             <label class="pf-label" for="pf_address">Home Address</label>
@@ -1223,7 +1360,8 @@ session_write_close();
                                         </div>
                                         <div class="col-md-6">
                                             <label class="pf-label" for="pf_zip">ZIP Code</label>
-                                            <input type="text" id="pf_zip" class="pf-input" placeholder="1100" maxlength="6">
+                                            <input type="text" id="pf_zip" class="pf-input" placeholder="1100" inputmode="numeric" data-pv="digits" data-pv-max="4">
+                                            <div class="pf-err" id="err_pf_zip"></div>
                                         </div>
                                     </div>
                                     </div>
@@ -1264,7 +1402,8 @@ session_write_close();
                                         </div>
                                         <div class="col-md-6">
                                             <label class="pf-label" for="pf_referred_by">Referred by (name)</label>
-                                            <input type="text" id="pf_referred_by" class="pf-input" placeholder="Name of referrer (if any)">
+                                            <input type="text" id="pf_referred_by" class="pf-input" placeholder="Name of referrer (if any)" maxlength="100" data-pv="title">
+                                            <div class="pf-err" id="err_pf_referred_by"></div>
                                         </div>
                                     </div>
                                     </div>
@@ -1289,7 +1428,8 @@ session_write_close();
                                     <div class="row g-3">
                                         <div class="col-md-6">
                                             <label class="pf-label" for="pf_prev_dentist">Previous Dentist</label>
-                                            <input type="text" id="pf_prev_dentist" class="pf-input" placeholder="Dr. Name">
+                                            <input type="text" id="pf_prev_dentist" class="pf-input" placeholder="Dr. Name" maxlength="100" data-pv="title">
+                                            <div class="pf-err" id="err_pf_prev_dentist"></div>
                                         </div>
                                         <div class="col-md-6">
                                             <label class="pf-label" for="pf_last_visit">Last Dental Visit</label>
@@ -1407,8 +1547,8 @@ session_write_close();
                         <div class="prof-savebar">
                             <span class="prof-savebar-text" id="profDirtyNote">No unsaved changes</span>
                             <div class="prof-savebar-actions">
-                                <button type="button" class="prof-btn prof-btn-light" onclick="cancelEditMode()">Cancel</button>
                                 <button type="button" class="prof-btn prof-btn-primary" onclick="saveProfile()"><i class="fa-solid fa-floppy-disk me-1"></i> Save Changes</button>
+                                <button type="button" class="prof-btn prof-btn-light" onclick="cancelEditMode()">Cancel</button>
                             </div>
                         </div>
                     </div><!-- end #profileEditPanel -->
@@ -1513,24 +1653,7 @@ session_write_close();
         </div>
     </div>
 
-    <!-- Cancel Appointment Modal -->
-    <div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow" style="border-radius:14px;overflow:hidden;">
-                <div class="modal-header border-0 pb-0">
-                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-calendar-xmark text-danger me-2"></i>Cancel Appointment</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p style="color:var(--text-muted);font-size:.9rem;">Are you sure you want to cancel appointment <strong id="cancelApptCode"></strong>? This action cannot be undone.</p>
-                </div>
-                <div class="modal-footer border-0 pt-0">
-                    <button class="btn btn-light" data-bs-dismiss="modal">Keep It</button>
-                    <button class="btn btn-danger px-4 text-white" onclick="confirmCancel()">Yes, Cancel</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Cancel Appointment: reason + confirmation dialogs (openCancelModal, portal-dashboard.js) -->
 
     <!-- Appointment Details Modal (opened from the Action menu in My Appointments) -->
     <div class="modal fade" id="apptDetailModal" tabindex="-1" aria-labelledby="adModalTitle" aria-hidden="true">
@@ -1783,6 +1906,147 @@ session_write_close();
         </div>
     </div>
 
+    <!-- Receipt Modal (Billing & Payments → Action → View Receipt).
+         Shows receipt.php?embed=1 — the same receipt layout, data and
+         patient-ownership check as the standalone page — in a same-site
+         iframe, so the patient never leaves Billing & Payments. -->
+    <div class="modal fade" id="receiptModal" tabindex="-1" aria-labelledby="rcModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down adm-dialog rc-dialog">
+            <div class="modal-content adm-content">
+                <div class="modal-header adm-header">
+                    <span class="adm-header-icon" aria-hidden="true"><i class="fa-solid fa-receipt"></i></span>
+                    <div class="adm-header-text">
+                        <h5 class="modal-title adm-title" id="rcModalTitle">Official Receipt</h5>
+                        <div class="adm-ref" id="rc_sub">Your receipt for this invoice</div>
+                    </div>
+                    <button type="button" class="btn-close adm-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body rc-body">
+                    <div class="rc-loading" id="rcLoading" role="status">
+                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Loading your receipt…
+                    </div>
+                    <iframe class="rc-frame" id="rcFrame" title="Official receipt" tabindex="0"></iframe>
+                </div>
+                <!-- Primary action (Print) left, Close right -->
+                <div class="modal-footer adm-footer rc-footer">
+                    <button type="button" class="rc-btn rc-btn-primary" id="rcPrintBtn" disabled>
+                        <i class="fa-solid fa-print" aria-hidden="true"></i> Print
+                    </button>
+                    <button type="button" class="rc-btn rc-btn-light" id="rcPdfBtn" disabled>
+                        <i class="fa-solid fa-file-pdf" aria-hidden="true"></i> Download PDF
+                    </button>
+                    <button type="button" class="adm-btn-close" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Make a Payment Modal (Billing & Payments → Make a Payment).
+         The patient picks outstanding invoices, enters how much to pay (all or
+         part of the selected balance) and picks an e-wallet. No payment gateway
+         is connected yet: Pay only asks the server to re-check the selection and
+         the amount (api/portal_auth.php → ewallet_quote, read-only). Nothing is
+         charged and no payment or invoice is changed.
+         Footer: primary action (Pay) left, Close right. -->
+    <div class="modal fade" id="ewalletModal" tabindex="-1" aria-labelledby="ewModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down ew-dialog">
+            <div class="modal-content adm-content">
+                <div class="modal-header adm-header">
+                    <span class="adm-header-icon" aria-hidden="true"><i class="fa-solid fa-wallet"></i></span>
+                    <div class="adm-header-text">
+                        <h5 class="modal-title adm-title" id="ewModalTitle">Make a Payment</h5>
+                        <div class="adm-ref">Pay all or part of your outstanding invoices with GCash, Maya or GrabPay</div>
+                    </div>
+                    <button type="button" class="btn-close adm-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body ew-body">
+
+                    <!-- Step 1: invoices -->
+                    <section class="ew-step" aria-labelledby="ewStep1">
+                        <div class="ew-step-head">
+                            <h6 class="ew-step-title" id="ewStep1"><span class="ew-step-num" aria-hidden="true">1</span> Select invoices to pay</h6>
+                            <label class="ew-all" id="ewAllWrap">
+                                <input type="checkbox" id="ewSelectAll"> <span>Select all</span>
+                            </label>
+                        </div>
+                        <div class="ew-inv-list" id="ewInvList" role="group" aria-labelledby="ewStep1"></div>
+                        <p class="ew-inv-note" id="ewInvNote">Only invoices with a remaining balance are listed. Partly paid invoices show what is still due.</p>
+                    </section>
+
+                    <!-- Step 2: amount (all or part of the selected balance) -->
+                    <section class="ew-step" aria-labelledby="ewStep2">
+                        <h6 class="ew-step-title" id="ewStep2"><span class="ew-step-num" aria-hidden="true">2</span> Enter the amount to pay</h6>
+                        <div class="ew-amount" aria-live="polite">
+                            <div class="ew-amount-top">
+                                <div>
+                                    <div class="ew-amount-label">Selected balance</div>
+                                    <div class="ew-amount-sub" id="ewAmountSub">No invoices selected</div>
+                                </div>
+                                <div class="ew-amount-value" id="ewAmount">₱0.00</div>
+                            </div>
+                            <label class="ew-amount-label ew-pay-amount-label" for="ewPayAmount">Amount you'll pay</label>
+                            <div class="ew-pay-amount">
+                                <span class="ew-peso" aria-hidden="true">₱</span>
+                                <input type="text" id="ewPayAmount" class="pf-input" inputmode="decimal" autocomplete="off" maxlength="13"
+                                    placeholder="0.00" disabled aria-describedby="ewAmountErr ewAmountHelp">
+                                <button type="button" class="ew-full-btn" id="ewPayFull" disabled>Full balance</button>
+                            </div>
+                            <div class="pf-err ew-amount-err" id="ewAmountErr" role="alert"></div>
+                            <div class="ew-remaining" id="ewRemaining">Remaining balance after this payment: <strong>₱0.00</strong></div>
+                        </div>
+                        <p class="ew-inv-note" id="ewAmountHelp">You can pay part of your balance. A partial payment goes to your oldest selected invoice first.</p>
+                    </section>
+
+                    <!-- Step 3: e-wallet -->
+                    <fieldset class="ew-step ew-methods">
+                        <legend class="ew-step-title"><span class="ew-step-num" aria-hidden="true">3</span> Choose an e-wallet</legend>
+                        <div class="ew-method-grid">
+                            <label class="ew-method">
+                                <input type="radio" name="ew_method" value="gcash">
+                                <span class="ew-method-card">
+                                    <span class="ew-logo"><img src="assets/images/payments/gcash.svg" alt="GCash" width="102" height="24"></span>
+                                    <span class="ew-method-name">GCash</span>
+                                    <i class="fa-solid fa-circle-check ew-check" aria-hidden="true"></i>
+                                </span>
+                            </label>
+                            <label class="ew-method">
+                                <input type="radio" name="ew_method" value="maya">
+                                <span class="ew-method-card">
+                                    <span class="ew-logo"><img src="assets/images/payments/maya.svg" alt="Maya" width="83" height="24"></span>
+                                    <span class="ew-method-name">Maya</span>
+                                    <i class="fa-solid fa-circle-check ew-check" aria-hidden="true"></i>
+                                </span>
+                            </label>
+                            <label class="ew-method">
+                                <input type="radio" name="ew_method" value="grabpay">
+                                <span class="ew-method-card">
+                                    <span class="ew-logo"><img src="assets/images/payments/grabpay.svg" alt="GrabPay" width="95" height="24"></span>
+                                    <span class="ew-method-name">GrabPay</span>
+                                    <i class="fa-solid fa-circle-check ew-check" aria-hidden="true"></i>
+                                </span>
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <div class="ew-soon" role="note">
+                        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                        <div>
+                            <strong>Online payment isn't connected yet.</strong>
+                            <span>You can prepare your payment here, but you won't be charged and your balance won't change. For now, please settle your balance at the clinic.</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer adm-footer">
+                    <button type="button" class="rc-btn rc-btn-primary ew-pay-btn" id="ewPayBtn" disabled aria-describedby="ewPayHint">
+                        <span id="ewPayLabel">Pay — ₱0.00</span>
+                    </button>
+                    <button type="button" class="adm-btn-close" data-bs-dismiss="modal">Close</button>
+                    <span class="ew-pay-hint" id="ewPayHint">Select at least one invoice.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Medical Record Modal (same design as Appointment Details; all mr_* IDs unchanged) -->
     <div class="modal fade" id="medicalRecordModal" tabindex="-1" aria-labelledby="mrModalTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down adm-dialog">
@@ -1929,11 +2193,13 @@ session_write_close();
          is not loaded here — nothing in the portal uses it. -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/es-swal.js?v=2"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
     <script src="assets/js/odontogram.js?v=1"></script>
     <script src="assets/js/nationalities.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
-    <script src="assets/js/signout-confirm.js?v=2"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
+    <script src="assets/js/portal-validation.js?v=3"></script>
+    <script src="assets/js/portal-filters.js?v=1"></script>
+    <script src="assets/js/signout-confirm.js?v=3"></script>
 
     <script>
         // ── Name capitalisation (same rules as controllers/name_helper.php) ──
@@ -2067,9 +2333,152 @@ session_write_close();
             return _phDataPromise;
         }
     </script>
-    <script src="assets/js/portal-dashboard.js?v=20"></script>
+    <script src="assets/js/portal-dashboard.js?v=29"></script>
+    <script src="assets/js/portal-notify.js?v=1"></script>
 
     <script>
+        // Step 2 of a phone check: enter the 6-digit SMS code. Shared by
+        // "Verify Phone Number" and "Change Number". Resolves with the Swal result
+        // (isConfirmed + the server's reply as value).
+        //   opts.maskedPhone  number shown under the text
+        //   opts.resendBody   POST body that texts a new code
+        //   opts.verifyBody   code => POST body that checks the code
+        function phoneOtpDialog(opts) {
+            const maskedPhone = opts.maskedPhone;
+            const otpBoxes = Array.from({ length: 6 }, (_, i) =>
+                `<input type="text" class="es-otp-box" maxlength="1" inputmode="numeric" autocomplete="${i === 0 ? 'one-time-code' : 'off'}" aria-label="Digit ${i + 1}">`
+            ).join('');
+            return Swal.fire({
+                title: opts.title || 'Enter Verification Code',
+                iconHtml: '<span class="es-pv-icon"><i class="fa-solid fa-mobile-screen"></i><i class="fa-solid fa-shield-halved es-pv-shield"></i></span>',
+                icon: 'info',
+                html: '<p class="es-pv-text">' + (opts.text || 'Enter the 6-digit code sent to your phone number.') + '</p>' +
+                    '<span class="es-pv-number"><i class="fa-solid fa-phone"></i> ' + maskedPhone + '</span>' +
+                    '<div class="es-otp" id="phoneOtpBoxes">' + otpBoxes + '</div>' +
+                    '<p class="es-otp-resend">Didn\'t receive the code? <button type="button" id="phoneOtpResend" class="es-otp-resend-btn">Resend code</button></p>',
+                confirmButtonText: '<i class="fa-solid fa-check"></i> Verify Code',
+                cancelButtonText: 'Cancel',
+                buttonsStyling: false,
+                showCloseButton: true,
+                customClass: {
+                    popup: 'es-pv-popup',
+                    icon: 'es-pv-icon-wrap',
+                    title: 'es-pv-title',
+                    htmlContainer: 'es-pv-html',
+                    actions: 'es-pv-actions es-pv-actions-stack',
+                    confirmButton: 'es-pv-btn es-pv-btn-primary',
+                    cancelButton: 'es-pv-btn es-pv-btn-outline',
+                    closeButton: 'es-pv-close'
+                },
+                showCancelButton: true,
+                showLoaderOnConfirm: true,
+                didOpen: (popup) => {
+                    const boxes = [...popup.querySelectorAll('.es-otp-box')];
+                    const fill = (digits, start) => {
+                        digits.split('').forEach((d, k) => { if (boxes[start + k]) boxes[start + k].value = d; });
+                        boxes[Math.min(start + digits.length, 5)].focus();
+                    };
+                    boxes.forEach((box, i) => {
+                        box.addEventListener('input', () => {
+                            const digits = box.value.replace(/\D/g, '');
+                            box.value = '';
+                            if (digits) fill(digits.slice(0, 6 - i), i);
+                        });
+                        box.addEventListener('keydown', (e) => {
+                            if (e.key === 'Backspace' && !box.value && i > 0) {
+                                boxes[i - 1].value = '';
+                                boxes[i - 1].focus();
+                                e.preventDefault();
+                            } else if (e.key === 'ArrowLeft' && i > 0) boxes[i - 1].focus();
+                            else if (e.key === 'ArrowRight' && i < 5) boxes[i + 1].focus();
+                            else if (e.key === 'Enter') Swal.clickConfirm();
+                        });
+                        box.addEventListener('paste', (e) => {
+                            const digits = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+                            if (!digits) return;
+                            e.preventDefault();
+                            fill(digits, digits.length === 6 ? 0 : i);
+                        });
+                    });
+                    boxes[0].focus();
+
+                    // Resend — repeats the send action, with a 30s cooldown
+                    const resendBtn = popup.querySelector('#phoneOtpResend');
+                    let timer = null;
+                    const cooldown = (s) => {
+                        resendBtn.disabled = true;
+                        resendBtn.textContent = `Resend in ${s}s`;
+                        timer = setInterval(() => {
+                            if (--s <= 0) {
+                                clearInterval(timer);
+                                resendBtn.disabled = false;
+                                resendBtn.textContent = 'Resend code';
+                            } else resendBtn.textContent = `Resend in ${s}s`;
+                        }, 1000);
+                    };
+                    cooldown(30);
+                    resendBtn.addEventListener('click', async () => {
+                        resendBtn.disabled = true;
+                        resendBtn.textContent = 'Sending…';
+                        Swal.resetValidationMessage();
+                        try {
+                            const res = await fetch('controllers/verify_phone_controller.php', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: opts.resendBody,
+                            }).then(r => r.json());
+                            if (!res.success) {
+                                Swal.showValidationMessage(res.message || 'Failed to resend code.');
+                                resendBtn.disabled = false;
+                                resendBtn.textContent = 'Resend code';
+                                return;
+                            }
+                            boxes.forEach(b => b.value = '');
+                            boxes[0].focus();
+                            cooldown(30);
+                        } catch (e) {
+                            Swal.showValidationMessage('Network error. Please try again.');
+                            resendBtn.disabled = false;
+                            resendBtn.textContent = 'Resend code';
+                        }
+                    });
+                    popup._otpTimer = () => clearInterval(timer);
+                },
+                willClose: (popup) => popup._otpTimer && popup._otpTimer(),
+                preConfirm: async () => {
+                    const code = [...document.querySelectorAll('#phoneOtpBoxes .es-otp-box')].map(b => b.value).join('');
+                    if (code.length !== 6) {
+                        Swal.showValidationMessage('Please enter the full 6-digit code.');
+                        return false;
+                    }
+                    try {
+                        const res = await fetch('controllers/verify_phone_controller.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: opts.verifyBody(code),
+                        }).then(r => r.json());
+
+                        if (!res.success) {
+                            Swal.showValidationMessage(res.message || 'Verification failed.');
+                            return false;
+                        }
+                        return res;
+                    } catch (e) {
+                        Swal.showValidationMessage('Network error. Please try again.');
+                        return false;
+                    }
+                },
+                allowOutsideClick: () => !Swal.isLoading(),
+            });
+        }
+
+        // +63 9•• ••• 4567
+        function maskPhone(digits) {
+            return digits.length >= 4 ? '+63 ' + digits.slice(0, 1) + '•• ••• ' + digits.slice(-4) : 'your registered number';
+        }
+
         async function startPhoneVerification() {
             // Step 1 — send the code
             const rawPhone = (document.getElementById('pf_contact')?.value || '').replace(/\D/g, '');
@@ -2121,135 +2530,11 @@ session_write_close();
 
             if (!sendResult.isConfirmed) return;
 
-            // Step 2 — enter the code
-            const otpBoxes = Array.from({ length: 6 }, (_, i) =>
-                `<input type="text" class="es-otp-box" maxlength="1" inputmode="numeric" autocomplete="${i === 0 ? 'one-time-code' : 'off'}" aria-label="Digit ${i + 1}">`
-            ).join('');
-            const verifyResult = await Swal.fire({
-                title: 'Enter Verification Code',
-                iconHtml: '<span class="es-pv-icon"><i class="fa-solid fa-mobile-screen"></i><i class="fa-solid fa-shield-halved es-pv-shield"></i></span>',
-                icon: 'info',
-                html: '<p class="es-pv-text">Enter the 6-digit code sent to your phone number.</p>' +
-                    '<span class="es-pv-number"><i class="fa-solid fa-phone"></i> ' + maskedPhone + '</span>' +
-                    '<div class="es-otp" id="phoneOtpBoxes">' + otpBoxes + '</div>' +
-                    '<p class="es-otp-resend">Didn\'t receive the code? <button type="button" id="phoneOtpResend" class="es-otp-resend-btn">Resend code</button></p>',
-                confirmButtonText: '<i class="fa-solid fa-check"></i> Verify Code',
-                cancelButtonText: 'Cancel',
-                buttonsStyling: false,
-                showCloseButton: true,
-                customClass: {
-                    popup: 'es-pv-popup',
-                    icon: 'es-pv-icon-wrap',
-                    title: 'es-pv-title',
-                    htmlContainer: 'es-pv-html',
-                    actions: 'es-pv-actions es-pv-actions-stack',
-                    confirmButton: 'es-pv-btn es-pv-btn-primary',
-                    cancelButton: 'es-pv-btn es-pv-btn-outline',
-                    closeButton: 'es-pv-close'
-                },
-                showCancelButton: true,
-                showLoaderOnConfirm: true,
-                didOpen: (popup) => {
-                    const boxes = [...popup.querySelectorAll('.es-otp-box')];
-                    const fill = (digits, start) => {
-                        digits.split('').forEach((d, k) => { if (boxes[start + k]) boxes[start + k].value = d; });
-                        boxes[Math.min(start + digits.length, 5)].focus();
-                    };
-                    boxes.forEach((box, i) => {
-                        box.addEventListener('input', () => {
-                            const digits = box.value.replace(/\D/g, '');
-                            box.value = '';
-                            if (digits) fill(digits.slice(0, 6 - i), i);
-                        });
-                        box.addEventListener('keydown', (e) => {
-                            if (e.key === 'Backspace' && !box.value && i > 0) {
-                                boxes[i - 1].value = '';
-                                boxes[i - 1].focus();
-                                e.preventDefault();
-                            } else if (e.key === 'ArrowLeft' && i > 0) boxes[i - 1].focus();
-                            else if (e.key === 'ArrowRight' && i < 5) boxes[i + 1].focus();
-                            else if (e.key === 'Enter') Swal.clickConfirm();
-                        });
-                        box.addEventListener('paste', (e) => {
-                            const digits = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
-                            if (!digits) return;
-                            e.preventDefault();
-                            fill(digits, digits.length === 6 ? 0 : i);
-                        });
-                    });
-                    boxes[0].focus();
-
-                    // Resend — reuses the existing send_phone_otp action, with a 30s cooldown
-                    const resendBtn = popup.querySelector('#phoneOtpResend');
-                    let timer = null;
-                    const cooldown = (s) => {
-                        resendBtn.disabled = true;
-                        resendBtn.textContent = `Resend in ${s}s`;
-                        timer = setInterval(() => {
-                            if (--s <= 0) {
-                                clearInterval(timer);
-                                resendBtn.disabled = false;
-                                resendBtn.textContent = 'Resend code';
-                            } else resendBtn.textContent = `Resend in ${s}s`;
-                        }, 1000);
-                    };
-                    cooldown(30);
-                    resendBtn.addEventListener('click', async () => {
-                        resendBtn.disabled = true;
-                        resendBtn.textContent = 'Sending…';
-                        Swal.resetValidationMessage();
-                        try {
-                            const res = await fetch('controllers/verify_phone_controller.php', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: 'action=send_phone_otp',
-                            }).then(r => r.json());
-                            if (!res.success) {
-                                Swal.showValidationMessage(res.message || 'Failed to resend code.');
-                                resendBtn.disabled = false;
-                                resendBtn.textContent = 'Resend code';
-                                return;
-                            }
-                            boxes.forEach(b => b.value = '');
-                            boxes[0].focus();
-                            cooldown(30);
-                        } catch (e) {
-                            Swal.showValidationMessage('Network error. Please try again.');
-                            resendBtn.disabled = false;
-                            resendBtn.textContent = 'Resend code';
-                        }
-                    });
-                    popup._otpTimer = () => clearInterval(timer);
-                },
-                willClose: (popup) => popup._otpTimer && popup._otpTimer(),
-                preConfirm: async () => {
-                    const code = [...document.querySelectorAll('#phoneOtpBoxes .es-otp-box')].map(b => b.value).join('');
-                    if (code.length !== 6) {
-                        Swal.showValidationMessage('Please enter the full 6-digit code.');
-                        return false;
-                    }
-                    try {
-                        const res = await fetch('controllers/verify_phone_controller.php', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded'
-                            },
-                            body: 'action=verify_phone_otp&code=' + encodeURIComponent(code),
-                        }).then(r => r.json());
-
-                        if (!res.success) {
-                            Swal.showValidationMessage(res.message || 'Verification failed.');
-                            return false;
-                        }
-                        return res;
-                    } catch (e) {
-                        Swal.showValidationMessage('Network error. Please try again.');
-                        return false;
-                    }
-                },
-                allowOutsideClick: () => !Swal.isLoading(),
+            const verifyResult = await phoneOtpDialog({
+                maskedPhone,
+                resendBody: 'action=send_phone_otp',
+                verifyBody: (code) => 'action=verify_phone_otp&code=' + encodeURIComponent(code),
             });
-
             if (!verifyResult.isConfirmed) return;
 
             // Success — update every verification indicator without a page reload.
@@ -2270,6 +2555,89 @@ session_write_close();
                 customClass: ES_SWAL_CLASS,
             }).then((r) => {
                 if (unlockedBooking && r.isConfirmed) handleBookAppt();
+            });
+        }
+
+        // Change a VERIFIED number: the code goes to the new number, and the
+        // verified number on file is only replaced once that code is confirmed
+        // (controllers/verify_phone_controller.php: send_change_otp / verify_change_otp).
+        async function startPhoneChange() {
+            const current = (document.getElementById('pf_contact')?.value || '').replace(/\D/g, '');
+            let newDigits = '';
+            const step1 = await Swal.fire({
+                title: 'Change Mobile Number',
+                iconHtml: '<span class="es-pv-icon"><i class="fa-solid fa-mobile-screen"></i><i class="fa-solid fa-shield-halved es-pv-shield"></i></span>',
+                icon: 'info',
+                html: '<p class="es-pv-text">Enter your new mobile number. We\'ll text a 6-digit code to it — your current number stays on file until the new one is confirmed.</p>' +
+                    '<span class="es-pv-number"><i class="fa-solid fa-phone"></i> Current: ' + maskPhone(current) + '</span>' +
+                    '<label class="es-pv-label" for="newPhoneInput">New mobile number</label>' +
+                    '<div class="pf-phone es-pv-phone"><span class="pf-phone-prefix">+63</span>' +
+                    '<input type="tel" id="newPhoneInput" class="pf-input" placeholder="9XX XXX XXXX" inputmode="numeric" autocomplete="tel-national" data-pv="mobile"></div>',
+                confirmButtonText: '<i class="fa-solid fa-paper-plane"></i> Send Code',
+                cancelButtonText: 'Cancel',
+                buttonsStyling: false,
+                customClass: {
+                    popup: 'es-pv-popup',
+                    icon: 'es-pv-icon-wrap',
+                    title: 'es-pv-title',
+                    htmlContainer: 'es-pv-html',
+                    actions: 'es-pv-actions',
+                    confirmButton: 'es-pv-btn es-pv-btn-primary',
+                    cancelButton: 'es-pv-btn es-pv-btn-outline'
+                },
+                showCancelButton: true,
+                showLoaderOnConfirm: true,
+                didOpen: (popup) => {
+                    const input = popup.querySelector('#newPhoneInput');
+                    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') Swal.clickConfirm(); });
+                    input.focus();
+                },
+                preConfirm: async () => {
+                    newDigits = (document.getElementById('newPhoneInput')?.value || '').replace(/\D/g, '');
+                    const err = window.PortalValidation.mobile(newDigits, true);
+                    if (err) { Swal.showValidationMessage(err); return false; }
+                    if (newDigits === current) { Swal.showValidationMessage('This is already your current number.'); return false; }
+                    try {
+                        const res = await fetch('controllers/verify_phone_controller.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: 'action=send_change_otp&new_number=' + encodeURIComponent(newDigits),
+                        }).then(r => r.json());
+                        if (!res.success) { Swal.showValidationMessage(res.message || 'Failed to send code.'); return false; }
+                        return true;
+                    } catch (e) {
+                        Swal.showValidationMessage('Network error. Please try again.');
+                        return false;
+                    }
+                },
+                allowOutsideClick: () => !Swal.isLoading(),
+            });
+            if (!step1.isConfirmed) return;
+
+            const step2 = await phoneOtpDialog({
+                maskedPhone: maskPhone(newDigits),
+                text: 'Enter the 6-digit code sent to your <strong>new</strong> number.',
+                resendBody: 'action=send_change_otp&new_number=' + encodeURIComponent(newDigits),
+                verifyBody: (code) => 'action=verify_change_otp&code=' + encodeURIComponent(code),
+            });
+            if (!step2.isConfirmed) return;
+
+            // Swapped and still verified: show the new number everywhere
+            const saved = String(step2.value?.contact_number || '+63' + newDigits).replace(/^\+63/, '');
+            const field = document.getElementById('pf_contact');
+            if (field) field.value = saved;
+            const vf = document.getElementById('vf_contact');
+            if (vf) vf.textContent = '+63 ' + saved;
+            if (typeof clearCache === 'function') clearCache('get_profile');
+            applyContactStatus(!!window._emailVerified, true);
+            Swal.fire({
+                icon: 'success',
+                iconHtml: '<i class="fa-solid fa-circle-check es-swal-glyph"></i>',
+                title: 'Number Changed',
+                html: '<p class="es-swal-text">Your mobile number is now <strong>' + maskPhone(saved) + '</strong> and is verified.</p>',
+                confirmButtonText: 'Got It',
+                buttonsStyling: false,
+                customClass: ES_SWAL_CLASS,
             });
         }
     </script>
@@ -2309,15 +2677,18 @@ session_write_close();
 
         async function cancelEditMode() {
             if (_profDirty) {
+                // Portal dialog style; primary (Discard) left, Keep Editing right
                 const r = await Swal.fire({
-                    icon: 'question',
-                    title: 'Discard your changes?',
-                    text: 'The changes you made have not been saved.',
+                    icon: 'warning',
+                    iconHtml: '<i class="fa-solid fa-pen-to-square es-swal-glyph"></i>',
+                    title: 'Discard Your Changes?',
+                    html: '<p class="es-swal-text">You have unsaved changes to your profile. If you leave now, they will be lost.</p>',
                     showCancelButton: true,
-                    confirmButtonText: 'Discard changes',
-                    cancelButtonText: 'Keep editing',
-                    confirmButtonColor: '#2563eb',
-                    reverseButtons: true,
+                    confirmButtonText: '<i class="fa-solid fa-rotate-left"></i> Discard Changes',
+                    cancelButtonText: 'Keep Editing',
+                    focusCancel: true,
+                    buttonsStyling: false,
+                    customClass: Object.assign(ES_SWAL_TONE('warn'), { actions: 'es-swal-actions es-swal-actions-compact' }),
                 });
                 if (!r.isConfirmed) return;
             }
@@ -2443,12 +2814,12 @@ session_write_close();
         }
 
         /* ── View panel helpers ─────────────────────────────────────── */
-        function _vf(id, value) {
+        function _vf(id, value, emptyText) {
             const el = document.getElementById(id);
             if (!el) return;
             const v = (value === null || value === undefined) ? '' : String(value).trim();
             const empty = !v || v === '—';
-            el.textContent = empty ? 'Not provided' : v;
+            el.textContent = empty ? (emptyText || 'Not provided') : v;
             el.classList.toggle('is-empty', empty);
         }
 
@@ -2576,7 +2947,7 @@ session_write_close();
                 }
                 // Age is calculated, not a profile field
                 const vals = Array.from(sec.querySelectorAll('.view-field-value[id^="vf_"]')).filter(function(v) {
-                    return v.id !== 'vf_age_display';
+                    return v.id !== 'vf_age_display' && !('optional' in v.dataset);
                 });
                 const filled = vals.filter(function(v) { return !v.classList.contains('is-empty'); }).length;
                 if (!vals.length) { meta.textContent = ''; return; }
@@ -2589,9 +2960,12 @@ session_write_close();
             const g = _profVal;
             const first = g('pf_first'), last = g('pf_last'), middle = g('pf_middle'), suffix = g('pf_suffix');
             const bdate = g('pf_birthdate');
-            const fullName = [first, middle ? middle.charAt(0).toUpperCase() + '.' : '', last, suffix].filter(Boolean).join(' ');
-
-            _vf('vf_full_name', fullName);
+            _vf('vf_first_name', first);
+            _vf('vf_last_name', last);
+            _vf('vf_middle_name', middle, 'No middle name');
+            _vf('vf_suffix', suffix);
+            const sfxRow = document.getElementById('vf_suffix_row');
+            if (sfxRow) sfxRow.hidden = !suffix; // shown only when one is saved
             _vf('vf_birthdate', _fmtDate(bdate));
             _vf('vf_age_display', _calcAge(bdate));
             _vf('vf_gender', g('pf_gender'));
@@ -2626,11 +3000,10 @@ session_write_close();
             const isPhoneVerified = !!window._phoneVerified;
             const hasPhone = !!rawContact;
             const phoneVerifiedBadge = document.getElementById('phoneVerifiedBadge');
-            const phoneUnverifiedBadge = document.getElementById('phoneUnverifiedBadge');
             const phoneVerifyBtnWrap = document.getElementById('phoneVerifyBtnWrap');
             if (phoneVerifiedBadge) phoneVerifiedBadge.style.display = hasPhone && isPhoneVerified ? 'inline' : 'none';
-            if (phoneUnverifiedBadge) phoneUnverifiedBadge.style.display = hasPhone && !isPhoneVerified ? 'inline' : 'none';
             if (phoneVerifyBtnWrap) phoneVerifyBtnWrap.style.display = hasPhone && !isPhoneVerified ? 'block' : 'none';
+            if (typeof syncContactLock === 'function') syncContactLock();
 
             _vf('vf_prev_dentist', g('pf_prev_dentist'));
             _vf('vf_last_visit', _fmtDate(g('pf_last_visit')));
@@ -2966,7 +3339,7 @@ session_write_close();
                     .replace(/</g, '&lt;').replace(/>/g, '&gt;');
             }
 
-            /* Existing cancellation rule: only pending / confirmed */
+            /* Cancellation rule: pending / confirmed, at any date or time (re-checked by the server) */
             function canCancelAppt(a) {
                 return ['pending', 'confirmed'].includes(a.status);
             }
@@ -3046,14 +3419,24 @@ session_write_close();
                 const tbody = document.getElementById('apptTableBody');
                 if (!tbody) return;
 
-                const filtered = _curFilter === 'all' ?
-                    appointments :
-                    appointments.filter(function(a) {
-                        return a.status === _curFilter;
-                    });
+                // Status chips + Show Filters panel (assets/js/portal-filters.js)
+                const F = window.PortalFilters;
+                if (F) F.setOptions('appts', 'branch', F.distinct(appointments, function(a) {
+                    return a.branches ? a.branches.branch_name : '';
+                }));
+                const v = F ? F.values('appts') : {};
+                const filtered = appointments.filter(function(a) {
+                    return (_curFilter === 'all' || a.status === _curFilter) &&
+                        (!F || F.inRange(a.appointment_date, v.from, v.to)) &&
+                        (!v.branch || (a.branches ? a.branches.branch_name : '') === v.branch) &&
+                        (!F || F.has((a.service_names || []).join(' '), v.service));
+                });
+                if (F) F.result('appts', filtered.length, appointments.length, 'appointment');
 
                 if (!filtered.length) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4" style="color:var(--text-muted);">No appointments found.</td></tr>';
+                    tbody.innerHTML = appointments.length && F && F.active('appts') ?
+                        F.emptyRow('appts', 5, 'appointments') :
+                        '<tr><td colspan="5" class="text-center py-4" style="color:var(--text-muted);">No appointments found.</td></tr>';
                     return;
                 }
 
@@ -3080,6 +3463,8 @@ session_write_close();
                             '<button type="button" class="appt-action-item appt-action-item-danger" role="menuitem" data-action="cancel" ' +
                             'disabled aria-disabled="true" title="Only pending or confirmed appointments can be cancelled">') +
                         '<i class="fa-solid fa-calendar-xmark"></i>Cancel Appointment</button>' +
+                        // Give Feedback (completed visits only; portal-dashboard.js → fbActionItem)
+                        (typeof fbActionItem === 'function' ? fbActionItem(a) : '') +
                         '</div></div>' +
                         '</td>' +
                         '</tr>';
@@ -3150,13 +3535,27 @@ session_write_close();
                 // Update active button
                 document.querySelectorAll('.appt-filter-btn').forEach(function(b) {
                     b.classList.toggle('active', b.dataset.status === status);
+                    b.setAttribute('aria-pressed', b.dataset.status === status ? 'true' : 'false');
                 });
                 renderApptTable(_allAppts);
             };
+            if (window.PortalFilters) {
+                PortalFilters.bind('appts', {
+                    onChange: function() { renderApptTable(_allAppts); },
+                    // Reset Filters also puts the status chips back to "All"
+                    onReset: function() {
+                        _curFilter = 'all';
+                        document.querySelectorAll('.appt-filter-btn').forEach(function(b) {
+                            b.classList.toggle('active', b.dataset.status === 'all');
+                            b.setAttribute('aria-pressed', b.dataset.status === 'all' ? 'true' : 'false');
+                        });
+                    },
+                    extraActive: function() { return _curFilter !== 'all'; },
+                });
+            }
 
-            /* ── Cancel helper (delegates to existing modal) ──────── */
-            // openCancelModal() (portal-dashboard.js) sets currentCancelId,
-            // which is the ID confirmCancel() actually sends to the API.
+            /* ── Cancel helper ───────────────────────────────────── */
+            // openCancelModal() (portal-dashboard.js): reason → confirmation → API.
             window.portalCancelAppt = function(id, code) {
                 openCancelModal(id, code);
             };
@@ -3233,7 +3632,7 @@ session_write_close();
                         return String(x.waiver_id) === wrap.dataset.waiverId;
                     });
                     if (!w) return;
-                    if (item.dataset.action === 'waiver-view') openPortalFile({ file_path: w.file_path }, false);
+                    if (item.dataset.action === 'waiver-view') viewWaiverDocument(w.waiver_id); // portal-dashboard.js
                     else if (item.dataset.action === 'waiver-sign') signWaiver(w.waiver_id, w.waiver_type);
                     return;
                 }
@@ -3247,8 +3646,8 @@ session_write_close();
                             return String(x.invoice_id) === wrap.dataset.invoiceId;
                         });
                         if (inv) openInvoiceDetails(inv);
-                    } else if (item.dataset.action === 'bill-print') {
-                        printReceipt(wrap.dataset.invoiceId);
+                    } else if (item.dataset.action === 'bill-receipt') {
+                        openReceiptModal(wrap.dataset.invoiceId, wrap.dataset.invoiceCode);
                     } else if (item.dataset.action === 'bill-pdf') {
                         downloadReceiptPdf(wrap.dataset.invoiceId, wrap.dataset.invoiceCode);
                     }
@@ -3267,8 +3666,6 @@ session_write_close();
                         openTreatmentDetails(trt);
                     } else if (item.dataset.action === 'trt-medical' && trt.appointment_id) {
                         viewMedicalRecord(trt.appointment_id, trt.treatment_code || ''); // existing modal
-                    } else if (item.dataset.action === 'trt-feedback' && !item.disabled && trt.appointment_id) {
-                        openFeedback(trt.appointment_id); // portal-dashboard.js
                     }
                     return;
                 }
@@ -3282,8 +3679,10 @@ session_write_close();
                     if (!appt) return;
                     if (item.dataset.action === 'view') {
                         openApptDetails(appt);
+                    } else if (item.dataset.action === 'appt-feedback' && !item.disabled) {
+                        openFeedback(appt.appointment_id); // portal-dashboard.js (server re-checks eligibility)
                     } else if (item.dataset.action === 'cancel' && canCancelAppt(appt)) {
-                        // Existing flow: confirmation modal → confirmCancel()
+                        // Reason dialog → second confirmation → cancel_appointment
                         window.portalCancelAppt(appt.appointment_id, appt.appointment_code || '—');
                     }
                     return;
@@ -3297,27 +3696,353 @@ session_write_close();
             });
             window.addEventListener('resize', closeApptMenus);
 
-            /* ── Billing receipts (Print Receipt / Download PDF) ──── */
+            /* ── Billing receipts (View Receipt / Download PDF) ──── */
             // Both use the existing receipt.php / generate-receipt-pdf.php, which
             // check on the server that the invoice belongs to this patient.
-            function printReceipt(invoiceId) {
+
+            // View Receipt: receipt.php?embed=1 in a modal (same receipt layout and
+            // ownership check), so the Billing table and its scroll position stay
+            // as they were. Print prints just the receipt frame.
+            const rcModalEl = document.getElementById('receiptModal');
+            const rcFrame = document.getElementById('rcFrame');
+            const rcLoading = document.getElementById('rcLoading');
+            const rcPrintBtn = document.getElementById('rcPrintBtn');
+            const rcPdfBtn = document.getElementById('rcPdfBtn');
+            let rcCurrent = null; // { id, code } of the receipt on screen
+
+            function rcSetReady(ok) {
+                rcPrintBtn.disabled = !ok;
+                rcPdfBtn.disabled = !ok;
+            }
+
+            function rcFitFrame() {
+                try {
+                    const doc = rcFrame.contentDocument;
+                    if (doc && doc.body) {
+                        // The receipt's own height (body is content-sized), so the
+                        // frame grows and shrinks with it — e.g. after rotating a phone.
+                        const cs = doc.defaultView.getComputedStyle(doc.body);
+                        const h = doc.body.getBoundingClientRect().height +
+                            parseFloat(cs.marginTop || 0) + parseFloat(cs.marginBottom || 0);
+                        rcFrame.style.height = Math.max(320, Math.ceil(h) + 2) + 'px';
+                    }
+                } catch (e) { /* not readable: keep the CSS height */ }
+            }
+
+            rcFrame.addEventListener('load', function() {
+                if (!rcCurrent || !rcFrame.getAttribute('src')) return;
+                rcLoading.style.display = 'none';
+                rcFrame.classList.add('ready');
+                let ok = false;
+                try {
+                    // receipt_fail() pages are titled "Receipt unavailable" (401/403/404)
+                    ok = rcFrame.contentDocument.title !== 'Receipt unavailable';
+                } catch (e) { ok = false; }
+                rcSetReady(ok);
+                rcFitFrame();
+                // Web fonts can change the height after load
+                try {
+                    const fonts = rcFrame.contentDocument.fonts;
+                    if (fonts && fonts.ready) fonts.ready.then(rcFitFrame, function() {});
+                } catch (e) {}
+            });
+
+            function openReceiptModal(invoiceId, invoiceCode) {
                 const id = parseInt(invoiceId, 10);
                 if (!id) return;
-                const url = 'receipt.php?invoice_id=' + id + '&print=1';
-                // New tab: receipt layout, then the browser's print dialog opens
-                const win = window.open(url, '_blank');
-                if (!win) window.location.href = url; // pop-up blocked → open here
+                rcCurrent = { id: id, code: invoiceCode || '' };
+                rcSetReady(false);
+                rcLoading.style.display = '';
+                rcFrame.classList.remove('ready');
+                rcFrame.style.height = '';
+                rcFrame.setAttribute('src', 'receipt.php?invoice_id=' + id + '&embed=1');
+                bootstrap.Modal.getOrCreateInstance(rcModalEl).show();
             }
+
+            // Window resize (e.g. phone rotation) changes the receipt's height
+            window.addEventListener('resize', function() {
+                if (rcModalEl.classList.contains('show') && rcFrame.classList.contains('ready')) rcFitFrame();
+            });
+
+            rcModalEl.addEventListener('hidden.bs.modal', function() {
+                // Unload so the next receipt never flashes the previous one
+                rcCurrent = null;
+                rcFrame.removeAttribute('src');
+                rcFrame.classList.remove('ready');
+            });
+
+            rcPrintBtn.addEventListener('click', function() {
+                try {
+                    rcFrame.contentWindow.focus();
+                    rcFrame.contentWindow.print();
+                } catch (e) {
+                    console.error('Receipt print failed:', e);
+                }
+            });
+
+            rcPdfBtn.addEventListener('click', function() {
+                if (!rcCurrent) return;
+                const cur = rcCurrent;
+                // The SweetAlert must not sit behind the modal: close the modal first
+                bootstrap.Modal.getOrCreateInstance(rcModalEl).hide();
+                downloadReceiptPdf(cur.id, cur.code);
+            });
+
+            /* ── Make a Payment: invoices + amount + e-wallet ──────────────────
+               Balances come from the billing list (window._portalInvoices, loaded
+               from the invoices table). The patient may pay all or part of the
+               selected balance. Pay sends the invoice ids, the method and the
+               typed amount to ewallet_quote, which re-reads the invoices,
+               recomputes the balance and re-checks the amount on the server.
+               No gateway yet → nothing is charged or recorded, and no balance
+               changes (that may only happen after a gateway confirms a payment). */
+            const EW_METHODS = { gcash: 'GCash', maya: 'Maya', grabpay: 'GrabPay' };
+            const ewModalEl = document.getElementById('ewalletModal');
+            const ewList = document.getElementById('ewInvList');
+            const ewAll = document.getElementById('ewSelectAll');
+            const ewPayBtn = document.getElementById('ewPayBtn');
+            const ewAmtIn = document.getElementById('ewPayAmount');
+            const ewFullBtn = document.getElementById('ewPayFull');
+            const ewSelected = new Set(); // invoice_id strings — a Set, so never twice
+            let ewEligible = [];          // [{ id, cents, inv }]
+            let ewBusy = false;
+            let ewAmtEdited = false;      // false → the amount follows the selected balance
+            let ewAmtTouched = false;     // show "enter an amount" only after the field was used
+
+            function ewEsc(v) {
+                return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+                    .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            }
+            function ewMethod() {
+                const r = document.querySelector('input[name="ew_method"]:checked');
+                return r && EW_METHODS[r.value] ? r.value : '';
+            }
+            function ewSelectedCents() {
+                return ewEligible.reduce(function(sum, e) { return ewSelected.has(e.id) ? sum + e.cents : sum; }, 0);
+            }
+            // Typed amount → centavos; null when it isn't an amount. Same rule as
+            // portal_amount_cents() on the server (digits, optional .00, commas ok).
+            function ewParseCents(v) {
+                const t = String(v || '').replace(/,/g, '').trim();
+                if (!/^\d{1,7}(\.\d{1,2})?$/.test(t)) return null;
+                const p = t.split('.');
+                return parseInt(p[0], 10) * 100 + parseInt((p[1] || '').padEnd(2, '0') || '0', 10);
+            }
+            function ewPlain(cents) { return (cents / 100).toFixed(2); }
+            // { cents, error } for the amount field against the selected balance
+            function ewAmountState(balance) {
+                const raw = ewAmtIn.value.trim();
+                if (!raw) return { cents: 0, error: 'Enter the amount you want to pay.' };
+                if (/^-/.test(raw)) return { cents: 0, error: 'Enter an amount greater than ₱0.00.' };
+                const c = ewParseCents(raw);
+                if (c === null) return { cents: 0, error: 'Enter a valid amount, for example 500 or 500.50.' };
+                if (c <= 0) return { cents: 0, error: 'Enter an amount greater than ₱0.00.' };
+                if (c > balance) return { cents: 0, error: "The amount can't be more than your selected balance of " + fmtPeso(balance / 100) + '.' };
+                return { cents: c, error: '' };
+            }
+
+            function ewRenderList() {
+                ewEligible = (window._portalInvoices || []).map(function(inv) {
+                    return { id: String(inv.invoice_id), cents: portalInvoiceDueCents(inv), inv: inv };
+                }).filter(function(e) { return e.id && e.cents > 0; });
+                // Keep earlier choices that are still payable; drop the rest
+                const ids = new Set(ewEligible.map(function(e) { return e.id; }));
+                Array.from(ewSelected).forEach(function(id) { if (!ids.has(id)) ewSelected.delete(id); });
+
+                document.getElementById('ewAllWrap').hidden = ewEligible.length < 2;
+                document.getElementById('ewInvNote').hidden = !ewEligible.length;
+                if (!ewEligible.length) {
+                    ewList.innerHTML = '<div class="ew-inv-empty"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>' +
+                        '<span>You have no outstanding invoices. Nothing to pay right now.</span></div>';
+                    ewSync();
+                    return;
+                }
+                ewList.innerHTML = ewEligible.map(function(e) {
+                    const i = e.inv;
+                    const status = String(i.payment_status || 'unpaid').toLowerCase();
+                    return '<label class="ew-inv">' +
+                        '<input type="checkbox" class="ew-inv-check" value="' + ewEsc(e.id) + '"' + (ewSelected.has(e.id) ? ' checked' : '') +
+                        ' aria-label="Invoice dated ' + ewEsc(fmtDate(i.invoice_date)) + ', ' + ewEsc(fmtPeso(e.cents / 100)) + ' due">' +
+                        '<span class="ew-inv-main">' +
+                        '<span class="ew-inv-date">' + ewEsc(fmtDate(i.invoice_date)) + '</span>' +
+                        '<span class="ew-inv-meta">Total ' + ewEsc(fmtPeso(parseFloat(i.total_amount || 0))) +
+                        ' · Paid ' + ewEsc(fmtPeso(parseFloat(i.amount_paid || 0))) + '</span>' +
+                        '</span>' +
+                        '<span class="ew-inv-side">' +
+                        '<span class="ew-inv-due">' + ewEsc(fmtPeso(e.cents / 100)) + '</span>' +
+                        '<span class="badge-status badge-' + ewEsc(status) + '">' + ewEsc(status) + '</span>' +
+                        '</span>' +
+                        '</label>';
+                }).join('');
+                ewSync();
+            }
+
+            // Balance, amount, Select All state and the Pay button, from the current choices
+            function ewSync() {
+                const n = ewEligible.filter(function(e) { return ewSelected.has(e.id); }).length;
+                const balance = ewSelectedCents();
+                const method = ewMethod();
+                document.getElementById('ewAmount').textContent = fmtPeso(balance / 100);
+                document.getElementById('ewAmountSub').textContent = n ?
+                    n + ' of ' + ewEligible.length + ' invoice' + (ewEligible.length === 1 ? '' : 's') + ' selected' :
+                    'No invoices selected';
+                ewAll.checked = n > 0 && n === ewEligible.length;
+                ewAll.indeterminate = n > 0 && n < ewEligible.length;
+                ewList.querySelectorAll('.ew-inv').forEach(function(l) {
+                    l.classList.toggle('is-selected', l.querySelector('input').checked);
+                });
+
+                // Amount field: follows the balance until the patient types their own amount
+                ewAmtIn.disabled = !n;
+                ewFullBtn.disabled = !n;
+                if (!n) { ewAmtIn.value = ''; ewAmtEdited = false; ewAmtTouched = false; }
+                else if (!ewAmtEdited) ewAmtIn.value = ewPlain(balance);
+                const st = n ? ewAmountState(balance) : { cents: 0, error: '' };
+                const showErr = n && st.error && (ewAmtEdited || ewAmtTouched);
+                const errEl = document.getElementById('ewAmountErr');
+                errEl.textContent = showErr ? st.error : '';
+                ewAmtIn.classList.toggle('is-invalid', !!showErr);
+                ewAmtIn.setAttribute('aria-invalid', showErr ? 'true' : 'false');
+                const pay = st.error ? 0 : st.cents;
+                ewFullBtn.classList.toggle('is-on', n > 0 && pay === balance);
+                document.getElementById('ewRemaining').innerHTML = 'Remaining balance after this payment: <strong>' +
+                    ewEsc(fmtPeso((n && !st.error ? balance - pay : balance) / 100)) + '</strong>' +
+                    (n && !st.error && pay < balance ? ' <span class="ew-partial-pill">Partial payment</span>' : '');
+
+                document.getElementById('ewPayLabel').textContent =
+                    (method ? 'Pay with ' + EW_METHODS[method] : 'Pay') + ' — ' + fmtPeso(pay / 100);
+                const hint = !ewEligible.length ? 'No outstanding invoices.' :
+                    !n ? 'Select at least one invoice.' :
+                    balance <= 0 ? 'The selected invoices have no balance.' :
+                    st.error ? 'Enter a valid amount to pay.' :
+                    !method ? 'Choose an e-wallet.' : '';
+                const hintEl = document.getElementById('ewPayHint');
+                hintEl.textContent = hint;
+                hintEl.hidden = !hint;
+                ewPayBtn.disabled = ewBusy || !!hint;
+            }
+
+            ewList.addEventListener('change', function(e) {
+                const cb = e.target.closest('.ew-inv-check');
+                if (!cb) return;
+                if (cb.checked) ewSelected.add(cb.value); else ewSelected.delete(cb.value);
+                ewSync();
+            });
+            ewAll.addEventListener('change', function() {
+                ewSelected.clear();
+                if (ewAll.checked) ewEligible.forEach(function(e) { ewSelected.add(e.id); });
+                ewList.querySelectorAll('.ew-inv-check').forEach(function(cb) { cb.checked = ewAll.checked; });
+                ewSync();
+            });
+            document.querySelectorAll('input[name="ew_method"]').forEach(function(r) {
+                r.addEventListener('change', ewSync);
+            });
+            ewAmtIn.addEventListener('input', function() {
+                // Digits, one dot and commas only (no minus sign, letters or "e")
+                const clean = ewAmtIn.value.replace(/[^\d.,]/g, '');
+                if (clean !== ewAmtIn.value) ewAmtIn.value = clean;
+                ewAmtEdited = true;
+                ewSync();
+            });
+            ewAmtIn.addEventListener('blur', function() {
+                ewAmtTouched = true;
+                const c = ewParseCents(ewAmtIn.value);
+                if (c !== null && c > 0) ewAmtIn.value = ewPlain(c); // tidy to 2 decimals
+                ewSync();
+            });
+            ewFullBtn.addEventListener('click', function() {
+                ewAmtEdited = false;  // back to following the selected balance
+                ewSync();
+            });
+
+            window.openEwalletModal = function() {
+                ewRenderList();
+                bootstrap.Modal.getOrCreateInstance(ewModalEl).show();
+            };
+            // The billing list may refresh while the modal is open
+            window.portalEwalletRefresh = function() {
+                if (ewModalEl.classList.contains('show')) ewRenderList();
+            };
+
+            ewPayBtn.addEventListener('click', async function() {
+                const method = ewMethod();
+                const ids = Array.from(ewSelected).map(Number).filter(Boolean);
+                const shownBalance = ewSelectedCents();
+                const st = ewAmountState(shownBalance);
+                if (ewBusy || !method || !ids.length || st.error) return;
+                ewBusy = true;
+                ewPayBtn.classList.add('is-busy');
+                ewSync();
+                let res;
+                try {
+                    res = await fetch(API, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        // The balance is never sent: the server works it out from the invoices
+                        body: JSON.stringify({ action: 'ewallet_quote', invoice_ids: ids, method: method, amount: ewPlain(st.cents) }),
+                    }).then(function(r) { return r.json(); });
+                } catch (e) {
+                    res = { success: false, message: "We couldn't reach the server. Please check your connection and try again." };
+                }
+                ewBusy = false;
+                ewPayBtn.classList.remove('is-busy');
+                ewSync();
+
+                const ok = !!(res && res.success);
+                const serverBalance = ok ? Math.round(Number(res.outstanding) * 100) : null;
+                const stale = !ok || serverBalance !== shownBalance;
+                // The modal closes first so the alert is never behind it
+                bootstrap.Modal.getOrCreateInstance(ewModalEl).hide();
+                if (stale && typeof loadBilling === 'function') {
+                    if (typeof _cacheTime !== 'undefined') _cacheTime[JSON.stringify({ action: 'get_billing' })] = 0;
+                    loadBilling();
+                }
+
+                let html;
+                if (ok) {
+                    const pay = Math.round(Number(res.amount) * 100);
+                    const left = Math.round(Number(res.remaining) * 100);
+                    html = (serverBalance !== shownBalance ?
+                            '<p class="es-swal-text">Your invoices changed since this page loaded; the amounts below are the current ones.</p>' : '') +
+                        '<p class="es-swal-text">We checked your payment against your billing records:</p>' +
+                        '<div class="ew-swal-sum">' +
+                        '<div><span>Selected balance</span><strong>' + ewEsc(fmtPeso(serverBalance / 100)) + '</strong></div>' +
+                        '<div><span>Amount to pay</span><strong>' + ewEsc(fmtPeso(pay / 100)) + '</strong></div>' +
+                        '<div><span>Balance after payment</span><strong>' + ewEsc(fmtPeso(left / 100)) + '</strong></div>' +
+                        '</div>' +
+                        '<p class="es-swal-text">Paying with ' + ewEsc(EW_METHODS[res.method] || 'an e-wallet') +
+                        " isn't available yet. <strong>Nothing was charged</strong> and your balance hasn't changed. Please settle your balance at the clinic for now.</p>";
+                } else {
+                    html = '<p class="es-swal-text">' + ewEsc((res && res.message) || 'Please try again.') + '</p>';
+                }
+                // One button only (nothing to choose), so placement doesn't apply
+                await Swal.fire({
+                    icon: 'info',
+                    iconHtml: '<i class="fa-solid fa-wallet es-swal-glyph"></i>',
+                    title: ok ? 'Online Payment Not Available Yet' : "We Couldn't Prepare This Payment",
+                    html: html,
+                    confirmButtonText: 'Back to Billing',
+                    buttonsStyling: false,
+                    customClass: ok ? ES_SWAL_CLASS : ES_SWAL_TONE('warn'),
+                });
+            });
 
             async function downloadReceiptPdf(invoiceId, invoiceCode) {
                 const id = parseInt(invoiceId, 10);
                 if (!id) return;
                 const hasSwal = typeof Swal !== 'undefined';
+                // Same SweetAlert design as the rest of the portal (es-swal.css).
+                // The invoice number is deliberately not shown in these alerts
+                // (it is still used for the request and the file name).
                 if (hasSwal) {
                     Swal.fire({
-                        title: 'Preparing your receipt…',
-                        text: 'Your PDF will download in a moment.',
+                        title: 'Preparing Your Receipt',
+                        html: '<p class="es-swal-text">Your PDF receipt will download in a moment.</p>',
                         allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        buttonsStyling: false,
+                        customClass: ES_SWAL_CLASS,
                         didOpen: function() { Swal.showLoading(); }
                     });
                 }
@@ -3344,13 +4069,33 @@ session_write_close();
                     link.click();
                     link.remove();
                     setTimeout(function() { URL.revokeObjectURL(link.href); }, 10000);
-                    if (hasSwal) Swal.close();
+                    if (hasSwal) {
+                        Swal.fire({
+                            icon: 'success',
+                            iconHtml: '<i class="fa-solid fa-file-arrow-down es-swal-glyph"></i>',
+                            title: 'Receipt Downloaded',
+                            html: '<p class="es-swal-text">Your PDF receipt has been saved to your device.</p>',
+                            confirmButtonText: 'Got It',
+                            timer: 2500,
+                            timerProgressBar: true,
+                            buttonsStyling: false,
+                            customClass: ES_SWAL_TONE('success')
+                        });
+                    }
                 } catch (err) {
                     console.error('Receipt PDF failed:', err);
                     const msg = (err && err.fromServer) ? err.message :
                         'Could not reach the server. Please check your connection and try again.';
                     if (hasSwal) {
-                        Swal.fire({ icon: 'error', title: 'Download failed', text: msg, confirmButtonColor: '#2563eb' });
+                        Swal.fire({
+                            icon: 'error',
+                            iconHtml: '<i class="fa-solid fa-circle-exclamation es-swal-glyph"></i>',
+                            title: 'Download Failed',
+                            html: '<p class="es-swal-text">' + escAttr(msg) + '</p>',
+                            confirmButtonText: 'Okay',
+                            buttonsStyling: false,
+                            customClass: ES_SWAL_TONE('warn')
+                        });
                     } else {
                         alert(msg);
                     }
@@ -3649,18 +4394,10 @@ session_write_close();
             }
             window.openInvoiceDetails = openInvoiceDetails;
 
-            // After confirmCancel() (portal-dashboard.js) runs, refresh the table again
-            const _origConfirmCancel = window.confirmCancel;
-            window.confirmCancel = function() {
-                if (typeof _origConfirmCancel === 'function') {
-                    _origConfirmCancel.apply(this, arguments);
-                }
-                // Reload after short delay to reflect cancellation
-                setTimeout(function() { loadPortalAppointments({ force: true }); }, 1800);
-            };
-
             // Single renderer for the table — portal-dashboard.js's loadAppointments() calls this
             window.loadPortalAppointments = loadPortalAppointments;
+            // Redraw only (e.g. after feedback is sent: Give Feedback → Feedback Submitted)
+            window.portalRenderAppointments = function() { renderApptTable(_allAppts); };
 
             /* ── Boot ─────────────────────────────────────────────── */
             // The list arrives with the bootstrap request (_apptBootReady above);
@@ -3910,11 +4647,50 @@ session_write_close();
             const btn   = document.getElementById('notifBellBtn');
             const panel = document.getElementById('notifPanel');
 
+            // Open/close state. Mouse/trackpad: hovering the bell opens the panel,
+            // and it stays open while the cursor is on the bell or the panel
+            // (closes HOVER_CLOSE_MS after leaving both). Clicking the bell
+            // "pins" it open until an outside click, Escape or a second click.
+            // Touch devices: the bell click toggles it.
+            const canHover = window.matchMedia('(hover: hover) and (pointer: fine)');
+            const HOVER_CLOSE_MS = 280;
+            const RELOAD_MS = 15000;   // hover-open re-fetches at most this often
+            let pinned = false, closeTimer = null, lastLoadAt = 0;
+
+            function isOpen() { return wrap.classList.contains('open'); }
+
+            function openPanel() {
+                clearTimeout(closeTimer);
+                if (isOpen()) return;
+                wrap.classList.add('open');
+                btn.setAttribute('aria-expanded', 'true');
+                if (Date.now() - lastLoadAt > RELOAD_MS) load(false);
+            }
+
+            function closePanel() {
+                clearTimeout(closeTimer);
+                pinned = false;
+                wrap.classList.remove('open');
+                btn.setAttribute('aria-expanded', 'false');
+            }
+
             window.toggleNotifPanel = function() {
-                const isOpen = wrap.classList.toggle('open');
-                btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-                if (isOpen) load(false);
+                if (!isOpen()) { pinned = true; openPanel(); return; }
+                // Opened by hover: the first click keeps it open instead of closing it
+                if (canHover.matches && !pinned) { pinned = true; return; }
+                closePanel();
             };
+
+            wrap.addEventListener('mouseenter', function() {
+                if (!canHover.matches) return;
+                clearTimeout(closeTimer);
+                openPanel();
+            });
+            wrap.addEventListener('mouseleave', function() {
+                if (!canHover.matches || pinned) return;
+                clearTimeout(closeTimer);
+                closeTimer = setTimeout(closePanel, HOVER_CLOSE_MS);
+            });
 
             const body    = document.getElementById('notifPanelBody');
             const badge   = document.getElementById('notifBadge');
@@ -3929,6 +4705,7 @@ session_write_close();
             };
             const PAGES = ['dashboard', 'appointments', 'treatments', 'dentalchart', 'billing', 'files', 'waivers', 'profile'];
             let items = [], hasMore = false, unread = 0, loading = false, poll = null;
+            let view = 'all'; // 'all' | 'unread' (the tabs above the list)
 
             function esc(s) {
                 return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -3951,15 +4728,36 @@ session_write_close();
                 badge.style.display = unread > 0 ? '' : 'none';
                 btn.setAttribute('aria-label', unread ? `Notifications, ${unread} unread` : 'Notifications');
                 markBtn.disabled = unread === 0;
+                const tc = document.getElementById('notifTabCount');
+                if (tc) { tc.hidden = !unread; tc.textContent = unread > 99 ? '99+' : String(unread); }
             }
 
+            document.querySelector('.notif-tabs').addEventListener('click', function(e) {
+                const tab = e.target.closest('.notif-tab');
+                if (!tab || tab.dataset.nf === view) return;
+                view = tab.dataset.nf;
+                this.querySelectorAll('.notif-tab').forEach(function(b) {
+                    const on = b.dataset.nf === view;
+                    b.classList.toggle('active', on);
+                    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+                });
+                render();
+            });
+
             function render() {
+                const more = hasMore ? '<div class="notif-panel-footer"><button type="button" class="notif-mark-read" id="notifLoadMore">Show older notifications</button></div>' : '';
                 if (!items.length) {
                     body.innerHTML = '<div class="notif-empty"><i class="fa-solid fa-bell-slash"></i>' +
                         '<p>You\'re all caught up.</p><p style="font-size:.76rem;margin-top:.25rem;">Updates about your appointments, billing and treatments will appear here.</p></div>';
                     return;
                 }
-                body.innerHTML = items.map(n => {
+                const shown = view === 'unread' ? items.filter(n => !n.is_read) : items;
+                if (!shown.length) {
+                    body.innerHTML = '<div class="notif-empty"><i class="fa-solid fa-envelope-open"></i>' +
+                        '<p>No unread notifications.</p></div>' + (unread ? more : '');
+                    return;
+                }
+                body.innerHTML = shown.map(n => {
                     const c = CAT[n.category] || CAT.announcement;
                     return `<button type="button" class="notif-item${n.is_read ? '' : ' unread'}" data-id="${n.notification_id}">
                         <span class="notif-item-icon cat-${esc(n.category)}"><i class="fa-solid ${c.icon}"></i></span>
@@ -3969,7 +4767,7 @@ session_write_close();
                             <span class="notif-item-time d-block"><span class="notif-cat">${c.label}</span> · <time datetime="${esc(n.created_at)}" title="${esc(new Date(n.created_at).toLocaleString())}">${timeAgo(n.created_at)}</time></span>
                         </span>
                     </button>`;
-                }).join('') + (hasMore ? '<div class="notif-panel-footer"><button type="button" class="notif-mark-read" id="notifLoadMore">Show older notifications</button></div>' : '');
+                }).join('') + more;
             }
 
             async function load(append) {
@@ -3982,6 +4780,7 @@ session_write_close();
                     if (!j.success) throw new Error(j.message);
                     items = append ? items.concat(j.notifications) : j.notifications;
                     hasMore = !!j.has_more;
+                    if (!append) lastLoadAt = Date.now();
                     setBadge(j.unread);
                     render();
                 } catch (e) {
@@ -3997,11 +4796,6 @@ session_write_close();
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                 }).then(r => r.json()).catch(() => ({ success: false }));
-            }
-
-            function closePanel() {
-                wrap.classList.remove('open');
-                btn.setAttribute('aria-expanded', 'false');
             }
 
             body.addEventListener('click', function(e) {
@@ -4036,20 +4830,14 @@ session_write_close();
             load(false);
             poll = setInterval(() => { if (!document.hidden) load(false); }, 60000);
 
-            // Close on outside click — same pattern as the modal-cs dropdowns.
+            // Close on outside click/tap — same pattern as the modal-cs dropdowns.
             document.addEventListener('click', function(e) {
-                if (wrap && !e.target.closest('#notifBellWrap')) {
-                    wrap.classList.remove('open');
-                    btn.setAttribute('aria-expanded', 'false');
-                }
+                if (isOpen() && !e.target.closest('#notifBellWrap')) closePanel();
             });
 
-            // Close on Escape.
+            // Close on Escape (focus back on the bell).
             document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape' && wrap.classList.contains('open')) {
-                    wrap.classList.remove('open');
-                    btn.setAttribute('aria-expanded', 'false');
-                }
+                if (e.key === 'Escape' && isOpen()) { closePanel(); btn.focus(); }
             });
         })();
     </script>

@@ -117,6 +117,11 @@ if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ['username' => 'Portal patient', 'role' => 'patient']
     );
 
+    // Owner's bell: new / low-rated feedback or complaint — no patient details
+    require_once __DIR__ . '/../controllers/staff_notifications.php';
+    staffn_feedback((int)$saved['feedback_id'], (int)$rating, $message !== '',
+        $apt['branch_id'] ? (int)$apt['branch_id'] : null, $dentist['full_name'] ?? null);
+
     fbOut([
         'success'        => true,
         'appointment_id' => $appointmentId,

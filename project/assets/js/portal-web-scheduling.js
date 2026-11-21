@@ -263,8 +263,9 @@
     function dayState(iso) {
         const b = branch();
         if (!b || iso <= TODAY || iso > lastBookable()) return 'past';
-        const dow = new Date(iso + 'T00:00:00').getDay();
-        if (!b.days.includes(dow)) return 'closed';
+        // A date override (set by the clinic) beats the usual weekly days
+        const ex = (b.exceptions || {})[iso];
+        if (ex ? !ex.open : !b.days.includes(new Date(iso + 'T00:00:00').getDay())) return 'closed';
         if (state.fullDays.has(iso)) return 'full';
         return 'open';
     }
@@ -348,7 +349,10 @@
         const st = dayState(iso);
         if (st === 'past' || st === 'full') return;
         if (st === 'closed') {
-            toastInfo(`${branch().name} is closed on ${new Date(iso + 'T00:00:00').toLocaleDateString('en-PH', { weekday: 'long' })}s.`);
+            const ex = (branch().exceptions || {})[iso];
+            toastInfo(ex
+                ? `${branch().name} is closed on ${dateLong(iso)}${ex.reason ? ' (' + ex.reason + ')' : ''}.`
+                : `${branch().name} is closed on ${new Date(iso + 'T00:00:00').toLocaleDateString('en-PH', { weekday: 'long' })}s.`);
             return;
         }
         if (iso === state.date) return;

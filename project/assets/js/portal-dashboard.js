@@ -430,24 +430,121 @@ async function loadDashboard() {
 // inline script in portal-dashboard.php (loadPortalAppointments). This just
 // hands off to it, so the old table with the plain Cancel button is never drawn.
 function loadAppointments() {
+  // Feedback state is re-checked each time (it can change in another tab). The
+  // table draws with the last known state (preloaded) and redraws only if the
+  // fresh state differs; the server enforces the one-per-appointment rule anyway.
+  const before = JSON.stringify(_fbSubmitted);
+  fbLoadStatus().then(() => {
+    if (JSON.stringify(_fbSubmitted) !== before) fbRefreshAppointments();
+  });
   if (typeof window.loadPortalAppointments === "function") {
     return window.loadPortalAppointments();
   }
 }
 
-function openCancelModal(id, code) {
+// Cancel flow: 1) reason (required) → 2) second confirmation → API.
+// "Go Back" on step 2 returns to step 1 with the reason kept; closing either
+// dialog leaves the appointment unchanged. The server re-checks ownership,
+// status (pending / confirmed only) and the reason.
+const CANCEL_REASON_MAX = 500;
+
+async function openCancelModal(id, code) {
   currentCancelId = id;
-  document.getElementById("cancelApptCode").textContent = code;
-  new bootstrap.Modal(document.getElementById("cancelModal")).show();
+  let reason = "";
+  // No appointment number in these dialogs (the id is only used internally)
+  const REASON_MSG = "Please provide a reason for cancelling your appointment before continuing.";
+
+  for (;;) {
+    const step1 = await Swal.fire({
+      icon: "warning",
+      iconHtml: '<i class="fa-solid fa-calendar-xmark es-swal-glyph"></i>',
+      title: "Cancel Appointment",
+      html:
+        '<p class="es-swal-text">Please tell us why you are cancelling this appointment.</p>' +
+        '<div class="es-pw-form">' +
+        '<label class="es-pw-label" for="cancelReason">Reason for cancellation</label>' +
+        `<textarea id="cancelReason" class="es-pw-input es-cancel-reason" rows="3" maxlength="${CANCEL_REASON_MAX}" ` +
+        'placeholder="e.g. Schedule conflict, feeling unwell…" aria-describedby="cancelReasonErr">' +
+        escHtml(reason) + "</textarea>" +
+        '<div class="es-pw-err" id="cancelReasonErr" role="alert"></div>' +
+        "</div>",
+      showCancelButton: true,
+      confirmButtonText: 'Continue <i class="fa-solid fa-arrow-right" style="margin:0 0 0 6px"></i>',
+      cancelButtonText: "Keep Appointment",
+      // Primary action (Continue) on the left, Keep Appointment on the right
+      focusConfirm: false,
+      buttonsStyling: false,
+      // Same compact pair as the confirmation step, so both dialogs' buttons match
+      customClass: Object.assign(ES_SWAL_TONE("danger"), { actions: "es-swal-actions es-swal-actions-compact" }),
+      didOpen: () => {
+        const ta = document.getElementById("cancelReason");
+        ta.focus();
+        ta.addEventListener("input", () => {
+          ta.classList.remove("is-invalid");
+          document.getElementById("cancelReasonErr").textContent = "";
+          Swal.resetValidationMessage();
+        });
+      },
+      preConfirm: () => {
+        const ta = document.getElementById("cancelReason");
+        const v = ta.value.replace(/\s+/g, " ").trim();
+        if (!v) {   // empty or spaces only
+          ta.classList.add("is-invalid");
+          Swal.showValidationMessage(REASON_MSG);
+          ta.focus();
+          return false;
+        }
+        return v;
+      },
+    });
+    if (!step1.isConfirmed) return; // kept — nothing changed
+    reason = step1.value;
+
+    const step2 = await Swal.fire({
+      icon: "warning",
+      iconHtml: '<i class="fa-solid fa-triangle-exclamation es-swal-glyph"></i>',
+      title: "Confirm Cancellation",
+      html:
+        '<p class="es-swal-text">Are you sure you want to cancel this appointment? This can\'t be undone.</p>' +
+        `<p class="es-swal-note"><i class="fa-solid fa-quote-left"></i><span>${escHtml(reason)}</span></p>`,
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-calendar-xmark"></i> Confirm Cancellation',
+      cancelButtonText: '<i class="fa-solid fa-arrow-left"></i> Go Back',
+      // Primary action (Confirm Cancellation) on the left, Go Back on the right
+      buttonsStyling: false,
+      // Compact pair: Confirm Cancellation no longer wraps taller than Go Back
+      customClass: Object.assign(ES_SWAL_TONE("danger"), { actions: "es-swal-actions es-swal-actions-compact" }),
+    });
+    if (step2.isConfirmed) break;
+    if (step2.dismiss !== Swal.DismissReason.cancel) return; // closed / Esc — nothing changed
+    // "Go Back" → show the reason step again
+  }
+
+  Swal.fire({
+    title: "Cancelling…",
+    html: '<p class="es-swal-text">Please wait a moment.</p>',
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    showConfirmButton: false,
+    customClass: ES_SWAL_CLASS,
+    didOpen: () => Swal.showLoading(),
+  });
+  return confirmCancel(code, reason);
 }
 
-async function confirmCancel() {
-  const data = await php(API, {
-    action: "cancel_appointment",
-    appointment_id: currentCancelId,
-  });
-  bootstrap.Modal.getInstance(document.getElementById("cancelModal")).hide();
-  const code = document.getElementById("cancelApptCode")?.textContent.trim() || "";
+async function confirmCancel(code, reason) {
+  // Not through php(): its response cache would replay an earlier result
+  let data;
+  try {
+    const res = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "cancel_appointment", appointment_id: currentCancelId, reason: reason }),
+    });
+    data = await res.json();
+  } catch (e) {
+    data = { success: false, message: "We couldn't reach the server. Please check your connection and try again." };
+  }
   if (data.success) {
     Swal.fire({
       icon: "success",
@@ -476,6 +573,7 @@ async function confirmCancel() {
       buttonsStyling: false,
       customClass: ES_SWAL_TONE("warn"),
     });
+    window.loadPortalAppointments?.({ force: true }); // show the current status
   }
 }
 
@@ -487,23 +585,38 @@ async function loadTreatments() {
     tbody.innerHTML =
       '<tr><td colspan="5" class="text-center py-4">Loading…</td></tr>';
   }
-  // Feedback state is re-checked every time (it can change in another tab), but the
-  // table no longer waits for it: it draws with the last known state (preloaded),
-  // and redraws only if the fresh state differs. The server enforces the rule anyway.
-  const before = JSON.stringify(_fbSubmitted);
-  fbLoadStatus().then(() => {
-    if (JSON.stringify(_fbSubmitted) !== before && window._portalTreatments) renderTreatments(window._portalTreatments);
-  });
   const data = await php(API, { action: "get_treatments" });
   renderTreatments(data.treatments || []);
 }
 
-function renderTreatments(list) {
+// Status words as shown in the badges ("checked_in" → "Checked In")
+function statusWord(s) {
+  return String(s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function renderTreatments(all) {
   const tbody = document.getElementById("treatTableBody");
-  window._portalTreatments = list; // used by the Action menu (View Treatment History)
-  if (!list.length) {
+  window._portalTreatments = all; // used by the Action menu (View Treatment History)
+  const F = window.PortalFilters;
+  if (F) {
+    F.setOptions("treat", "procedure", F.distinct(all, (t) => t.service_name));
+    F.setOptions("treat", "dentist", F.distinct(all, (t) => t.dentist_name));
+    F.setOptions("treat", "status", F.distinct(all, (t) => String(t.status || "").toLowerCase()).map((s) => [s, statusWord(s)]));
+  }
+  const v = F ? F.values("treat") : {};
+  const list = all.filter((t) =>
+    (!F || F.inRange(t.treatment_date, v.from, v.to)) &&
+    (!v.procedure || (t.service_name || "") === v.procedure) &&
+    (!v.dentist || (t.dentist_name || "") === v.dentist) &&
+    (!v.status || String(t.status || "").toLowerCase() === v.status));
+  if (F) F.result("treat", list.length, all.length, "treatment");
+  if (!all.length) {
     tbody.innerHTML =
       '<tr><td colspan="5" class="text-center py-4" style="color:var(--text-muted);">No treatments on record.</td></tr>';
+    return;
+  }
+  if (!list.length) {
+    tbody.innerHTML = F.emptyRow("treat", 5, "treatments");
     return;
   }
   tbody.innerHTML = list
@@ -524,7 +637,6 @@ function renderTreatments(list) {
             <button type="button" class="appt-action-item" role="menuitem" data-action="trt-medical"
               ${t.appointment_id ? "" : 'disabled aria-disabled="true" title="No visit linked to this treatment"'}>
               <i class="fa-solid fa-file-waveform"></i>Medical Record</button>
-            ${fbActionItem(t)}
           </div>
         </div>`;
 
@@ -790,23 +902,45 @@ async function loadBilling() {
   }
 }
 
+// Amount still payable on an invoice, in centavos (integers, so sums are exact).
+// Same rule as the server (portal_invoice_outstanding in portal_loaders.php):
+// only unpaid / partially paid invoices, total − paid, never below zero.
+function portalInvoiceDueCents(inv) {
+  const status = String((inv && inv.payment_status) || "").toLowerCase() || "unpaid";
+  if (status !== "unpaid" && status !== "partial") return 0;
+  const cents = Math.round(parseFloat(inv.total_amount || 0) * 100) - Math.round(parseFloat(inv.amount_paid || 0) * 100);
+  return cents > 0 ? cents : 0;
+}
+
 function renderBilling(data) {
   const tbody = document.getElementById("billingTableBody");
-  const list = data.invoices || [];
-  window._portalInvoices = list; // used by the Action menu (View Details)
+  const all = data.invoices || [];
+  window._portalInvoices = all; // used by the Action menu (View Details) and Make a Payment
+  window._portalBilling = data;
   let totalBilled = 0, totalPaid = 0;
+  // The summary cards always cover every invoice; the filters only narrow the table
+  all.forEach((i) => {
+    totalBilled += parseFloat(i.total_amount || 0);
+    totalPaid += parseFloat(i.amount_paid || 0);
+  });
+  if (typeof window.portalEwalletRefresh === "function") window.portalEwalletRefresh();
 
-  if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4" style="color:var(--text-muted);">No invoices found.</td></tr>';
+  const F = window.PortalFilters;
+  const v = F ? F.values("bill") : {};
+  const list = all.filter((i) =>
+    (!v.status || (String(i.payment_status || "").toLowerCase() || "unpaid") === v.status) &&
+    (!F || F.inRange(i.invoice_date, v.from, v.to)));
+  if (F) F.result("bill", list.length, all.length, "invoice");
+
+  if (!all.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4" style="color:var(--text-muted);">No invoices found.</td></tr>';
     document.getElementById("billTotal").textContent = peso(0);
     document.getElementById("billPaid").textContent = peso(0);
     document.getElementById("billBalance").textContent = peso(0);
     return;
   }
 
-  tbody.innerHTML = list.map((i) => {
-    totalBilled += parseFloat(i.total_amount || 0);
-    totalPaid += parseFloat(i.amount_paid || 0);
+  tbody.innerHTML = !list.length ? F.emptyRow("bill", 6, "invoices") : list.map((i) => {
     const bal = parseFloat(i.total_amount || 0) - parseFloat(i.amount_paid || 0);
 
     const status = (i.payment_status || "").toLowerCase();
@@ -814,7 +948,7 @@ function renderBilling(data) {
 
     // Action dropdown — same custom menu as My Appointments (.appt-action).
     // Clicks are handled in portal-dashboard.php (openInvoiceDetails /
-    // printReceipt / downloadReceiptPdf), using this row's invoice_id. Receipts exist only
+    // openReceiptModal / downloadReceiptPdf), using this row's invoice_id. Receipts exist only
     // once a payment is recorded, so both options are greyed out until then.
     const invId = i.invoice_id;
     if (!invId) console.error("The server did not return an 'invoice_id' for invoice:", i);
@@ -830,16 +964,17 @@ function renderBilling(data) {
             <button type="button" class="appt-action-item" role="menuitem" data-action="bill-view">
               <i class="fa-solid fa-eye"></i>View Details</button>
             <div class="appt-action-divider"></div>
-            <button type="button" class="appt-action-item" role="menuitem" data-action="bill-print" ${off}>
-              <i class="fa-solid fa-print"></i>Print Receipt</button>
+            <button type="button" class="appt-action-item" role="menuitem" data-action="bill-receipt" ${off}>
+              <i class="fa-solid fa-receipt"></i>View Receipt</button>
             <div class="appt-action-divider"></div>
             <button type="button" class="appt-action-item" role="menuitem" data-action="bill-pdf" ${off}>
               <i class="fa-solid fa-file-pdf"></i>Download PDF</button>
           </div>
         </div>`;
 
+    // Column order: Date · Total · Paid · Balance · Status · Action
+    // (the invoice number is shown in View Details and on the receipt)
     return `<tr>
-        <td data-label="Invoice #"><span class="bill-inv-code">${esc(i.invoice_code || "—")}</span></td>
         <td data-label="Date">${fmtDate(i.invoice_date)}</td>
         <td data-label="Total">${peso(i.total_amount)}</td>
         <td data-label="Paid">${peso(i.amount_paid)}</td>
@@ -875,29 +1010,81 @@ function fileNameFromPath(path) {
   return p ? decodeURIComponent(p.split("/").pop()) : "";
 }
 
-// View in a new tab, or download (download keeps the patient on the portal)
-function openPortalFile(f, download) {
-  const url = safeFileUrl(f.file_path);
-  if (!url) {
-    Swal.fire({ icon: "info", title: "File not available", text: "This file could not be found. Please contact the clinic.", confirmButtonColor: "#2563eb" });
+// View in a new tab, or download (download keeps the patient on the portal).
+// Files are served by api/portal_patient_file.php, which checks the file is this
+// patient's (the uploads folder itself is not reachable from the web). The check
+// runs first so a missing file shows a portal message instead of an error page.
+async function openPortalFile(f, download) {
+  const id = parseInt(f && f.file_id, 10);
+  const url = id ? "api/portal_patient_file.php?file_id=" + id : "";
+  let res = { success: false, message: "This file could not be found. Please contact the clinic." };
+  if (url) {
+    try {
+      res = await fetch(url + "&check=1", { cache: "no-store", credentials: "same-origin" }).then((r) => r.json());
+    } catch (e) {
+      res = { success: false, message: "We couldn't reach the server. Please check your connection and try again." };
+    }
+  }
+  if (!res || !res.success) {
+    Swal.fire({
+      icon: "info",
+      iconHtml: '<i class="fa-solid fa-file-circle-exclamation es-swal-glyph"></i>',
+      title: "File Unavailable",
+      html: `<p class="es-swal-text">${escHtml((res && res.message) || "This file could not be opened. Please try again.")}</p>`,
+      confirmButtonText: "Okay",
+      buttonsStyling: false,
+      customClass: ES_SWAL_TONE("warn"),
+    });
     return;
   }
-  if (!download) {
-    window.open(url, "_blank", "noopener");
+  if (download) {
+    // Sent as an attachment by the server, so the portal page stays open
+    const a = document.createElement("a");
+    a.href = url + "&download=1";
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
     return;
   }
-  const a = document.createElement("a");
-  a.href = url;
-  // Keep the real extension (e.g. ".pdf") even when file_name has none
-  const fromPath = fileNameFromPath(url);
-  const ext = (fromPath.match(/\.[A-Za-z0-9]{1,6}$/) || [""])[0];
-  let name = String(f.file_name || "").trim() || fromPath || "file";
-  if (ext && !name.toLowerCase().endsWith(ext.toLowerCase())) name += ext;
-  a.download = name;
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  // (no "noopener" feature: with it window.open() always returns null, so a
+  // blocked pop-up couldn't be told apart; opener is cleared instead)
+  const win = window.open(url, "_blank");
+  if (win) win.opener = null;
+  else window.location.href = url; // pop-up blocked → open here
+}
+
+// Waiver "View Document": served by api/portal_waiver_file.php, which checks
+// that the waiver is this patient's and that its file is on this server. The
+// check runs first so a missing file shows a portal message (not a host error
+// page); the document then opens in a new tab.
+async function viewWaiverDocument(waiverId) {
+  const id = parseInt(waiverId, 10);
+  if (!id) return;
+  const url = "api/portal_waiver_file.php?waiver_id=" + id;
+  let res;
+  try {
+    res = await fetch(url + "&check=1", { cache: "no-store", credentials: "same-origin" }).then((r) => r.json());
+  } catch (e) {
+    res = { success: false, message: "We couldn't reach the server. Please check your connection and try again." };
+  }
+  if (!res || !res.success) {
+    Swal.fire({
+      icon: "info",
+      iconHtml: '<i class="fa-solid fa-file-circle-exclamation es-swal-glyph"></i>',
+      title: "Document Unavailable",
+      html: `<p class="es-swal-text">${escHtml((res && res.message) || "This document could not be opened. Please try again.")}</p>`,
+      confirmButtonText: "Okay",
+      buttonsStyling: false,
+      customClass: ES_SWAL_TONE("warn"),
+    });
+    return;
+  }
+  // (no "noopener" feature: with it window.open() always returns null, so a
+  // blocked pop-up couldn't be told apart; opener is cleared instead)
+  const win = window.open(url, "_blank");
+  if (win) win.opener = null;
+  else window.location.href = url; // pop-up blocked → open here
 }
 
 function actionMenu(wrapClass, dataAttrs, items) {
@@ -914,12 +1101,30 @@ function actionMenu(wrapClass, dataAttrs, items) {
 async function loadFiles() {
   const tbody = document.getElementById("filesTableBody");
   const data = await php(API, { action: "get_files" });
-  const list = data.files || [];
-  window._portalFiles = list;
+  window._portalFiles = data.files || [];
+  renderFiles();
+}
 
-  if (!list.length) {
+function renderFiles() {
+  const tbody = document.getElementById("filesTableBody");
+  const all = window._portalFiles || [];
+  const F = window.PortalFilters;
+  if (F) F.setOptions("files", "type", F.distinct(all, (f) => f.file_type));
+  const v = F ? F.values("files") : {};
+  // data-file-index must stay the row's place in _portalFiles (the menu looks it up)
+  const rows = all.map((f, idx) => ({ f, idx })).filter(({ f }) =>
+    (!v.type || String(f.file_type || "").trim() === v.type) &&
+    (!F || F.has(f.file_name || fileNameFromPath(f.file_path), v.name)) &&
+    (!F || F.inRange(f.uploaded_at, v.from, v.to)));
+  if (F) F.result("files", rows.length, all.length, "file");
+
+  if (!all.length) {
     tbody.innerHTML =
       '<tr><td colspan="5"><div class="empty-state"><i class="fa-solid fa-folder-open"></i><p>No files uploaded yet.</p><small>X-rays, referrals and certificates appear here once the clinic uploads them.</small></div></td></tr>';
+    return;
+  }
+  if (!rows.length) {
+    tbody.innerHTML = F.emptyRow("files", 5, "files");
     return;
   }
 
@@ -930,8 +1135,8 @@ async function loadFiles() {
     certificate: "fa-certificate",
   };
 
-  tbody.innerHTML = list
-    .map((f, idx) => {
+  tbody.innerHTML = rows
+    .map(({ f, idx }) => {
       const name = f.file_name || fileNameFromPath(f.file_path) || "Document";
       const icon = icons[String(f.file_type || "").toLowerCase()] || "fa-file-lines";
       const hasUrl = !!safeFileUrl(f.file_path);
@@ -958,12 +1163,30 @@ async function loadFiles() {
 async function loadWaivers() {
   const tbody = document.getElementById("waiversTableBody");
   const data = await php(API, { action: "get_waivers" });
-  const list = data.waivers || [];
-  window._portalWaivers = list;
+  window._portalWaivers = data.waivers || [];
+  renderWaivers();
+}
 
-  if (!list.length) {
+function renderWaivers() {
+  const tbody = document.getElementById("waiversTableBody");
+  const all = window._portalWaivers || [];
+  const F = window.PortalFilters;
+  if (F) F.setOptions("waivers", "type", F.distinct(all, (w) => w.waiver_type || "General Waiver"));
+  const v = F ? F.values("waivers") : {};
+  const list = all.filter((w) => {
+    const signed = String(w.status || "").toLowerCase() === "signed";
+    return (!v.status || (v.status === "signed") === signed) &&
+      (!v.type || String(w.waiver_type || "General Waiver").trim() === v.type);
+  });
+  if (F) F.result("waivers", list.length, all.length, "waiver");
+
+  if (!all.length) {
     tbody.innerHTML =
       '<tr><td colspan="5"><div class="empty-state"><i class="fa-solid fa-pen-to-square"></i><p>No waivers on file.</p><small>Consent forms prepared by the clinic will appear here for you to review and sign.</small></div></td></tr>';
+    return;
+  }
+  if (!list.length) {
+    tbody.innerHTML = F.emptyRow("waivers", 5, "waivers");
     return;
   }
 
@@ -997,7 +1220,8 @@ async function loadWaivers() {
 
 async function signWaiver(waiverId, waiverType) {
   const w = (window._portalWaivers || []).find((x) => String(x.waiver_id) === String(waiverId)) || {};
-  const docUrl = safeFileUrl(w.file_path);
+  // Same signed-in, ownership-checked endpoint as View Document
+  const docUrl = safeFileUrl(w.file_path) ? "api/portal_waiver_file.php?waiver_id=" + encodeURIComponent(waiverId) : "";
   const suggested = [accountData?.first_name, accountData?.last_name].filter(Boolean).join(" ");
   const { isConfirmed, value } = await Swal.fire({
     title: "Sign Waiver",
@@ -1104,6 +1328,8 @@ function applyProfileData(data) {
   document.getElementById("pf_first").value = p.first_name || "";
   document.getElementById("pf_last").value = p.last_name || "";
   document.getElementById("pf_middle").value = p.middle_name || "";
+  // Saved names, so an untouched hyphenated name on file still validates
+  window._pfStoredNames = { first: p.first_name || "", middle: p.middle_name || "", last: p.last_name || "" };
   document.getElementById("pf_suffix").value = p.suffix || "";
   document.getElementById("pf_birthdate").value = p.birthdate || "";
   // Keep a stored value that isn't one of the current options instead of blanking it
@@ -1119,6 +1345,7 @@ function applyProfileData(data) {
     isPlaceholder || !rawContact ? "" : rawContact.replace(/^\+63/, "");
   document.getElementById("pf_email").value = p.email || "";
   window._phoneVerified = !!p.phone_verified;
+  syncContactLock();
 
   const setVal = (id, val) => {
     const el = document.getElementById(id);
@@ -1173,15 +1400,17 @@ function applyProfileData(data) {
   if (typeof data.has_questionnaire === "boolean") window._hasQuestionnaire = data.has_questionnaire;
 
   window._authMethod = data.auth_method || "password"; // "google" shows the Google sign-in chip
-  // ── Email verification badge ──
+  // From the stored credential (portal_has_local_password), not the sign-in method:
+  // false only for Google-only accounts. Missing (older cached copy) = allowed;
+  // the server refuses change_password for those accounts anyway.
+  window._hasPassword = p.has_password !== false;
+  syncPasswordControls();
+  // ── Email verification: Verified pill, or the in-field Verify Email button + (i) icon ──
   const isVerified = !!p.is_verified;
   const verifiedBadge = document.getElementById("emailVerifiedBadge");
-  const unverifiedBadge = document.getElementById("emailUnverifiedBadge");
   const verifyBtnWrap = document.getElementById("emailVerifyBtnWrap");
   if (verifiedBadge)
     verifiedBadge.style.display = isVerified ? "inline" : "none";
-  if (unverifiedBadge)
-    unverifiedBadge.style.display = isVerified ? "none" : "inline";
   if (verifyBtnWrap)
     verifyBtnWrap.style.display = isVerified ? "none" : "block";
   window._emailVerified = isVerified;
@@ -1204,38 +1433,48 @@ async function saveProfile() {
   };
   setLoading(true);
 
-  let ok = true;
-  const req = (id, errId, msg) => {
-    if (!document.getElementById(id)?.value.trim()) {
+  // Same rules as registration: assets/js/portal-validation.js
+  // (server: controllers/portal_validation.php). Each check: [errId, section, message].
+  const PV = window.PortalValidation;
+  const v = (id) => document.getElementById(id)?.value.trim() || "";
+  const guardianPhone = v("pf_guardian_phone");
+  const stored = window._pfStoredNames || {};
+  const checks = [
+    ["err_pf_first", "basic", PV.profileName(v("pf_first"), "First name", true, stored.first)],
+    ["err_pf_middle", "basic", PV.profileName(v("pf_middle"), "Middle name", false, stored.middle)],
+    ["err_pf_last", "basic", PV.profileName(v("pf_last"), "Last name", true, stored.last)],
+    ["err_pf_birthdate", "basic", PV.birthdate(v("pf_birthdate"))],
+    // Guardian phone is optional, but must be a valid PH mobile number when given
+    ["err_pf_guardian_phone", "basic", guardianPhone && PV.mobile(guardianPhone, false)],
+    ["err_pf_contact", "contact", PV.mobile(v("pf_contact"), false)],
+    ["err_pf_home_phone", "contact", PV.homePhone(v("pf_home_phone"))],
+    ["err_pf_zip", "contact", PV.zip(v("pf_zip"), false)],
+    ["err_pf_referred_by", "consult", PV.name(v("pf_referred_by"), "Referred by", false, true)],
+    ["err_pf_prev_dentist", "dental", PV.name(v("pf_prev_dentist"), "Previous dentist", false, true)],
+  ];
+  let firstBad = null;
+  checks.forEach(([errId, sec, msg]) => {
+    if (msg) {
       showPfErr(errId, msg);
-      ok = false;
+      firstBad = firstBad || sec;
     } else {
       hidePfErr(errId);
     }
-  };
-  req("pf_first", "err_pf_first", "First name is required.");
-  req("pf_last", "err_pf_last", "Last name is required.");
-  req("pf_birthdate", "err_pf_birthdate", "Birthdate is required.");
+  });
 
-  // Guardian phone is optional, but must be a valid PH mobile number when given
-  const guardianPhone = document.getElementById("pf_guardian_phone")?.value.trim() || "";
-  if (guardianPhone && !/^9\d{9}$/.test(guardianPhone)) {
-    showPfErr("err_pf_guardian_phone", "Enter a valid 10-digit PH mobile number starting with 9.");
-    ok = false;
-  } else {
-    hidePfErr("err_pf_guardian_phone");
-  }
-
-  if (!ok) {
+  if (firstBad) {
     setLoading(false);
     Swal.fire({
       icon: "warning",
-      title: "Required Fields Missing",
-      text: "Please fill in all required fields and correct any highlighted entries.",
-      confirmButtonColor: "#2563eb",
+      iconHtml: '<i class="fa-solid fa-circle-exclamation es-swal-glyph"></i>',
+      title: "Please Check Your Details",
+      html: '<p class="es-swal-text">Some fields are missing or not in the right format. Please correct the highlighted entries.</p>',
+      confirmButtonText: "Okay",
+      buttonsStyling: false,
+      customClass: ES_SWAL_TONE("warn"),
     });
-    if (typeof profGoTo === "function") profGoTo("basic");
-    else document.getElementById("sec-basic").scrollIntoView({ behavior: "smooth" });
+    if (typeof profGoTo === "function") profGoTo(firstBad);
+    else document.getElementById("sec-" + firstBad)?.scrollIntoView({ behavior: "smooth" });
     return false; // stay in edit mode so nothing typed is lost
   }
 
@@ -1336,6 +1575,17 @@ async function saveProfile() {
     loadDashboard();
     return true;
   } else {
+    // A server-side field check failed: show it beside the field as well
+    const fieldErr = {
+      first_name: ["err_pf_first", "basic"], middle_name: ["err_pf_middle", "basic"], last_name: ["err_pf_last", "basic"],
+      birthdate: ["err_pf_birthdate", "basic"], contact_number: ["err_pf_contact", "contact"],
+      home_phone: ["err_pf_home_phone", "contact"], zip: ["err_pf_zip", "contact"],
+      referred_by: ["err_pf_referred_by", "consult"], prev_dentist: ["err_pf_prev_dentist", "dental"],
+    }[data.field];
+    if ((data.code === "INVALID_FIELD" || data.code === "PHONE_LOCKED") && fieldErr) {
+      showPfErr(fieldErr[0], data.message);
+      if (typeof profGoTo === "function") profGoTo(fieldErr[1]);
+    }
     Swal.fire({
       icon: "error",
       iconHtml: '<i class="fa-solid fa-circle-exclamation es-swal-glyph"></i>',
@@ -1414,7 +1664,26 @@ async function doLogout() {
 }
 
 // ── CHANGE PASSWORD ───────────────────────────────────────────────────────────
+// Google-only accounts (no password): the button is disabled and an info icon
+// explains why. api/portal_auth.php change_password enforces the same rule.
+function syncPasswordControls() {
+  const noPassword = window._hasPassword === false;
+  const btn = document.getElementById("profPwBtn");
+  const tip = document.getElementById("profPwTip");
+  if (btn) {
+    btn.disabled = noPassword;
+    btn.setAttribute("aria-disabled", noPassword ? "true" : "false");
+    if (noPassword) btn.setAttribute("aria-describedby", "profPwTip");
+    else btn.removeAttribute("aria-describedby");
+  }
+  if (tip) {
+    tip.hidden = !noPassword;
+    if (!noPassword) window.hideInfoTip?.(tip);
+  }
+}
+
 async function openChangePassword() {
+  if (window._hasPassword === false) return; // Google-only account: nothing to change
   const field = (id, label, auto) => `
     <label class="es-pw-label" for="${id}">${label}</label>
     <div class="es-pw-wrap">
@@ -1446,7 +1715,8 @@ async function openChangePassword() {
     showLoaderOnConfirm: true,
     allowOutsideClick: () => !Swal.isLoading(),
     buttonsStyling: false,
-    customClass: ES_SWAL_CLASS,
+    // Compact pair: Update Password matches Cancel in size
+    customClass: Object.assign({}, ES_SWAL_CLASS, { actions: "es-swal-actions es-swal-actions-compact" }),
     didOpen: (popup) => {
       popup.querySelectorAll(".es-pw-eye").forEach((btn) =>
         btn.addEventListener("click", () => {
@@ -1504,6 +1774,12 @@ async function openChangePassword() {
             confirm_password: confirm,
           }),
         }).then((r) => r.json());
+        if (res.code === "NO_PASSWORD") {
+          // Server says this account has no password (e.g. stale page): lock the form
+          window._hasPassword = false;
+          syncPasswordControls();
+          return setErr(null, res.message);
+        }
         if (!res.success) return setErr(res.field || null, res.message || "We could not update your password. Please try again.");
         return true;
       } catch (e) {
@@ -1529,6 +1805,7 @@ async function openChangePassword() {
 async function sendVerificationEmail(clickedBtn) {
   // The clicked button (My Profile or the booking modal) shows the spinner
   const btn = clickedBtn || document.querySelector('[onclick="sendVerificationEmail(this)"]');
+  const btnHtml = btn ? btn.innerHTML : "";
   if (btn) {
     btn.disabled = true;
     btn.innerHTML =
@@ -1587,8 +1864,7 @@ async function sendVerificationEmail(clickedBtn) {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML =
-        '<i class="fa-solid fa-envelope"></i> Send Verification Email';
+      btn.innerHTML = btnHtml;
     }
   }
 }
@@ -1610,13 +1886,86 @@ function renderContactRuleNote() {
   const email = !!window._emailVerified;
   const phone = !!window._phoneVerified;
   el.className = "contact-rule-note" + (email || phone ? " is-ok" : "");
+  // The text sits in one <span>: the note is a flex row, so loose text and
+  // <strong> would otherwise become separate columns
   el.innerHTML =
     email || phone
-      ? '<i class="fa-solid fa-circle-check"></i> Contact verification requirement satisfied — your ' +
+      ? '<i class="fa-solid fa-circle-check"></i><span>Contact verification requirement satisfied — your ' +
         (email && phone ? "email and phone are" : email ? "email is" : "phone is") +
-        " verified." + (email && phone ? "" : " Verifying the other method is optional.")
-      : '<i class="fa-solid fa-circle-info"></i> Verify your email <strong>or</strong> your phone number before booking an appointment. Only one is required.';
+        " verified." + (email && phone ? "" : " Verifying the other method is optional.") + "</span>"
+      : '<i class="fa-solid fa-circle-info"></i><span>Verify your email <strong>or</strong> your phone number before booking an appointment. Only one is required.</span>';
   el.style.display = "flex";
+}
+
+// A verified mobile number can't be typed over in My Profile: it is changed
+// with "Change Number", which confirms the new number by SMS first (the server
+// refuses a plain save of a different number: PHONE_LOCKED).
+function syncContactLock() {
+  const field = document.getElementById("pf_contact");
+  if (!field) return;
+  const locked = !!window._phoneVerified && !!field.value.trim();
+  field.readOnly = locked;
+  field.classList.toggle("pf-readonly", locked);
+  // Locked: the explanation moves into the info icon beside the label (tooltip)
+  // and Change Number sits inside the field; unlocked: the format hint shows.
+  field.setAttribute("aria-describedby", locked ? "pfContactTip" : "pfContactHint");
+  field.closest(".pf-phone")?.classList.toggle("has-action", locked);
+  const hint = document.getElementById("pfContactHint");
+  if (hint) hint.hidden = locked;
+  // Edit form: the (i) icon is always shown; its message follows the status
+  setInfoTip(document.getElementById("pfContactTip"), locked
+    ? "Verified numbers can't be edited here. Use Change Number to confirm a new one by SMS."
+    : "Verify phone number.", "About your contact number: ");
+  const inFieldBtn = document.getElementById("pfContactChangeWrap");
+  if (inFieldBtn) inFieldBtn.hidden = !locked;
+  syncVerifyTips();
+}
+
+// Sets an (i) icon's message (data-tip + accessible name), also when its
+// tooltip is already showing. Bootstrap reads the title only once otherwise.
+function setInfoTip(el, text, labelPrefix) {
+  if (!el) return;
+  if (el.dataset.tip === text) return;
+  el.dataset.tip = text;
+  el.setAttribute("aria-label", (labelPrefix || "") + text);
+  const t = typeof bootstrap !== "undefined" && bootstrap.Tooltip ? bootstrap.Tooltip.getInstance(el) : null;
+  if (t) t.setContent({ ".tooltip-inner": text });
+}
+
+// My Profile (view): (i) icons beside Email Address / Contact Number while
+// either is unverified. Each says which one is unverified — and both when
+// both are. Uses the stored flags (patient_accounts.is_verified /
+// phone_verified), never the email domain or the way the patient signed in.
+function syncVerifyTips() {
+  const emailTip = document.getElementById("vfEmailTip");
+  const phoneTip = document.getElementById("vfPhoneTip");
+  if (!emailTip || !phoneTip) return;
+  const emailOk = !!window._emailVerified;
+  const hasPhone = !!document.getElementById("pf_contact")?.value.trim();
+  const phoneOk = hasPhone && !!window._phoneVerified;
+  const phoneWhat = hasPhone
+    ? "your contact number"
+    : "you haven't added a contact number yet";
+  let emailMsg = "", phoneMsg = "";
+  if (!emailOk && !phoneOk) {
+    emailMsg = hasPhone
+      ? "Both your email address and your contact number are still unverified. Use Verify Email here, and Verify Number beside your contact number."
+      : "Your email address is still unverified, and " + phoneWhat + ". Use Verify Email to get a confirmation link.";
+    phoneMsg = hasPhone
+      ? "Both your contact number and your email address are still unverified. Use Verify Number to confirm it by SMS, and Verify Email beside your email."
+      : "No contact number yet, and your email address is still unverified too. Add a number with Edit Profile, then verify it by SMS.";
+  } else if (!emailOk) {
+    emailMsg = "Your email address is still unverified. Use Verify Email to get a confirmation link.";
+  } else if (!phoneOk) {
+    phoneMsg = hasPhone
+      ? "Your contact number is still unverified. Use Verify Number to confirm it by SMS."
+      : "No contact number yet. Add one with Edit Profile, then verify it by SMS.";
+  }
+  [[emailTip, emailMsg, "Email address: "], [phoneTip, phoneMsg, "Contact number: "]].forEach(([el, msg, prefix]) => {
+    if (msg) setInfoTip(el, msg, prefix);
+    el.hidden = !msg;
+    if (!msg) window.hideInfoTip?.(el);
+  });
 }
 
 // ── Live contact verification status ─────────────────────────────────────────
@@ -1635,12 +1984,11 @@ function applyContactStatus(email, phone) {
     if (el) el.style.display = on ? mode : "none";
   };
   show("emailVerifiedBadge", email, "inline");
-  show("emailUnverifiedBadge", !email, "inline");
   show("emailVerifyBtnWrap", !email, "block");
   const hasPhone = !!document.getElementById("pf_contact")?.value.trim();
   show("phoneVerifiedBadge", hasPhone && phone, "inline");
-  show("phoneUnverifiedBadge", hasPhone && !phone, "inline");
   show("phoneVerifyBtnWrap", hasPhone && !phone, "block");
+  syncContactLock();
   renderContactRuleNote();
 
   // Booking modal: status pills + hide the verify button once done
@@ -1819,7 +2167,7 @@ window.addEventListener("load", () => {
   }
 });
 
-// ── Feedback (opened from Treatment History → Give Feedback) ──
+// ── Feedback (opened from My Appointments → Action → Give Feedback) ──
 // api/portal_feedback.php checks ownership, completion, the one-per-appointment
 // rule and resolves the dentist; this code only mirrors that for the UI.
 const FB_API = "api/portal_feedback.php";
@@ -1835,17 +2183,33 @@ async function fbLoadStatus() {
   } catch (e) { /* keep last known state; the server still enforces the rule */ }
 }
 
-// Action-menu item for a Treatment History row
-function fbActionItem(t) {
-  const aid = t.appointment_id;
-  if (!aid || String(t.status).toLowerCase() !== "completed") return ""; // not eligible: not offered
+// Action-menu item for a My Appointments row (rendered in portal-dashboard.php).
+// Only COMPLETED appointments can be reviewed; pending / confirmed / checked-in /
+// cancelled / no-show rows show it greyed out. One feedback per appointment:
+// once sent it shows "Feedback Submitted". api/portal_feedback.php enforces the
+// same rules (and that the visit's treatment is completed) on the server.
+function fbActionItem(a) {
+  const aid = a && a.appointment_id;
+  if (!aid) return "";
+  const divider = '<div class="appt-action-divider"></div>';
+  if (String(a.status).toLowerCase() !== "completed") {
+    return divider + `<button type="button" class="appt-action-item" role="menuitem" data-action="appt-feedback"
+              disabled aria-disabled="true" title="Feedback opens once this appointment is completed">
+              <i class="fa-solid fa-comment-medical"></i>Give Feedback</button>`;
+  }
   if (_fbSubmitted[aid]) {
-    return `<button type="button" class="appt-action-item fb-done-item" role="menuitem" disabled aria-disabled="true"
+    return divider + `<button type="button" class="appt-action-item fb-done-item" role="menuitem" disabled aria-disabled="true"
               tabindex="-1" title="You already sent feedback for this appointment">
               <i class="fa-solid fa-circle-check"></i>Feedback Submitted</button>`;
   }
-  return `<button type="button" class="appt-action-item" role="menuitem" data-action="trt-feedback">
+  return divider + `<button type="button" class="appt-action-item" role="menuitem" data-action="appt-feedback">
             <i class="fa-solid fa-comment-medical"></i>Give Feedback</button>`;
+}
+
+// Redraws the My Appointments table with the current feedback state
+// (portal-dashboard.php exposes portalRenderAppointments).
+function fbRefreshAppointments() {
+  if (typeof window.portalRenderAppointments === "function") window.portalRenderAppointments();
 }
 
 function fbEsc(v) {
@@ -1870,7 +2234,7 @@ async function openFeedback(appointmentId) {
     return fbSwal("error", "fa-wifi", "Connection Problem", "We couldn't reach the clinic server. Please check your connection and try again.");
   }
   if (!r.success) {
-    if (r.code === "already_submitted") { _fbSubmitted[appointmentId] = { category: "" }; loadTreatments(); }
+    if (r.code === "already_submitted") { _fbSubmitted[appointmentId] = { category: "" }; fbRefreshAppointments(); }
     return fbSwal("info", "fa-comment-slash", "Feedback Unavailable", r.message || "Feedback isn't available for this appointment.");
   }
 
@@ -1944,17 +2308,106 @@ async function submitFeedback(e) {
       iconHtml: '<i class="fa-solid fa-comment-medical es-swal-glyph"></i>',
       title: "Thank You for Your Feedback",
       html: '<p class="es-swal-text">Your feedback has been sent to the clinic. It helps us improve your care.</p>',
-      confirmButtonText: "Back to Treatment History",
+      confirmButtonText: "Back to My Appointments",
       buttonsStyling: false,
       customClass: ES_SWAL_CLASS,
     });
-    return showPage("treatments", null); // reloads the list → "Feedback Submitted"
+    showPage("appointments", null);
+    return fbRefreshAppointments(); // row now shows "Feedback Submitted"
   }
   if (["already_submitted", "not_found", "not_completed", "no_dentist"].includes(r.code)) {
     if (r.code === "already_submitted") _fbSubmitted[aid] = { category: "" };
     _fbCurrent = null;
     await fbSwal("info", "fa-comment-slash", "Feedback Unavailable", r.message);
-    return showPage("treatments", null);
+    showPage("appointments", null);
+    return fbRefreshAppointments();
   }
   err.textContent = r.message || "We could not save your feedback. Please try again.";
 }
+
+
+// ── Info tooltips (.info-tip) ────────────────────────────────────────────────
+// Small (i) buttons with the message in data-tip. Uses Bootstrap's Tooltip
+// (already loaded with bootstrap.bundle) in manual mode, rendered into <body>
+// so it is never clipped by collapsible sections or cards.
+//   • Mouse / trackpad: shows on hover.
+//   • Touch: tap toggles it; tapping anywhere else closes it.
+//   • Keyboard: shows on focus; Escape closes it.
+(function () {
+  if (typeof bootstrap === "undefined" || !bootstrap.Tooltip) return;
+  const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
+  let current = null;
+  let kbOpened = null;    // the tip opened by keyboard focus (stays while focused)
+  let lastPointer = 0;    // a tap/click also focuses the button — that is not keyboard
+  document.addEventListener("pointerdown", () => { lastPointer = Date.now(); }, true);
+  document.addEventListener("touchstart", () => { lastPointer = Date.now(); }, { capture: true, passive: true });
+
+  function tipFor(el) {
+    return bootstrap.Tooltip.getOrCreateInstance(el, {
+      title: el.dataset.tip || "",
+      trigger: "manual",
+      container: "body",
+      placement: el.dataset.tipPlacement || "top",
+      customClass: "info-tooltip",
+      fallbackPlacements: ["bottom", "right", "left"],
+    });
+  }
+  function show(el) {
+    if (el.hidden) return;
+    if (current && current !== el) hide(current);
+    tipFor(el).show();
+    current = el;
+  }
+  function hide(el) {
+    const t = el && bootstrap.Tooltip.getInstance(el);
+    if (t) t.hide();
+    if (current === el) current = null;
+    if (kbOpened === el) kbOpened = null;
+  }
+  window.hideInfoTip = hide;
+
+  document.addEventListener("mouseover", (e) => {
+    if (!fine.matches) return;
+    const el = e.target.closest && e.target.closest(".info-tip");
+    if (el && el !== current) show(el);
+  });
+  document.addEventListener("mouseout", (e) => {
+    if (!fine.matches) return;
+    const el = e.target.closest && e.target.closest(".info-tip");
+    if (el && !el.contains(e.relatedTarget) && kbOpened !== el) hide(el);
+  });
+  document.addEventListener("focusin", (e) => {
+    const el = e.target.closest && e.target.closest(".info-tip");
+    // Keyboard focus only — a tap/click also focuses, and the click below handles taps
+    if (!el || Date.now() - lastPointer < 800) return;
+    show(el);
+    kbOpened = el;
+  });
+  document.addEventListener("focusout", (e) => {
+    const el = e.target.closest && e.target.closest(".info-tip");
+    if (el && kbOpened === el && !(fine.matches && el.matches(":hover"))) hide(el);
+  });
+  document.addEventListener("click", (e) => {
+    const el = e.target.closest && e.target.closest(".info-tip");
+    if (el) {
+      e.preventDefault();
+      if (!fine.matches) current === el ? hide(el) : show(el);
+      return;
+    }
+    if (current) hide(current);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && current) hide(current);
+  });
+  // A tooltip left open on a page that was switched away from
+  window.addEventListener("scroll", () => { if (current && !fine.matches) hide(current); }, { passive: true, capture: true });
+})();
+
+// ── List filters (assets/js/portal-filters.js) ────────────────────────────────
+(function () {
+  if (!window.PortalFilters) return;
+  PortalFilters.bind("treat", { onChange: () => renderTreatments(window._portalTreatments || []) });
+  PortalFilters.bind("bill", { onChange: () => renderBilling(window._portalBilling || { invoices: [] }) });
+  PortalFilters.bind("files", { onChange: renderFiles });
+  PortalFilters.bind("waivers", { onChange: renderWaivers });
+})();

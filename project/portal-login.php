@@ -33,10 +33,10 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
     <link href="assets/fonts/sora/sora-300-800.css" rel="stylesheet"><!-- Sora, self-hosted (was Google Fonts) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-    <link rel="stylesheet" href="assets/css/portal-login.css?v=7">
+    <link rel="stylesheet" href="assets/css/portal-login.css?v=11">
     <link rel="stylesheet" href="assets/css/portalLogin-navbar.css?v=4">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
-    <link rel="stylesheet" href="assets/css/es-swal.css?v=4">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
     <script>
         // ── Step navigation ───────────────────────────────────────────────────
         let currentRegStep = 1;
@@ -77,44 +77,38 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
         }
 
         // Returns true when the step's fields are valid; shows inline errors otherwise.
+        // Field rules: assets/js/portal-validation.js (server: controllers/portal_validation.php)
         function regValidateStep(from) {
+            const PV = window.PortalValidation;
+            const val = id => document.getElementById(id).value.trim();
+            let ok = true;
+            const check = (errId, msg) => {
+                if (msg) {
+                    if (typeof showErr === 'function') showErr(errId, msg);
+                    ok = false;
+                }
+            };
             if (from === 1) {
-                const firstName = document.getElementById('reg_firstName').value.trim();
-                const lastName = document.getElementById('reg_lastName').value.trim();
-                const birthdate = document.getElementById('reg_birthdate').value;
-                const gender = document.getElementById('reg_gender').value;
-                let ok = true;
-                if (!firstName) {
-                    if (typeof showErr === 'function') showErr('errRegFirst', 'First name is required.');
-                    ok = false;
-                }
-                if (!lastName) {
-                    if (typeof showErr === 'function') showErr('errRegLast', 'Last name is required.');
-                    ok = false;
-                }
-                if (!birthdate) {
-                    if (typeof showErr === 'function') showErr('errRegBirth', 'Birthdate is required.');
-                    ok = false;
-                }
-                if (!gender) {
-                    if (typeof showErr === 'function') showErr('errRegGender', 'Please select a gender.');
-                    ok = false;
-                }
+                check('errRegFirst', PV.name(val('reg_firstName'), 'First name', true));
+                check('errRegLast', PV.name(val('reg_lastName'), 'Last name', true));
+                check('errRegMiddle', PV.name(val('reg_middleName'), 'Middle name', false));
+                check('errRegBirth', PV.birthdate(val('reg_birthdate')));
+                check('errRegCivil', val('reg_civil_status') ? '' : 'Please select your civil status.');
+                check('errRegNationality', val('reg_nationality') ? '' : 'Please select your nationality.');
+                check('errRegGender', val('reg_gender') ? '' : 'Please select your gender.');
                 if (!ok) return false;
             }
             if (from === 2) {
-                const contact = document.getElementById('reg_contact').value.trim();
-                const email = document.getElementById('reg_email').value.trim();
-                const address = document.getElementById('reg_address').value.trim();
-                const province = document.getElementById('reg_province').value;
-                const city = document.getElementById('reg_city').value;
+                const email = val('reg_email');
+                const address = val('reg_address');
+                const province = val('reg_province');
+                const city = val('reg_city');
                 const password = document.getElementById('reg_password').value;
                 const confirm = document.getElementById('reg_confirm').value;
-                let ok = true;
-                if (!contact || !/^9\d{9}$/.test(contact)) {
-                    if (typeof showErr === 'function') showErr('errRegContact', 'Enter a valid 10-digit PH number starting with 9.');
-                    ok = false;
-                }
+                check('errRegContact', PV.mobile(val('reg_contact'), true));
+                check('errRegHomePhone', PV.homePhone(val('reg_homePhone')));
+                check('errRegBarangay', val('reg_barangay') ? '' : 'Please select a barangay.');
+                check('errRegZip', PV.zip(val('reg_zip'), true));
                 if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                     if (typeof showErr === 'function') showErr('errRegEmail', 'Enter a valid email address.');
                     ok = false;
@@ -324,7 +318,6 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
             ul.innerHTML = sorted.map(p =>
                 `<li data-region="${addrAttr(provinces[p])}" data-province="${addrAttr(p)}">${addrAttr(addrLabel(p))}</li>`
             ).join('');
-            console.log('[PH Address] Provinces loaded:', sorted.length);
         }
     </script>
 </head>
@@ -499,12 +492,12 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
                         <div class="grid-2">
                             <div class="field">
                                 <label for="reg_firstName">First Name</label>
-                                <input type="text" id="reg_firstName" placeholder="Juan" autocomplete="given-name" onblur="normalizeNameInput(this)">
+                                <input type="text" id="reg_firstName" placeholder="Juan" autocomplete="given-name" maxlength="100" data-pv="name" onblur="normalizeNameInput(this)">
                                 <div class="field-err" id="errRegFirst"></div>
                             </div>
                             <div class="field">
                                 <label for="reg_lastName">Last Name</label>
-                                <input type="text" id="reg_lastName" placeholder="Dela Cruz" autocomplete="family-name" onblur="normalizeNameInput(this)">
+                                <input type="text" id="reg_lastName" placeholder="Dela Cruz" autocomplete="family-name" maxlength="100" data-pv="name" onblur="normalizeNameInput(this)">
                                 <div class="field-err" id="errRegLast"></div>
                             </div>
                         </div>
@@ -512,7 +505,8 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
                         <div class="grid-mid">
                             <div class="field">
                                 <label for="reg_middleName">Middle Name <span class="opt">(optional)</span></label>
-                                <input type="text" id="reg_middleName" placeholder="Santos" autocomplete="additional-name" onblur="normalizeNameInput(this)">
+                                <input type="text" id="reg_middleName" placeholder="Santos" autocomplete="additional-name" maxlength="100" data-pv="name" onblur="normalizeNameInput(this)">
+                                <div class="field-err" id="errRegMiddle"></div>
                             </div>
                             <div class="field">
                                 <label for="reg_suffix">Suffix <span class="opt">(Sr., Jr.)</span></label>
@@ -529,7 +523,7 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
 
                         <div class="field">
                             <label for="reg_birthdate">Birthdate</label>
-                            <input type="date" id="reg_birthdate" autocomplete="bday" class="js-date-picker" data-dp-max="today" placeholder="Select birthdate">
+                            <input type="date" id="reg_birthdate" autocomplete="bday" class="js-date-picker" data-dp-max="yesterday" placeholder="Select birthdate">
                             <div class="field-err" id="errRegBirth"></div>
                         </div>
 
@@ -542,11 +536,7 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
                                         <i class="fa-solid fa-chevron-down modal-cs-arrow"></i>
                                     </div>
                                     <div class="modal-cs-dropdown" id="civilStatusDropdown">
-                                        <div class="modal-cs-search-wrap">
-                                            <i class="fa-solid fa-magnifying-glass"></i>
-                                            <input type="text" class="modal-cs-search" placeholder="Search..."
-                                                oninput="filterCustomSelect(this,'civilStatusDropdown')">
-                                        </div>
+                                        <!-- Four options: no search box -->
                                         <ul class="modal-cs-list" id="civilStatusList">
                                             <li onclick="selectCivilStatus('Single',this)">Single</li>
                                             <li onclick="selectCivilStatus('Married',this)">Married</li>
@@ -556,6 +546,7 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
                                     </div>
                                 </div>
                                 <input type="hidden" id="reg_civil_status">
+                                <div class="field-err" id="errRegCivil" role="alert"></div>
                             </div>
                             <div class="field">
                                 <label>Nationality</label>
@@ -574,27 +565,29 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
                                     </div>
                                 </div>
                                 <input type="hidden" id="reg_nationality">
+                                <div class="field-err" id="errRegNationality" role="alert"></div>
                             </div>
                         </div>
 
                         <div class="field">
-                            <label for="reg_gender">Gender</label>
-                            <select id="reg_gender" name="reg_gender" class="js-custom-select" data-cs-search aria-required="true" aria-describedby="errRegGender">
-                                <option value="">Select gender</option>
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                                <option value="Non-binary">Non-binary</option>
-                                <option value="Another gender">Another gender</option>
-                                <option value="Prefer not to say">Prefer not to say</option>
-                            </select>
+                            <label id="reg_gender_label">Gender</label>
+                            <!-- One choice; the value is kept in #reg_gender (same values as
+                                 GENDER_OPTIONS in controllers/name_helper.php) -->
+                            <div class="gender-choice" role="radiogroup" aria-labelledby="reg_gender_label" aria-required="true" aria-describedby="errRegGender">
+                                <button type="button" class="gender-opt" role="radio" aria-checked="false" data-gender="Male"><i class="fa-solid fa-mars" aria-hidden="true"></i><span>Male</span></button>
+                                <button type="button" class="gender-opt" role="radio" aria-checked="false" data-gender="Female"><i class="fa-solid fa-venus" aria-hidden="true"></i><span>Female</span></button>
+                                <button type="button" class="gender-opt" role="radio" aria-checked="false" data-gender="Non-binary"><i class="fa-solid fa-neuter" aria-hidden="true"></i><span>Non&#8209;binary</span></button>
+                                <button type="button" class="gender-opt" role="radio" aria-checked="false" data-gender="Prefer not to say"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i><span>Prefer not to say</span></button>
+                            </div>
+                            <input type="hidden" id="reg_gender" name="reg_gender">
                             <div class="field-err" id="errRegGender" role="alert"></div>
                         </div>
 
                         <div class="step-nav">
-                            <span></span>
                             <button class="btn-primary step-btn-next" type="button" onclick="regNextStep(1)">
                                 Next <i class="fa-solid fa-arrow-right"></i>
                             </button>
+                            <span></span>
                         </div>
 
                         <p class="foot-note">
@@ -618,14 +611,17 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
                                 <label for="reg_contact">Contact Number</label>
                                 <div class="phone-wrap">
                                     <span class="phone-prefix">+63</span>
+                                    <!-- The +63 above is not part of the value: 10 digits starting with 9 -->
                                     <input type="tel" id="reg_contact" placeholder="9XX XXX XXXX"
-                                        maxlength="10" autocomplete="tel">
+                                        inputmode="numeric" autocomplete="tel-national" data-pv="mobile">
                                 </div>
                                 <div class="field-err" id="errRegContact"></div>
                             </div>
                             <div class="field">
                                 <label for="reg_homePhone">Home Phone <span class="opt">(optional)</span></label>
-                                <input type="tel" id="reg_homePhone" placeholder="(02) XXXX-XXXX">
+                                <input type="tel" id="reg_homePhone" placeholder="e.g. 81234567"
+                                    inputmode="numeric" data-pv="digits" data-pv-max="8">
+                                <div class="field-err" id="errRegHomePhone"></div>
                             </div>
                         </div>
 
@@ -708,12 +704,13 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
                                     </div>
                                 </div>
                                 <input type="hidden" id="reg_barangay">
+                                <div class="field-err" id="errRegBarangay"></div>
                             </div>
                             <div class="field">
                                 <label for="reg_zip">ZIP Code</label>
                                 <input type="text" id="reg_zip" placeholder="e.g. 1000"
-                                    maxlength="4" inputmode="numeric">
-
+                                    inputmode="numeric" data-pv="digits" data-pv-max="4">
+                                <div class="field-err" id="errRegZip"></div>
                             </div>
                         </div>
 
@@ -760,12 +757,12 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
                         </div>
 
                         <div class="step-nav">
-                            <button class="btn-step-back" type="button" onclick="regPrevStep(2)">
-                                <i class="fa-solid fa-arrow-left"></i> Back
-                            </button>
                             <button class="btn-primary step-btn-next" id="regBtn" onclick="submitRegistration()">
                                 <span class="spinner" id="regSpinner"></span>
                                 <span class="btn-text" id="regBtnText">Create Account</span>
+                            </button>
+                            <button class="btn-step-back" type="button" onclick="regPrevStep(2)">
+                                <i class="fa-solid fa-arrow-left"></i> Back
                             </button>
                         </div>
 
@@ -825,9 +822,10 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/es-swal.js?v=2"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
     <script src="assets/js/nationalities.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
+    <script src="assets/js/portal-validation.js?v=2"></script>
     <script>
         // ── API path ─────────────────────────────────────────────────────────
         const API = '<?= $API_PATH ?>';
@@ -1305,6 +1303,7 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
 
         function selectBarangay(name, li) {
             document.getElementById('reg_barangay').value = name;
+            document.getElementById('errRegBarangay').style.display = 'none';
             const vEl = document.getElementById('barangayValue');
             vEl.textContent = addrLabel(name);
             vEl.classList.add('cs-selected');
@@ -1344,6 +1343,7 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
 
         function selectCivilStatus(value, li) {
             document.getElementById('reg_civil_status').value = value;
+            document.getElementById('errRegCivil').style.display = 'none';
             const vEl = document.getElementById('civilStatusValue');
             vEl.textContent = value;
             vEl.classList.add('cs-selected');
@@ -1351,6 +1351,42 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
             li.closest('ul').querySelectorAll('li').forEach(l => l.classList.remove('active'));
             li.classList.add('active');
         }
+        // ── Gender: four buttons, one choice (value kept in #reg_gender) ─────
+        (function initGenderChoice() {
+            const group = document.querySelector('.gender-choice');
+            if (!group) return;
+            const opts = [...group.querySelectorAll('.gender-opt')];
+            const select = (btn, focus) => {
+                opts.forEach(b => {
+                    const on = b === btn;
+                    b.classList.toggle('active', on);
+                    b.setAttribute('aria-checked', on ? 'true' : 'false');
+                    b.tabIndex = on ? 0 : -1;
+                });
+                document.getElementById('reg_gender').value = btn.dataset.gender;
+                const err = document.getElementById('errRegGender');
+                if (err) err.style.display = 'none';
+                if (focus) btn.focus();
+            };
+            opts.forEach((b, i) => b.tabIndex = i === 0 ? 0 : -1);   // one tab stop for the group
+            group.addEventListener('click', e => {
+                const btn = e.target.closest('.gender-opt');
+                if (btn) select(btn, false);
+            });
+            // Arrow keys move the choice, like a native radio group
+            group.addEventListener('keydown', e => {
+                const i = opts.indexOf(document.activeElement);
+                if (i < 0) return;
+                const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+                if (!step) return;
+                e.preventDefault();
+                select(opts[(i + step + opts.length) % opts.length], true);
+            });
+        })();
+
+        // Landing page "Create an Account" → portal-login.php?tab=register
+        if (new URLSearchParams(location.search).get('tab') === 'register') switchTab('register');
+
         // Shared list: assets/js/nationalities.js
         const NATIONALITIES = window.ES_NATIONALITIES || ['Filipino'];
 
@@ -1364,6 +1400,7 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
 
         function selectNationality(value, li) {
             document.getElementById('reg_nationality').value = value;
+            document.getElementById('errRegNationality').style.display = 'none';
             const vEl = document.getElementById('nationalityValue');
             vEl.textContent = value;
             vEl.classList.add('cs-selected');
@@ -1373,6 +1410,15 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
         }
 
         // ── REGISTER ─────────────────────────────────────────────────────────
+        // Server field name → [error element, registration step]
+        const REG_FIELD_ERR = {
+            first_name: ['errRegFirst', 1], last_name: ['errRegLast', 1], middle_name: ['errRegMiddle', 1],
+            birthdate: ['errRegBirth', 1], civil_status: ['errRegCivil', 1], nationality: ['errRegNationality', 1],
+            gender: ['errRegGender', 1], contact_number: ['errRegContact', 2], home_phone: ['errRegHomePhone', 2],
+            address: ['errRegAddress', 2], province: ['errRegProvince', 2], city: ['errRegCity', 2],
+            barangay: ['errRegBarangay', 2], zip: ['errRegZip', 2],
+        };
+
         async function submitRegistration() {
             clearErrors();
 
@@ -1458,6 +1504,13 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
                         showErr('errRegEmail', 'You already have an account with this email.');
                     } else if (data.code === 'TERMS_NOT_AGREED') {
                         showErr('errRegTerms', data.message || 'You must agree to the Terms and Conditions to create an account.');
+                    } else if (data.code === 'INVALID_FIELD' && REG_FIELD_ERR[data.field]) {
+                        // Server-side field check failed: show it beside the field
+                        const [errId, step] = REG_FIELD_ERR[data.field];
+                        if (step !== currentRegStep) regGoToStep(step);
+                        showErr(errId, data.message);
+                        document.getElementById(errId)?.closest('.field')
+                            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     } else {
                         showAlert('registerAlert', data.message || 'Registration failed. Please try again.');
                     }
