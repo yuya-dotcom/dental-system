@@ -31,6 +31,13 @@ $t = htmlspecialchars($target, ENT_QUOTES);
 </head>
 <body>
 <script>
+    // The dashboard's saved copy for this tab (portal-dashboard.js) holds patient data
+    try {
+        for (let i = sessionStorage.length - 1; i >= 0; i--) {
+            const k = sessionStorage.key(i);
+            if (k && k.indexOf('es-portal-cache:') === 0) sessionStorage.removeItem(k);
+        }
+    } catch (e) {}
     try { new BroadcastChannel('essencia-portal').postMessage({ type: 'logout' }); } catch (e) {}
     try { localStorage.setItem('essencia-portal-logout', String(Date.now())); } catch (e) {}
     location.replace(<?= json_encode($target) ?>);

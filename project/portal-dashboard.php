@@ -8,6 +8,10 @@ portal_require_login();
 $API_PATH = 'api/portal_auth.php';
 
 $portalAccountId = (int)$_SESSION['portal_account_id'];
+// First name saved at sign-in: printed into the page so the greeting and sidebar
+// show it at once (the dashboard request fills in the full name afterwards).
+$portalFirstName = trim((string)($_SESSION['portal_name'] ?? ''));
+$portalInitial   = $portalFirstName !== '' ? mb_strtoupper(mb_substr($portalFirstName, 0, 1)) : '—';
 
 // Registration rule: a verified email OR phone (checked in the DB, enforced by the APIs too)
 // and the gender for the questionnaire modal's "women only" block. Both are cached in the
@@ -81,9 +85,9 @@ session_write_close();
         </button>
 
         <div class="sidebar-user">
-            <div class="avatar-circle" id="sidebarInitial">—</div>
+            <div class="avatar-circle" id="sidebarInitial"><?= htmlspecialchars($portalInitial) ?></div>
             <div class="sidebar-user-info">
-                <div class="name" id="sidebarName">Loading…</div>
+                <div class="name" id="sidebarName"><?= $portalFirstName !== '' ? htmlspecialchars($portalFirstName) : 'Loading…' ?></div>
                 <div class="badge-patient">Patient Portal</div>
             </div>
         </div>
@@ -193,7 +197,7 @@ session_write_close();
 
             <div style="margin-bottom:1.5rem;">
                 <h4 style="font-weight:800;color:var(--text-dark);margin-bottom:.25rem;">
-                    Good day, <span id="welcomeName">…</span>
+                    Good day, <span id="welcomeName"><?= $portalFirstName !== '' ? htmlspecialchars($portalFirstName) : '…' ?></span>
                 </h4>
                 <p style="color:var(--text-muted);font-size:.9rem;">Here's an overview of your dental health.</p>
             </div>
@@ -2306,6 +2310,8 @@ session_write_close();
     <!-- PHP → JS data bridge -->
     <script>
         const API = '<?= $API_PATH ?>';
+        // Keys this tab's saved copy of the dashboard (portal-dashboard.js, sessionStorage)
+        const PORTAL_ACCOUNT_ID = <?= (int)$portalAccountId ?>;
         // false → no verified email or phone yet: Book Appointment opens the verification modal
         let CONTACT_OK = <?= json_encode((bool)$contactStatus['ok']) ?>;
     </script>
@@ -2333,7 +2339,7 @@ session_write_close();
             return _phDataPromise;
         }
     </script>
-    <script src="assets/js/portal-dashboard.js?v=30"></script>
+    <script src="assets/js/portal-dashboard.js?v=31"></script>
     <script src="assets/js/portal-notify.js?v=1"></script>
 
     <script>
@@ -3477,10 +3483,18 @@ session_write_close();
             // once per REVALIDATE_MS (portal-dashboard.js); a cancellation forces it.
             let _apptFetchedAt = 0;
             let _apptInflight = null;
+            // F5 in the same tab: draw the last known list at once (portal-dashboard.js
+            // keeps it in sessionStorage); the bootstrap's fresh list replaces it.
+            const _apptRestored = window.portalRestoredBoot && window.portalRestoredBoot.appointments;
+            if (_apptRestored && _apptRestored.success) applyPortalAppointments(_apptRestored);
+            function keepAppointmentsForReload(data) {
+                if (typeof window.portalStoreExtra === 'function') window.portalStoreExtra('appointments', data);
+            }
             const _apptBootReady = Promise.resolve(window.portalBoot).catch(function() {}).then(function() {
                 const b = window.portalBootData && window.portalBootData.appointments;
                 if (b && b.success) {
                     applyPortalAppointments(b);
+                    keepAppointmentsForReload(b);
                     _apptFetchedAt = Date.now();
                 }
             });
@@ -3498,6 +3512,7 @@ session_write_close();
                         const data = await res.json();
                         if (!data.success) throw new Error(data.message);
                         applyPortalAppointments(data);
+                        keepAppointmentsForReload(data);
                         _apptFetchedAt = Date.now();
                     } catch (e) {
                         console.warn('portal_get_appointments error:', e);

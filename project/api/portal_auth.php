@@ -492,13 +492,16 @@ if ($action === 'bootstrap') {
     // (InfinityFree) run every query one after another, so the browser asks for
     // the first screen in a few smaller requests that run side by side
     // (the session is already closed above) instead of one ~30-query request.
-    $want = $input['sections'] ?? null;
+    // 'no_show_sweep' in the list runs the sweep in that request (the browser puts
+    // it in its lightest group so it never holds up the first screen).
+    $want  = $input['sections'] ?? null;
+    $sweep = !is_array($want) || in_array('no_show_sweep', $want, true);
     if (is_array($want)) $loaders = array_intersect_key($loaders, array_flip(array_filter($want, 'is_string')));
-    if (!$loaders) { echo json_encode(['success' => false, 'message' => 'No sections requested.']); exit; }
+    if (!$loaders && !$sweep) { echo json_encode(['success' => false, 'message' => 'No sections requested.']); exit; }
 
     // Ended, never-checked-in appointments show as No Show (server-side, throttled,
     // and safe when two requests try at once — the second simply skips it)
-    if (isset($loaders['appointments']) || isset($loaders['dashboard_summary'])) {
+    if ($sweep) {
         require_once __DIR__ . "/../controllers/appointment_lifecycle.php";
         aptSweepNoShows();
     }

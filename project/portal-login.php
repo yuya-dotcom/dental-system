@@ -1610,6 +1610,14 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
             if (e.key !== 'Enter') return;
             if (document.getElementById('loginPanel').classList.contains('active')) doLogin();
         });
+
+        // Signed out (or session expired): drop the dashboard's saved copy for this tab
+        try {
+            for (let i = sessionStorage.length - 1; i >= 0; i--) {
+                const k = sessionStorage.key(i);
+                if (k && k.indexOf('es-portal-cache:') === 0) sessionStorage.removeItem(k);
+            }
+        } catch (e) {}
     </script>
 </body>
 

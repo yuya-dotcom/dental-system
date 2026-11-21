@@ -14,13 +14,89 @@ const _cacheTime = {}; // key → when it was fetched (ms)
 // (clearCache), so their own edits always show up immediately.
 const REVALIDATE_MS = 30 * 1000;
 
+// ── Copy kept for this browser tab (sessionStorage) ──────────────────────────
+// So F5 shows the last screen at once instead of blanks. sessionStorage lives
+// only as long as this tab, is kept per account, and portal-logout.php clears
+// it. Restored entries are marked stale: they are drawn immediately but always
+// re-fetched before php() trusts them.
+const PERSIST_ACTIONS = ["dashboard_summary", "get_profile", "get_treatments", "get_billing",
+  "get_dental_chart", "get_files", "get_waivers"];
+const STORE_PREFIX = "es-portal-cache:";
+const STORE_KEY = STORE_PREFIX + (typeof PORTAL_ACCOUNT_ID !== "undefined" ? PORTAL_ACCOUNT_ID : 0);
+const _stale = {};   // cache key → true while it holds a restored (not yet re-fetched) copy
+let _stored = {};    // other restored parts: { appointments, feedback_status }
+let _saveTimer = null;
+
+function storeSave() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    try {
+      const sections = {};
+      PERSIST_ACTIONS.forEach((a) => {
+        const v = _cache[JSON.stringify({ action: a })];
+        if (v && v.success !== false) sections[a] = v;
+      });
+      sessionStorage.setItem(STORE_KEY, JSON.stringify({ v: 1, sections, extra: _stored }));
+    } catch (e) { /* storage full or blocked: the page simply loads as before */ }
+  }, 300);
+}
+
+/** Keep an extra part (appointments, feedback state) for the next F5. */
+function storeExtra(name, value) {
+  _stored[name] = value;
+  storeSave();
+}
+window.portalStoreExtra = storeExtra; // used by the appointments script in portal-dashboard.php
+
+const _restored = (() => {
+  try {
+    // Another account's copy never stays in this tab
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith(STORE_PREFIX) && k !== STORE_KEY) sessionStorage.removeItem(k);
+    }
+    const saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || "null");
+    return saved && saved.v === 1 ? saved : null;
+  } catch (e) {
+    return null;
+  }
+})();
+if (_restored) {
+  Object.entries(_restored.sections || {}).forEach(([a, v]) => {
+    const key = JSON.stringify({ action: a });
+    _cache[key] = v;
+    _cacheTime[key] = 0;
+    _stale[key] = true;
+  });
+  _stored = _restored.extra || {};
+}
+// Read by the appointments script in portal-dashboard.php to draw the list at once
+window.portalRestoredBoot = _restored ? { appointments: _stored.appointments || null } : null;
+
 function cacheSet(key, data) {
   _cache[key] = data;
   _cacheTime[key] = Date.now();
+  delete _stale[key];
+  storeSave();
 }
 
 function cacheIsFresh(key) {
   return !!_cache[key] && Date.now() - (_cacheTime[key] || 0) < REVALIDATE_MS;
+}
+
+/** Draw the copy already in hand (restored or preloaded), then the server's, if it differs. */
+async function cachedThenFresh(action, render) {
+  const key = JSON.stringify({ action });
+  const shown = _cache[key];
+  if (shown) render(shown);
+  try {
+    const data = await php(API, { action });
+    if (data !== shown) render(data);
+    return data;
+  } catch (e) {
+    if (!shown) throw e;
+    return shown; // offline for a moment: keep what is on screen
+  }
 }
 
 // Requests already on their way, by cache key: opening a section while its
@@ -29,7 +105,7 @@ const _inflight = {};
 
 async function php(path, body) {
   const key = JSON.stringify(body);
-  if (_cache[key]) return _cache[key];
+  if (_cache[key] && !_stale[key]) return _cache[key];
   if (_inflight[key]) return _inflight[key];
 
   const req = fetch(path, {
@@ -52,7 +128,9 @@ function clearCache(...actions) {
     const key = JSON.stringify({ action });
     delete _cache[key];
     delete _cacheTime[key];
+    delete _stale[key];
   });
+  storeSave();
 }
 
 function peso(v) {
@@ -386,8 +464,11 @@ document.addEventListener("keydown", (e) => {
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 async function loadDashboard() {
-  const data = await php(API, { action: "dashboard_summary" });
-  if (!data.success) return;
+  renderDashboard(await php(API, { action: "dashboard_summary" }));
+}
+
+function renderDashboard(data) {
+  if (!data || !data.success) return;
 
   const { account, stats, recent_bills, is_profile_complete } = data;
   accountData = account;
@@ -595,8 +676,7 @@ async function loadTreatments() {
     tbody.innerHTML =
       '<tr><td colspan="5" class="text-center py-4">Loading…</td></tr>';
   }
-  const data = await php(API, { action: "get_treatments" });
-  renderTreatments(data.treatments || []);
+  await cachedThenFresh("get_treatments", (data) => renderTreatments(data.treatments || []));
 }
 
 // Status words as shown in the badges ("checked_in" → "Checked In")
@@ -1109,10 +1189,10 @@ function actionMenu(wrapClass, dataAttrs, items) {
 // ── FILES ─────────────────────────────────────────────────────────────────────
 // Action menu clicks are handled in portal-dashboard.php (openPortalFile).
 async function loadFiles() {
-  const tbody = document.getElementById("filesTableBody");
-  const data = await php(API, { action: "get_files" });
-  window._portalFiles = data.files || [];
-  renderFiles();
+  await cachedThenFresh("get_files", (data) => {
+    window._portalFiles = data.files || [];
+    renderFiles();
+  });
 }
 
 function renderFiles() {
@@ -1171,10 +1251,10 @@ function renderFiles() {
 // ── WAIVERS ───────────────────────────────────────────────────────────────────
 // Action menu clicks are handled in portal-dashboard.php (View / signWaiver).
 async function loadWaivers() {
-  const tbody = document.getElementById("waiversTableBody");
-  const data = await php(API, { action: "get_waivers" });
-  window._portalWaivers = data.waivers || [];
-  renderWaivers();
+  await cachedThenFresh("get_waivers", (data) => {
+    window._portalWaivers = data.waivers || [];
+    renderWaivers();
+  });
 }
 
 function renderWaivers() {
@@ -2103,16 +2183,37 @@ document.getElementById("contactGateModal")?.addEventListener("shown.bs.modal", 
 // The other sections are prefetched in the background once the first screen
 // is drawn. A group that fails falls back to the individual calls.
 const BOOT_GROUPS = [
-  ["dashboard_summary", "contact_status", "check_questionnaire", "feedback_status"],
+  ["dashboard_summary", "contact_status", "check_questionnaire"],
   ["get_profile"],
   ["appointments"],
+  ["feedback_status", "no_show_sweep"],   // lightest group also runs the throttled no-show sweep
 ];
 const BOOT_SECTIONS = ["dashboard_summary", "get_profile"];   // needed before the dashboard draws
 const LATER_SECTIONS = ["get_treatments", "get_billing", "get_dental_chart", "get_files", "get_waivers"];
 window.portalBootData = null; // read by the appointments script in portal-dashboard.php
 
+/** The dashboard summary with is_profile_complete taken from the profile (computed live). */
+function patchedSummary() {
+  const profileData = _cache[JSON.stringify({ action: "get_profile" })];
+  const dashData = _cache[JSON.stringify({ action: "dashboard_summary" })];
+  if (profileData?.account && dashData) {
+    dashData.is_profile_complete = profileData.account.is_profile_complete;
+  }
+  return dashData;
+}
+
 async function preloadAll() {
-  const parts = await Promise.all(BOOT_GROUPS.map((sections) =>
+  // Let the rest of this file finish loading first (_fbSubmitted is declared
+  // further down); this still runs before the browser paints.
+  await Promise.resolve();
+
+  // F5 in the same tab: draw the last known dashboard at once; fresh data follows
+  if (_restored) {
+    renderDashboard(patchedSummary());
+    if (_stored.feedback_status?.success) _fbSubmitted = _stored.feedback_status.submitted || {};
+  }
+
+  const requests = BOOT_GROUPS.map((sections) =>
     fetch(API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2120,7 +2221,17 @@ async function preloadAll() {
     })
       .then((r) => r.json())
       .catch(() => null),
-  ));
+  );
+  // The last group (feedback state + no-show sweep) does not hold up the first
+  // screen: it is applied whenever it arrives.
+  requests[requests.length - 1].then((p) => {
+    if (!p || !p.success || !p.feedback_status?.success) return;
+    const before = JSON.stringify(_fbSubmitted);
+    _fbSubmitted = p.feedback_status.submitted || {};
+    storeExtra("feedback_status", p.feedback_status);
+    if (JSON.stringify(_fbSubmitted) !== before && typeof fbRefreshAppointments === "function") fbRefreshAppointments();
+  });
+  const parts = await Promise.all(requests.slice(0, -1));
   const ok = parts.filter((p) => p && p.success);
   const boot = ok.length ? Object.assign({}, ...ok) : null;
 
@@ -2134,22 +2245,16 @@ async function preloadAll() {
     BOOT_SECTIONS.forEach((a) => {
       if (boot[a] && boot[a].success !== false) cacheSet(JSON.stringify({ action: a }), boot[a]);
     });
-    if (boot.feedback_status?.success) _fbSubmitted = boot.feedback_status.submitted || {};
   } else {
     checkContactStatus(); // silent baseline; later changes are announced
   }
   // Anything bootstrap could not provide is fetched on its own
   await Promise.all(BOOT_SECTIONS.map((a) => php(API, { action: a })));
 
-  // get_profile recomputes is_profile_complete live from the DB.
-  // Use it to patch the dashboard_summary cache so loadDashboard()
-  // always reflects the true state even if the RPC returns a stale value.
-  const profileData = _cache[JSON.stringify({ action: "get_profile" })];
-  const dashData = _cache[JSON.stringify({ action: "dashboard_summary" })];
-  if (profileData?.account && dashData) {
-    dashData.is_profile_complete = profileData.account.is_profile_complete;
-  }
-
+  // get_profile recomputes is_profile_complete live from the DB; patch the
+  // summary with it so the dashboard reflects the true state even if the RPC
+  // returns a stale value.
+  patchedSummary();
   loadDashboard();
 
   // Check if first login — show questionnaire if not yet answered
