@@ -49,7 +49,8 @@ if ($method === 'PATCH') {
     $item = stock_rows([$id])[$id] ?? null;
     if (!$item) apiDeny(404, 'Item not found.');
     requireBranchAccess($item['branch_id'] ?? null);
-    $r = stock_apply($id, -$deduct);
+    // Stock and its movement record together, so no change goes unrecorded
+    $r = inv_move($id, -$deduct, 'usage', ['reason' => 'Used in treatment (manual deduction)']);
     echo json_encode($r['ok']
         ? ['success' => true, 'new_quantity' => $r['after']]
         : ['success' => false, 'message' => $r['message']]);

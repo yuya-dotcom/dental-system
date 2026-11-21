@@ -24,6 +24,7 @@ $body      = json_decode(file_get_contents('php://input'), true) ?? [];
 $branchId  = (int)($body['branch_id'] ?? 0);
 $materials = is_array($body['materials'] ?? null) ? $body['materials'] : [];
 $branchId  = scopedBranch($branchId); // owner: as sent; admin / dentist: always their own branch
+session_write_close();                // read-only from here: don't block the user's other requests
 
 $r = stock_check($materials, $branchId);
 echo json_encode([

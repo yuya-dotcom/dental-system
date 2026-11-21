@@ -19,6 +19,7 @@
 //    same call are put back before the error is returned.
 // =============================================================
 require_once __DIR__ . '/../dbconfig.php';
+require_once __DIR__ . '/inventory_v2.php';   // inv_move()
 
 const STOCK_FLOOR = 1;
 
@@ -96,7 +97,10 @@ function stock_check(array $materials, int $branchId): array
         $bid = (int)$row['item_id'];
         $need[$bid] = ($need[$bid] ?? 0) + $qty;
     }
-    $rows  = stock_rows(array_keys($need));
+    // The resolved rows were read in this same call — reuse them instead of a
+    // second identical inventory read (each read is a Supabase round trip).
+    $rows = [];
+    foreach ($resolved as $row) if ($row) $rows[(int)$row['item_id']] = $row;
     $items = [];
     $short = [];
     foreach ($need as $bid => $qty) {
@@ -115,8 +119,9 @@ function stock_check(array $materials, int $branchId): array
         $items[] = $item;
         if ($item['shortage'] > 0) $short[] = $item;
     }
+    $missingRows = $missing ? stock_rows(array_keys($missing)) : [];   // one read for all, not one per item
     foreach ($missing as $id => $qty) {
-        $short[] = ['item_id' => $id, 'item_name' => stock_rows([$id])[$id]['item_name'] ?? ('Item #' . $id),
+        $short[] = ['item_id' => $id, 'item_name' => $missingRows[$id]['item_name'] ?? ('Item #' . $id),
                     'item_code' => '', 'available' => 0, 'required' => $qty, 'usable' => 0, 'shortage' => $qty,
                     'not_in_branch' => true, 'source_ids' => [$id]];
     }
@@ -174,21 +179,20 @@ function stock_deduct(array $materials, int $branchId, string $reason, string $p
     $check = stock_check($materials, $branchId);
     if (!$check['ok']) return ['ok' => false, 'message' => stock_shortage_message($check['shortages']), 'shortages' => $check['shortages'], 'deducted' => []];
 
+    // Each item: stock + movement in one step (inv_move — controllers/inventory_v2.php).
+    // After the migration this is one database transaction per item and batches
+    // are used first-expiry-first; before it, the previous CAS update + movement row.
     $done = [];
     foreach ($check['items'] as $it) {
-        $r = stock_apply((int)$it['item_id'], -(int)$it['required']);
+        $r = inv_move((int)$it['item_id'], -(int)$it['required'], 'usage',
+                      ['reason' => $reason, 'performed_by' => $performedBy]);
         if (!$r['ok']) {
-            foreach ($done as $id => $q) stock_apply($id, $q); // put back what this call already took
+            foreach ($done as $id => $q) {   // put back what this call already took
+                inv_move($id, $q, 'reversal', ['reason' => 'Reversed: ' . $reason . ' (not completed)', 'performed_by' => $performedBy]);
+            }
             return ['ok' => false, 'message' => $r['message'], 'shortages' => [$it], 'deducted' => []];
         }
         $done[(int)$it['item_id']] = (int)$it['required'];
-    }
-    $today = date('Y-m-d');
-    foreach ($done as $id => $q) {
-        supabase_request('inventory_movements', 'POST', [
-            'item_id' => $id, 'branch_id' => $branchId ?: null, 'quantity_change' => -$q,
-            'reason' => $reason, 'performed_by' => $performedBy, 'movement_date' => $today,
-        ]);
     }
     return ['ok' => true, 'message' => '', 'shortages' => [], 'deducted' => $done, 'items' => $check['items']];
 }

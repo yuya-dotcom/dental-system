@@ -1,12 +1,14 @@
 <?php
 // =============================================================
-//  inventory-records.php — FIXED
-//  Fix 1: in_stock now shows a proper green badge via a local
-//         invStatusBadge() override defined right here.
-//         (The controller version may be missing in_stock — this
-//          local function takes precedence via early definition.)
-//  Fix 2: Log Stock Movement modal changed from modal-sm → modal-lg
-//         so the Type dropdown and fields have room to breathe.
+//  inventory-records.php — Inventory Records
+//  One row per item per branch (the branch's balance). Shared item
+//  details (unit, cost, supplier, expiry tracking) live in the item
+//  master (inventory_items) after the 2026-11-18 migration.
+//
+//  Summary tiles double as quick filters (Low / Out / Expiring / Expired).
+//  Details modal (assets/js/inventory.js → api/inventory_data.php):
+//  overview, batches with expiry, recent movement history.
+//  Export: api/inventory_export.php (Excel CSV / PDF) with the same filters.
 // =============================================================
 
 define('REQUIRED_ROLES', ['owner', 'admin', 'dentist']);
@@ -18,15 +20,18 @@ require_once __DIR__ . '/controllers/inventory_controller.php';
 require_once __DIR__ . '/controllers/branch_controller.php';
 require_once __DIR__ . '/controllers/list_filters.php';
 
+$v2             = inv_v2_ready();
 $filterBranch   = isset($_GET['branch'])   ? (int)$_GET['branch']   : 0;
 $filterCategory = isset($_GET['category']) ? trim($_GET['category']) : '';
 $filterStatus   = isset($_GET['status'])   ? trim($_GET['status'])   : '';
-$viewArchived   = ($_GET['view'] ?? '') === 'archived';   // archived items (history kept) vs active
+if (!in_array($filterStatus, ['', 'in_stock', 'low_stock', 'out_of_stock'], true)) $filterStatus = '';
+$filterExpiry   = in_array($_GET['expiry'] ?? '', ['soon', 'expired'], true) && $v2 ? $_GET['expiry'] : '';
+$viewArchived   = ($_GET['view'] ?? '') === 'archived';
 $filterView     = $viewArchived ? 'archived' : '';
-$page          = max(1, (int)($_GET['page'] ?? 1));
+$page           = max(1, (int)($_GET['page'] ?? 1));
 $qBranch        = scopedBranch($filterBranch);   // owner: as filtered; admin / dentist: own branch only
+$canManage      = !isDentist();
 
-// Sort / search (validated in list_filters.php)
 $sortOptions  = [
     'name_asc'    => ['Name (A–Z)',              'item_name.asc,item_id.asc'],
     'name_desc'   => ['Name (Z–A)',              'item_name.desc,item_id.desc'],
@@ -42,17 +47,34 @@ $sortOptions  = [
     'min_asc'     => ['Min Stock (Low to High)', 'min_stock.asc.nullslast,item_name.asc'],
     'status_asc'  => ['Status (A–Z)',            'status.asc,item_name.asc'],
     'status_desc' => ['Status (Z–A)',            'status.desc,item_name.asc'],
+    'upd_desc'    => ['Last Updated (Newest)',   'updated_at.desc.nullslast,item_name.asc'],
+    'upd_asc'     => ['Last Updated (Oldest)',   'updated_at.asc.nullslast,item_name.asc'],
 ];
 [$sortKey, $sortOrder] = listSort($sortOptions, 'name_asc');
-$search       = listSearch();
-$filtersOn    = listActiveCount([$filterBranch, $filterCategory, $filterStatus, $filterView, $search, $sortKey !== 'name_asc']);
+$search    = listSearch();
+$filtersOn = listActiveCount([$filterBranch, $filterCategory, $filterStatus, $filterExpiry, $filterView, $search, $sortKey !== 'name_asc']);
 
-// One parallel wave: list + categories + branch dropdown + navbar bell (controllers/admin_batch.php)
-$_invExtra   = listSearchFilter($search, ['item_name', 'item_code']);
-admin_prefetch([
+$_invExtra = listSearchFilter($search, ['item_name', 'item_code']);
+// Expiry data (tiles, Expiry column, Expiry filter) = ONE batch read, normally in the
+// parallel wave below. Only the Expiry filter needs it first (the list depends on it).
+$_batchSpec = $v2 ? inv_batch_scope_spec($qBranch) : null;
+$_exp = ['soon' => [], 'expired' => [], 'by_item' => []];
+if ($_batchSpec && $filterExpiry) {
+    $_exp = inv_expiry_digest(admin_get($_batchSpec['table'], $_batchSpec['query'])['data'] ?? []);
+    $ids  = $_exp[$filterExpiry];
+    $_invExtra[] = 'item_id=in.(' . ($ids ? implode(',', $ids) : '-1') . ')';
+}
+
+// Summary: every active row in scope (small table) — status counts + stock value
+$_bf = $qBranch !== 0 ? '&branch_id=eq.' . $qBranch : '';
+$_sumQ = 'select=item_id,stock_quantity,min_stock' . ($v2 ? ',inventory_items(unit_cost)' : '') . '&archived_at=is.null' . $_bf . '&limit=2000';
+
+$_pre = admin_prefetch([
     'list'       => admin_q('inventory', implode('&', inventoryRecordsQuery($page, $qBranch, $filterCategory, $filterStatus, $sortOrder, $_invExtra, $viewArchived)), ['Prefer: count=exact']),
     'categories' => admin_q('inventory', INV_CATEGORIES_QUERY),
-]);
+    'summary'    => admin_q('inventory', $_sumQ),
+] + ($_batchSpec && !$filterExpiry ? ['batches' => $_batchSpec] : []));
+if (isset($_pre['batches'])) $_exp = inv_expiry_digest(is_array($_pre['batches']['data'] ?? null) ? $_pre['batches']['data'] : []);
 $branches   = getAllBranches();
 $categories = getInventoryCategories();
 $data         = getInventoryRecords($page, $qBranch, $filterCategory, $filterStatus, $sortOrder, $_invExtra, $viewArchived);
@@ -61,9 +83,27 @@ $totalRecords = $data['totalRecords'];
 $totalPages   = $data['totalPages'];
 $from         = $data['from'];
 $to           = $data['to'];
-$baseUrl = listUrl('inventory-records.php', ['branch' => $filterBranch, 'category' => $filterCategory, 'status' => $filterStatus, 'view' => $filterView, 'q' => $search, 'sort' => $sortKey === 'name_asc' ? '' : $sortKey]);
-$sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'category' => $filterCategory, 'status' => $filterStatus, 'view' => $filterView, 'q' => $search]);
 
+$sum = ['total' => 0, 'low' => 0, 'out' => 0, 'value' => 0.0, 'priced' => 0];
+$_sumRows = admin_get('inventory', $_sumQ)['data'] ?? [];
+foreach (is_array($_sumRows) ? $_sumRows : [] as $r) {
+    $q = (int)$r['stock_quantity']; $min = (int)$r['min_stock'];
+    $sum['total']++;
+    if ($q <= 0) $sum['out']++; elseif ($q <= $min) $sum['low']++;
+    if (isset($r['inventory_items']['unit_cost'])) { $sum['value'] += $q * (float)$r['inventory_items']['unit_cost']; $sum['priced']++; }
+}
+$expSoonIds = $_exp['soon'];
+$expIds     = $_exp['expired'];
+$expiry     = $_exp['by_item'];
+
+$filterParams = ['branch' => $filterBranch, 'category' => $filterCategory, 'status' => $filterStatus, 'expiry' => $filterExpiry,
+                 'view' => $filterView, 'q' => $search, 'sort' => $sortKey === 'name_asc' ? '' : $sortKey];
+$baseUrl  = listUrl('inventory-records.php', $filterParams);
+$sortBase = listUrl('inventory-records.php', array_diff_key($filterParams, ['sort' => 1]));
+$tileUrl  = fn(array $p) => listUrl('inventory-records.php', ['branch' => $filterBranch] + $p);
+$exportQs = http_build_query(array_filter(['branch' => $filterBranch, 'category' => $filterCategory, 'status' => $filterStatus,
+                 'expiry' => $filterExpiry, 'view' => $filterView, 'q' => $search, 'sort' => $sortKey === 'name_asc' ? '' : $sortKey]));
+$e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES);
 ?>
 <!DOCTYPE html>
 <html lang="zxx">
@@ -75,8 +115,12 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
     <link rel="stylesheet" type="text/css" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
-    <link rel="stylesheet" href="assets/css/custom.css">
+    <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
+    <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-records.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-inventory.css?v=3">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -94,7 +138,16 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
                 <div class="page-header-right ms-auto">
                     <div class="page-header-right-items">
                         <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-                            <?php if (!isDentist()): ?>
+                            <div class="dropdown">
+                                <button class="btn btn-light-brand btn-sm hdr-btn" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="feather-download me-1"></i> Export
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-end">
+                                    <a class="dropdown-item" href="api/inventory_export.php?format=csv&<?= $e($exportQs) ?>"><i class="feather-file-text me-2"></i>Excel (CSV)</a>
+                                    <a class="dropdown-item" href="api/inventory_export.php?format=pdf&<?= $e($exportQs) ?>" target="_blank" rel="noopener"><i class="feather-file me-2"></i>PDF</a>
+                                </div>
+                            </div>
+                            <?php if ($canManage): ?>
                             <button class="btn btn-primary btn-sm hdr-btn" onclick="openAddItemModal()">
                                 <i class="feather-plus me-1"></i> Add Item
                             </button>
@@ -105,33 +158,75 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
             </div>
 
             <div class="main-content">
+                <?php if (!$v2): ?><?= inv_v2_notice() ?><?php endif; ?>
                 <div class="row"><div class="col-lg-12">
-                    <div class="card stretch stretch-full">
+                    <div class="card stretch stretch-full" data-es-region="list">
                         <div class="card-header">
-                            <h5 class="card-title">
-                                Inventory Records
-                                <span class="badge bg-soft-primary text-primary ms-2"><?= $totalRecords ?> total</span>
+                            <h5 class="card-title mb-0">
+                                Inventory Records <span class="badge bg-soft-primary text-primary ms-2"><?= number_format($totalRecords) ?> <?= $filtersOn ? 'found' : 'total' ?></span>
+                                <span class="rec-card-sub">Stock on hand per branch. Click a tile to filter; click an item for its batches and history.</span>
                             </h5>
                             <div class="card-header-action"><div class="card-header-btn">
                                 <div data-bs-toggle="tooltip" title="Refresh"><a href="inventory-records.php" class="avatar-text avatar-xs bg-warning"></a></div>
                                 <div data-bs-toggle="tooltip" title="Maximize/Minimize"><a href="javascript:void(0);" class="avatar-text avatar-xs bg-success" data-bs-toggle="expand"></a></div>
                             </div></div>
                         </div>
+
+                        <nav class="rec-summary inv-summary" aria-label="Inventory summary">
+                            <?php
+                            $tiles = [
+                                ['All Items',    $sum['total'],     'feather-package',        '',           $tileUrl([]),                        !$filterStatus && !$filterExpiry, 'Every active item in this view'],
+                                ['Low Stock',    $sum['low'],       'feather-alert-triangle', 'tone-amber', $tileUrl(['status' => 'low_stock']),  $filterStatus === 'low_stock', 'At or below the minimum stock'],
+                                ['Out of Stock', $sum['out'],       'feather-x-octagon',      'tone-red',   $tileUrl(['status' => 'out_of_stock']), $filterStatus === 'out_of_stock', 'No units left'],
+                            ];
+                            if ($v2) {
+                                $tiles[] = ['Expiring Soon', count($expSoonIds), 'feather-clock',  'tone-amber', $tileUrl(['expiry' => 'soon']),    $filterExpiry === 'soon',    'Items with a batch expiring within ' . INV_NEAR_EXPIRY_DAYS . ' days'];
+                                $tiles[] = ['Expired Stock', count($expIds),     'feather-slash',  'tone-red',   $tileUrl(['expiry' => 'expired']), $filterExpiry === 'expired', 'Items holding expired batches — write them off'];
+                            }
+                            foreach ($tiles as [$label, $n, $icon, $tone, $url, $cur, $tip]): ?>
+                            <a href="<?= $e($url) ?>" class="rec-stat <?= $tone ?><?= $cur ? ' is-current' : '' ?>" title="<?= $e($tip) ?>"<?= $cur ? ' aria-current="true"' : '' ?>>
+                                <span class="rec-stat-icon"><i class="<?= $icon ?>"></i></span>
+                                <span class="rec-stat-body">
+                                    <span class="rec-stat-value d-block"><?= number_format($n) ?></span>
+                                    <span class="rec-stat-label d-block"><?= $label ?></span>
+                                </span>
+                            </a>
+                            <?php endforeach; ?>
+                            <?php if ($v2 && !isDentist()): ?>
+                            <div class="rec-stat tone-green inv-stat-money" title="Stock × unit cost, for items with a cost (<?= $sum['priced'] ?> of <?= $sum['total'] ?>)">
+                                <span class="rec-stat-icon"><i class="feather-dollar-sign"></i></span>
+                                <span class="rec-stat-body">
+                                    <span class="rec-stat-value d-block"><?= $sum['priced'] ? $e(inv_peso($sum['value'])) : '—' ?></span>
+                                    <span class="rec-stat-label d-block">Stock Value</span>
+                                </span>
+                            </div>
+                            <?php endif; ?>
+                        </nav>
+
                         <div class="list-toolbar">
                             <?= listSearchControl($search, 'Item name or code') ?>
-                            <div class="list-field"><label class="list-label" for="filterCategory">Category</label>                            <select id="filterCategory" class="js-custom-select" data-cs-filter data-cs-search onchange="applyFilters()">
-                                <option value="">All Categories </option>
+                            <div class="list-field"><label class="list-label" for="filterCategory">Category</label>
+                            <select id="filterCategory" class="js-custom-select" data-cs-filter data-cs-search onchange="applyFilters()">
+                                <option value="">All Categories</option>
                                 <?php foreach ($categories as $cat): ?>
-                                <option value="<?= htmlspecialchars($cat) ?>" <?= $filterCategory===$cat?'selected':'' ?>><?= htmlspecialchars($cat) ?></option>
+                                <option value="<?= $e($cat) ?>" <?= $filterCategory === $cat ? 'selected' : '' ?>><?= $e($cat) ?></option>
                                 <?php endforeach; ?>
                             </select></div>
                             <div class="list-field"><label class="list-label" for="filterStatus">Stock Status</label>
                             <select id="filterStatus" class="js-custom-select" data-cs-filter onchange="applyFilters()">
                                 <option value="">All Statuses</option>
-                                <option value="in_stock"    <?= $filterStatus==='in_stock'    ?'selected':'' ?>>In Stock</option>
-                                <option value="low_stock"   <?= $filterStatus==='low_stock'   ?'selected':'' ?>>Low Stock</option>
-                                <option value="out_of_stock"<?= $filterStatus==='out_of_stock'?'selected':'' ?>>Out of Stock</option>
+                                <option value="in_stock"     <?= $filterStatus === 'in_stock'     ? 'selected' : '' ?>>In Stock</option>
+                                <option value="low_stock"    <?= $filterStatus === 'low_stock'    ? 'selected' : '' ?>>Low Stock</option>
+                                <option value="out_of_stock" <?= $filterStatus === 'out_of_stock' ? 'selected' : '' ?>>Out of Stock</option>
                             </select></div>
+                            <?php if ($v2): ?>
+                            <div class="list-field"><label class="list-label" for="filterExpiry">Expiry</label>
+                            <select id="filterExpiry" class="js-custom-select" data-cs-filter onchange="applyFilters()">
+                                <option value="">Any</option>
+                                <option value="soon"    <?= $filterExpiry === 'soon'    ? 'selected' : '' ?>>Expiring within <?= INV_NEAR_EXPIRY_DAYS ?> days</option>
+                                <option value="expired" <?= $filterExpiry === 'expired' ? 'selected' : '' ?>>Has expired stock</option>
+                            </select></div>
+                            <?php endif; ?>
                             <div class="list-field"><label class="list-label" for="filterView">Show</label>
                             <select id="filterView" class="js-custom-select" data-cs-filter onchange="applyFilters()">
                                 <option value="">Active Items</option>
@@ -142,96 +237,81 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
                             <select id="filterBranch" class="js-custom-select" data-cs-filter onchange="applyFilters()">
                                 <option value="0">All Branches</option>
                                 <?php foreach ($branches as $b): ?>
-                                <option value="<?= $b['branch_id'] ?>" <?= (int)$b['branch_id']===$filterBranch?'selected':'' ?>><?= htmlspecialchars($b['branch_name']) ?></option>
+                                <option value="<?= $b['branch_id'] ?>" <?= (int)$b['branch_id'] === $filterBranch ? 'selected' : '' ?>><?= $e($b['branch_name']) ?></option>
                                 <?php endforeach; ?>
                             </select></div>
                             <?php endif; ?>
                             <?= listResetControl('inventory-records.php', $filtersOn) ?>
                         </div>
+
                         <div class="card-body custom-card-action p-0">
-                            <div class="table-responsive" style="overflow:visible;">
-                                <table class="table table-hover mb-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover rec-table inv-table mb-0">
                                     <thead><tr>
-                                        <?= listTh('Item Code', 'code_asc', 'code_desc', $sortKey, $sortBase) ?><?= listTh('Item Name', 'name_asc', 'name_desc', $sortKey, $sortBase) ?><?= listTh('Category', 'category_asc', 'category_desc', $sortKey, $sortBase) ?>
-                                        <?= listTh('Branch', 'branch_asc', 'branch_desc', $sortKey, $sortBase) ?><?= listTh('Stock', 'qty_desc', 'qty_asc', $sortKey, $sortBase) ?><?= listTh('Min Stock', 'min_desc', 'min_asc', $sortKey, $sortBase) ?>
-                                        <?= listTh('Status', 'status_asc', 'status_desc', $sortKey, $sortBase) ?><th class="text-end">Action</th>
+                                        <?= listTh('Item', 'name_asc', 'name_desc', $sortKey, $sortBase) ?>
+                                        <?= listTh('Category', 'category_asc', 'category_desc', $sortKey, $sortBase) ?>
+                                        <?php if (isOwner()): ?><?= listTh('Branch', 'branch_asc', 'branch_desc', $sortKey, $sortBase) ?><?php endif; ?>
+                                        <?= listTh('Stock', 'qty_desc', 'qty_asc', $sortKey, $sortBase, 'class="text-end"') ?>
+                                        <?php if ($v2): ?><th class="text-end" title="How much to order when restocking">Reorder Qty</th><th>Expiry</th><?php endif; ?>
+                                        <?= listTh('Status', 'status_asc', 'status_desc', $sortKey, $sortBase) ?>
+                                        <?= listTh('Last Updated', 'upd_desc', 'upd_asc', $sortKey, $sortBase) ?>
+                                        <th class="rec-col-action"><span class="visually-hidden">Actions</span></th>
                                     </tr></thead>
                                     <tbody>
+                                    <?php $cols = 6 + (isOwner() ? 1 : 0) + ($v2 ? 2 : 0); ?>
                                     <?php if (empty($items)): ?>
-                                        <?= listEmptyRow(8, $filtersOn > 0, 'No inventory items found.', 'feather-package', 'inventory-records.php') ?>
+                                        <?= inv_empty_row($cols, $filtersOn > 0, $viewArchived ? 'No archived items' : 'No inventory items yet',
+                                                $viewArchived ? 'Items you delete that have stock history are kept here.' : 'Add the supplies this clinic keeps in stock.',
+                                                'feather-package', 'inventory-records.php') ?>
                                     <?php else: ?>
-                                        <?php foreach ($items as $item): ?>
-                                        <?php
+                                        <?php foreach ($items as $item):
+                                            $id       = (int)$item['item_id'];
                                             $stock    = (int)($item['stock_quantity'] ?? 0);
                                             $minStock = (int)($item['min_stock'] ?? 0);
-                                            $stockClass = $stock === 0 ? 'text-danger fw-bold'
-                                                        : ($stock <= $minStock ? 'text-warning fw-semibold' : 'text-dark');
+                                            $unit     = $item['inventory_items']['unit'] ?? '';
+                                            $stockClass = $stock <= 0 ? 'text-danger fw-bold' : ($stock <= $minStock ? 'text-warning fw-semibold' : 'fw-semibold');
+                                            $ex       = $expiry[$id] ?? null;
+                                            $archived = !empty($item['archived_at']);
+                                            $nameJs   = $e(json_encode($item['item_name'] ?? ''));
                                         ?>
-                                        <tr>
-                                            <td><span class="fw-semibold"><?= htmlspecialchars($item['item_code'] ?? '—') ?></span></td>
-                                            <td><?= htmlspecialchars($item['item_name'] ?? '—') ?></td>
-                                            <td><?= htmlspecialchars($item['category'] ?? '—') ?></td>
-                                            <td><?= htmlspecialchars($item['branches']['branch_name'] ?? '—') ?></td>
-                                            <td><span class="<?= $stockClass ?>"><?= $stock ?></span></td>
-                                            <td><?= $minStock ?></td>
-                                            <!-- Fix 1: badge now uses local invStatusBadge() which covers in_stock -->
+                                        <tr class="rec-row">
                                             <td>
-                                                <?php if (!empty($item['archived_at'])): ?>
-                                                <span class="badge bg-soft-secondary text-secondary" title="Archived <?= htmlspecialchars(date('M j, Y', strtotime($item['archived_at']))) ?>">Archived</span>
-                                                <?php else: ?>
-                                                <span class="badge <?= invStatusBadge($item['status'] ?? '') ?>">
-                                                    <?= invStatusLabel($item['status'] ?? '') ?>
-                                                </span>
-                                                <?php endif; ?>
+                                                <a href="javascript:void(0);" class="rec-entity-name" onclick="viewItem(<?= $id ?>)"><?= $e($item['item_name'] ?? '—') ?></a>
+                                                <span class="rec-entity-sub"><?= $e($item['item_code'] ?? '') ?><?= !empty($item['inventory_items']['track_expiry']) ? ' · <i class="feather-clock" title="Expiry tracked"></i>' : '' ?></span>
                                             </td>
-                                            <td class="text-end">
+                                            <td><?= !empty($item['category']) ? $e($item['category']) : '<span class="rec-muted">—</span>' ?></td>
+                                            <?php if (isOwner()): ?><td><?= $e($item['branches']['branch_name'] ?? '—') ?></td><?php endif; ?>
+                                            <td class="text-end rec-nowrap inv-num"><span class="<?= $stockClass ?>"><?= number_format($stock) ?></span> <span class="rec-muted small"><?= $e(inv_unit_label($unit, $stock)) ?></span></td>
+                                            <?php if ($v2): ?>
+                                            <td class="text-end inv-num"><?= (int)($item['reorder_qty'] ?? 0) ?: '<span class="rec-muted">—</span>' ?></td>
+                                            <td class="rec-nowrap">
+                                                <?php if ($ex && $ex['expired']): ?>
+                                                    <span class="badge bg-soft-danger text-danger" title="<?= $ex['expired'] ?> unit(s) expired"><?= $ex['expired'] ?> expired</span>
+                                                <?php elseif ($ex && $ex['soon']): ?>
+                                                    <span class="badge bg-soft-warning text-warning" title="Earliest expiry <?= $e(date('M j, Y', strtotime($ex['next']))) ?>">Exp. <?= $e(date('M j', strtotime($ex['next']))) ?></span>
+                                                <?php elseif ($ex && $ex['next']): ?>
+                                                    <span class="rec-muted small"><?= $e(date('M j, Y', strtotime($ex['next']))) ?></span>
+                                                <?php else: ?><span class="rec-muted">—</span><?php endif; ?>
+                                            </td>
+                                            <?php endif; ?>
+                                            <td>
+                                                <?= inv_stock_pill($item['status'] ?? '', $item['archived_at'] ?? null) ?>
+                                            </td>
+                                            <td class="rec-nowrap"><?php if (!empty($item['updated_at'])): ?><?= $e(date('M j, Y', strtotime($item['updated_at']))) ?><span class="rec-entity-sub"><?= $e(date('g:i A', strtotime($item['updated_at']))) ?></span><?php else: ?><span class="rec-muted">—</span><?php endif; ?></td>
+                                            <td class="rec-col-action">
                                                 <div class="dropdown">
-                                                    <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed"><i class="feather-more-vertical"></i></a>
+                                                    <a href="javascript:void(0);" class="avatar-text avatar-md ms-auto" data-bs-toggle="dropdown" data-bs-strategy="fixed" aria-label="Actions"><i class="feather-more-vertical"></i></a>
                                                     <div class="dropdown-menu dropdown-menu-end action-dropdown">
-                                                        <a href="javascript:void(0);" class="dropdown-item"
-                                                           onclick='viewItem(<?= json_encode([
-                                                               "item_id"       => $item["item_id"],
-                                                               "item_code"     => $item["item_code"]     ?? "",
-                                                               "item_name"     => $item["item_name"]     ?? "",
-                                                               "category"      => $item["category"]      ?? "",
-                                                               "branch_name"   => $item["branches"]["branch_name"] ?? "",
-                                                               "stock_quantity"=> $item["stock_quantity"] ?? 0,
-                                                               "min_stock"     => $item["min_stock"]     ?? 0,
-                                                               "status"        => $item["status"]        ?? "",
-                                                           ], JSON_HEX_QUOT|JSON_HEX_TAG) ?>)'>
-                                                           <i class="feather-eye"></i> View Details
-                                                        </a>
-                                                        <a href="inventory-stock-movement.php?item=<?= (int)$item['item_id'] ?>" class="dropdown-item">
-                                                            <i class="feather-refresh-cw"></i> View Movements
-                                                        </a>
-                                                        <?php if (!isDentist() && !empty($item['archived_at'])): ?>
+                                                        <a href="javascript:void(0);" class="dropdown-item" onclick="viewItem(<?= $id ?>)"><i class="feather-eye"></i> View Details</a>
+                                                        <a href="inventory-stock-movement.php?item=<?= $id ?>" class="dropdown-item"><i class="feather-refresh-cw"></i> Movement History</a>
+                                                        <?php if ($canManage && $archived): ?>
                                                         <div class="dropdown-divider"></div>
-                                                        <a href="javascript:void(0);" class="dropdown-item text-success"
-                                                           onclick="restoreItem('<?= (int)$item['item_id'] ?>','<?= htmlspecialchars($item['item_name'] ?? '', ENT_QUOTES) ?>')">
-                                                           <i class="feather-rotate-ccw"></i> Restore
-                                                        </a>
-                                                        <?php elseif (!isDentist()): ?>
-                                                        <a href="javascript:void(0);" class="dropdown-item"
-                                                           onclick="openMovementModal('<?= (int)$item['item_id'] ?>','<?= htmlspecialchars($item['item_name'] ?? '', ENT_QUOTES) ?>','<?= $stock ?>')">
-                                                           <i class="feather-plus-circle"></i> Log Movement
-                                                        </a>
+                                                        <a href="javascript:void(0);" class="dropdown-item text-success" onclick="restoreItem(<?= $id ?>, <?= $nameJs ?>)"><i class="feather-rotate-ccw"></i> Restore</a>
+                                                        <?php elseif ($canManage): ?>
+                                                        <a href="javascript:void(0);" class="dropdown-item" onclick="openMovementModal(<?= $id ?>)"><i class="feather-plus-circle"></i> Log Movement</a>
                                                         <div class="dropdown-divider"></div>
-                                                        <a href="javascript:void(0);" class="dropdown-item"
-                                                           onclick='openEditItemModal(<?= json_encode([
-                                                               "item_id"       => $item["item_id"],
-                                                               "item_name"     => $item["item_name"]     ?? "",
-                                                               "category"      => $item["category"]      ?? "",
-                                                               "branch_id"     => $item["branch_id"]     ?? "",
-                                                               "stock_quantity"=> $item["stock_quantity"] ?? 0,
-                                                               "min_stock"     => $item["min_stock"]     ?? 0,
-                                                               "status"        => $item["status"]        ?? "",
-                                                           ], JSON_HEX_QUOT|JSON_HEX_TAG) ?>)'>
-                                                           <i class="feather-edit-2"></i> Edit
-                                                        </a>
-                                                        <a href="javascript:void(0);" class="dropdown-item text-danger"
-                                                           onclick="deleteItem('<?= (int)$item['item_id'] ?>','<?= htmlspecialchars($item['item_name'] ?? '', ENT_QUOTES) ?>')">
-                                                           <i class="feather-trash-2"></i> Delete
-                                                        </a>
+                                                        <a href="javascript:void(0);" class="dropdown-item" onclick="openEditItemModal(<?= $id ?>)"><i class="feather-edit-2"></i> Edit</a>
+                                                        <a href="javascript:void(0);" class="dropdown-item text-danger" onclick="deleteItem(<?= $id ?>, <?= $nameJs ?>)"><i class="feather-trash-2"></i> Delete</a>
                                                         <?php endif; ?>
                                                     </div>
                                                 </div>
@@ -245,22 +325,11 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
                         </div>
 
                         <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            <p class="text-muted small mb-0">
-                                Showing <?= $from ?>–<?= $to ?> of <?= $totalRecords ?> item(s)
-                                <?php if ($filtersOn): ?>
-                                    &nbsp;·&nbsp;<a href="inventory-records.php" class="text-danger"><i class="feather-x-circle me-1"></i>Clear filters</a>
-                                <?php endif; ?>
+                            <p class="rec-foot-count mb-0">
+                                <?php if ($totalRecords): ?>Showing <strong><?= $from ?>–<?= $to ?></strong> of <strong><?= number_format($totalRecords) ?></strong> item<?= $totalRecords === 1 ? '' : 's' ?><?php else: ?>No items to show<?php endif; ?>
+                                <?php if ($filtersOn): ?>&nbsp;·&nbsp;<a href="inventory-records.php" class="text-danger"><i class="feather-x-circle me-1"></i>Clear filters</a><?php endif; ?>
                             </p>
-                            <?php if ($totalPages > 1): ?>
-                            <ul class="list-unstyled d-flex align-items-center gap-1 mb-0 pagination-common-style">
-                                <li><?php if ($page>1): ?><a href="<?= $baseUrl ?>&page=<?= $page-1 ?>"><i class="bi bi-arrow-left"></i></a><?php else: ?><a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-left"></i></a><?php endif; ?></li>
-                                <?php $wS=max(1,$page-2);$wE=min($totalPages,$wS+4);$wS=max(1,$wE-4); ?>
-                                <?php if ($wS>1): ?><li><a href="<?= $baseUrl ?>&page=1">1</a></li><?php if ($wS>2): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?><?php endif; ?>
-                                <?php for ($pg=$wS;$pg<=$wE;$pg++): ?><li><a href="<?= $baseUrl ?>&page=<?= $pg ?>" class="<?= $pg===$page?'active':'' ?>"><?= $pg ?></a></li><?php endfor; ?>
-                                <?php if ($wE<$totalPages): ?><?php if ($wE<$totalPages-1): ?><li><span class="px-1 text-muted">…</span></li><?php endif; ?><li><a href="<?= $baseUrl ?>&page=<?= $totalPages ?>"><?= $totalPages ?></a></li><?php endif; ?>
-                                <li><?php if ($page<$totalPages): ?><a href="<?= $baseUrl ?>&page=<?= $page+1 ?>"><i class="bi bi-arrow-right"></i></a><?php else: ?><a class="text-muted" style="pointer-events:none;opacity:.4;"><i class="bi bi-arrow-right"></i></a><?php endif; ?></li>
-                            </ul>
-                            <?php endif; ?>
+                            <?= listPager($baseUrl, $page, $totalPages) ?>
                         </div>
                     </div>
                 </div></div>
@@ -268,189 +337,38 @@ $sortBase = listUrl('inventory-records.php', ['branch' => $filterBranch, 'catego
         </div>
     </main>
 
-    <!-- VIEW MODAL -->
-    <div class="modal fade" id="inventoryViewModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header border-0">
-                    <h5 class="modal-title fw-bold"><i class="feather-package me-2 text-primary"></i>Item Details</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body pt-0">
-                    <table class="table table-borderless mb-0 small">
-                        <tr><th class="text-muted" style="width:120px;">Item Code</th><td id="iv_code" class="fw-semibold"></td></tr>
-                        <tr><th class="text-muted">Item Name</th><td id="iv_name"></td></tr>
-                        <tr><th class="text-muted">Category</th><td id="iv_cat"></td></tr>
-                        <tr><th class="text-muted">Branch</th><td id="iv_branch"></td></tr>
-                        <tr><th class="text-muted">Stock</th><td id="iv_stock"></td></tr>
-                        <tr><th class="text-muted">Min Stock</th><td id="iv_min"></td></tr>
-                        <tr><th class="text-muted">Status</th><td id="iv_status"></td></tr>
-                    </table>
-                </div>
-                <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ADD / EDIT MODAL -->
-    <div class="modal fade" id="inventoryModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header border-0 pb-0">
-                    <div>
-                        <h5 class="modal-title fw-bold mb-0" id="invModalTitle">Add Inventory Item</h5>
-                        <p class="text-muted small mb-0">Fill in the item details below.</p>
-                    </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="invModalError" class="alert alert-danger small py-2 px-3 mb-3" style="display:none;"></div>
-                    <input type="hidden" id="inv_id">
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <label class="form-label fw-semibold small">Item Name <span class="text-danger">*</span></label>
-                            <input type="text" id="inv_name" class="form-control" placeholder="e.g. Dental Gloves">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Category</label>
-                            <input type="text" id="inv_category" class="form-control" placeholder="e.g. Consumables" list="categoryList">
-                            <datalist id="categoryList">
-                                <?php foreach ($categories as $cat): ?>
-                                <option value="<?= htmlspecialchars($cat) ?>">
-                                <?php endforeach; ?>
-                            </datalist>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Branch <span class="text-danger">*</span></label>
-                            <select id="inv_branch" class="form-select">
-                                <option value="">— Select Branch —</option>
-                                <?php foreach ($branches as $b): if (!canAccessBranch($b['branch_id'])) continue; // admins: own branch only ?>
-                                <option value="<?= $b['branch_id'] ?>"><?= htmlspecialchars($b['branch_name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Stock Quantity</label>
-                            <input type="number" id="inv_stock" class="form-control" value="0" min="0">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small">Min Stock <span class="text-muted">(alert threshold)</span></label>
-                            <input type="number" id="inv_min_stock" class="form-control" value="0" min="0">
-                        </div>
-                        <div class="col-12">
-                            <p class="text-muted small mb-0"><i class="feather-info me-1"></i>Status is set automatically from Stock and Min Stock. To take an item out of use, delete it — items with history are archived and can be restored.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer border-0 d-flex justify-content-between">
-                    <span class="text-muted small"><span class="text-danger">*</span> Required</span>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-primary px-4" id="invSaveBtn" onclick="saveItem()">
-                            <i class="feather-save me-1"></i> Save
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!--
-        LOG MOVEMENT MODAL
-        Fix 2: Changed modal-sm → modal-lg so the Type dropdown
-        and all fields have proper room and don't feel cramped.
-        The two-column layout (Type + Quantity side by side) now
-        fits comfortably without text overflow.
-    -->
-    <div class="modal fade" id="movementModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header border-0 pb-0">
-                    <div>
-                        <h5 class="modal-title fw-bold mb-0">
-                            <i class="feather-refresh-cw me-2 text-primary"></i>Log Stock Movement
-                        </h5>
-                        <p class="text-muted small mb-0" id="movItemName"></p>
-                    </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="movModalError" class="alert alert-danger small py-2 px-3 mb-3" style="display:none;"></div>
-                    <input type="hidden" id="mov_item_id">
-
-                    <div class="row g-3">
-
-                        <!-- Current stock (read-only display) -->
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold small">Current Stock</label>
-                            <div class="form-control bg-light fw-bold fs-5 text-center" id="movCurrentStock"
-                                 style="min-height:2.5rem; display:flex; align-items:center; justify-content:center;">
-                            </div>
-                        </div>
-
-                        <!-- Type dropdown — now has full col-md-4 width, no cramping -->
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold small">Type <span class="text-danger">*</span></label>
-                            <select id="mov_type" class="form-select" onchange="updateMovPreview()">
-                                <option value="in">Stock In &nbsp;(+)</option>
-                                <option value="out">Stock Out &nbsp;(−)</option>
-                            </select>
-                        </div>
-
-                        <!-- Quantity -->
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold small">Quantity <span class="text-danger">*</span></label>
-                            <input type="number" id="mov_quantity" class="form-control"
-                                   placeholder="e.g. 10" min="1" oninput="updateMovPreview()">
-                        </div>
-
-                        <!-- Preview (full width) -->
-                        <div class="col-12">
-                            <label class="form-label fw-semibold small">New Stock Preview</label>
-                            <div id="movStockPreview" class="fw-semibold px-3 py-2 rounded border"
-                                 style="display:none; min-height:2.2rem;"></div>
-                        </div>
-
-                        <!-- Reason (full width) -->
-                        <div class="col-12">
-                            <label class="form-label fw-semibold small">Reason <span class="text-danger">*</span></label>
-                            <input type="text" id="mov_reason" class="form-control"
-                                   placeholder="e.g. Restocked from supplier">
-                        </div>
-
-                    </div>
-                </div>
-                <div class="modal-footer border-0 d-flex justify-content-between">
-                    <span class="text-muted small"><span class="text-danger">*</span> Required</span>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-primary px-4" id="movSaveBtn" onclick="saveMovement()">
-                            <i class="feather-check me-1"></i> Log Movement
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <?php include __DIR__ . '/partials/inventory-modals.php'; ?>
 
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="assets/vendors/js/sweetalert2-11.26.25.all.min.js"></script>
-    <script src="assets/js/admin.js"></script>
-    <script src="assets/js/custom-select.js?v=2"></script>
-    <script src="assets/js/inventory.js?v=3"></script>
+    <script src="assets/js/admin.js?v=7"></script>
+    <script src="assets/js/es-swal.js?v=3"></script>
+    <script src="assets/js/es-ajax.js?v=7"></script>
+    <script src="assets/js/custom-select.js?v=3"></script>
+    <script src="assets/js/es-records.js?v=3"></script>
+    <script src="assets/js/inventory-ui.js?v=3"></script>
     <script>
+    window.INV = {
+        v2: <?= $v2 ? 'true' : 'false' ?>,
+        canManage: <?= $canManage ? 'true' : 'false' ?>,
+        isOwner: <?= isOwner() ? 'true' : 'false' ?>,
+        branches: <?= json_encode(array_values(array_map(fn($b) => ['id' => (int)$b['branch_id'], 'name' => $b['branch_name']],
+                        array_filter($branches, fn($b) => canAccessBranch($b['branch_id'])))), JSON_HEX_TAG) ?>,
+        categories: <?= json_encode(array_values($categories), JSON_HEX_TAG) ?>,
+        nearDays: <?= INV_NEAR_EXPIRY_DAYS ?>
+    };
     function applyFilters() {
         window._applyFilters('inventory-records.php', {
             branch:   'filterBranch',
             category: 'filterCategory',
             status:   'filterStatus',
+            expiry:   'filterExpiry',
             view:     'filterView'
         });
     }
     </script>
+    <script src="assets/js/inventory.js?v=8"></script>
 </body>
 </html>

@@ -1,0 +1,236 @@
+/* =============================================================
+   assets/css/es-inventory.css — Inventory pages (Records, Stock
+   Movement, Transfers, Procurement). Builds on es-records.css
+   (.rec-*, --rec-* tokens), the shared modal styles in custom.css
+   (.apt-record-* / .apt-form-* / .ar-card) and custom-select.css.
+   Only loaded by the four inventory pages, so nothing here leaks.
+
+   Type scale used across the module (Inter, from the admin theme):
+     page / card title   theme h5 (+ .rec-card-sub .78rem helper line)
+     section title       .ar-card-title
+     table header        .78rem / 600      table cell  .855rem
+     form label          .8rem / 600       form input  .86rem
+     secondary line      .76rem            pills       .74rem / 600
+   ============================================================= */
+
+/* ═════════════════════ Page ═══════════════════════════════════ */
+
+/* Summary strip: up to 6 tiles */
+.rec-summary.inv-summary { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.inv-summary .inv-stat-money .rec-stat-value { font-size: 1.05rem; white-space: nowrap; }
+.rec-stat-label > i { font-size: .72rem; vertical-align: -1px; margin-left: 2px; }
+
+/* "Database update needed" notice (shown until the migration runs) */
+.inv-notice {
+  display: flex; align-items: flex-start; gap: 12px; margin: 0 0 1rem; padding: 14px 16px;
+  border: 1px solid #fde68a; border-radius: 12px; background: var(--rec-amber-soft); color: #78350f;
+  font-size: .84rem; line-height: 1.5;
+}
+.inv-notice-icon {
+  display: inline-grid; place-items: center; flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px;
+  background: #fef3c7; color: var(--rec-amber); font-size: 1rem;
+}
+.inv-notice strong { display: block; color: #78350f; font-weight: 700; }
+.inv-notice code { color: #92400e; font-size: .78rem; overflow-wrap: anywhere; }
+
+/* Page tabs (Procurement) */
+.inv-tabs { padding: 0 20px; border-bottom: 1px solid var(--rec-border); gap: 4px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.inv-tabs::-webkit-scrollbar { display: none; }
+.inv-tabs .nav-link {
+  display: inline-flex; align-items: center; gap: 7px; padding: .85rem .95rem; white-space: nowrap;
+  border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent;
+  color: var(--rec-muted); font-size: .86rem; font-weight: 600;
+}
+.inv-tabs .nav-link > i { font-size: .92rem; }
+.inv-tabs .nav-link:hover { color: var(--rec-text); }
+.inv-tabs .nav-link.active { color: var(--rec-primary); border-bottom-color: var(--rec-primary); background: transparent; }
+.inv-tabs .nav-link:focus-visible { outline: none; box-shadow: inset 0 0 0 2px rgba(24, 95, 165, .25); border-radius: 6px 6px 0 0; }
+.inv-tab-count {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  background: var(--rec-primary-soft); color: var(--rec-primary); font-size: .7rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.inv-tab-count.is-warn { background: #fef3c7; color: var(--rec-amber); }
+
+/* ═════════════════════ Tables ═════════════════════════════════ */
+.inv-table td { vertical-align: middle; }
+.inv-table .rec-entity-sub i { font-size: .72rem; vertical-align: -1px; }
+.inv-num { font-variant-numeric: tabular-nums; }
+/* Name + code / time line stay together (the theme's tall cell line-height split them apart) */
+.inv-table .rec-entity-name { display: block; width: fit-content; max-width: 100%; }
+.inv-table td { line-height: 1.4; }
+.inv-col-reason { min-width: 180px; }
+.inv-col-reason .inv-clamp { max-width: 200px; }
+.rec-table.inv-table thead th, .rec-table.inv-table tbody td { padding-left: 12px; padding-right: 12px; }
+.inv-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.45; overflow-wrap: anywhere; }
+.inv-route { display: inline-flex; align-items: center; gap: 8px; }
+.inv-route > i { color: var(--rec-faint); font-size: .8rem; }
+/* Item name that is not a link (no hover underline / pointer) */
+.rec-entity-name.inv-plain { cursor: default; }
+.rec-entity-name.inv-plain:hover { color: var(--rec-text); text-decoration: none; }
+.inv-needs {
+  display: flex; width: fit-content; align-items: center; gap: 4px; margin-top: 5px;
+  color: var(--rec-primary); font-size: .74rem; font-weight: 600; white-space: nowrap;
+}
+.inv-needs > i { font-size: .78rem; }
+/* Bootstrap badges in inventory tables (movement types, expiry) — one size */
+:is(.inv-table, .inv-mini-table) .badge { padding: .36em .62em; border-radius: 6px; font-size: .72rem; font-weight: 600; letter-spacing: .1px; }
+
+/* Workflow / stock status pill — one look for every status in the module */
+.inv-flow {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  font-size: .74rem; font-weight: 600; line-height: 1.35; white-space: nowrap; vertical-align: middle;
+}
+.inv-flow::before { content: ""; flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.inv-flow.f-pending            { background: var(--rec-amber-soft); color: var(--rec-amber); }
+.inv-flow.f-approved           { background: #eff6ff; color: #1d4ed8; }
+.inv-flow.f-in_transit         { background: #f5f3ff; color: #6d28d9; }
+.inv-flow.f-ordered            { background: #eff6ff; color: #1d4ed8; }
+.inv-flow.f-partially_received { background: #f5f3ff; color: #6d28d9; }
+.inv-flow.f-received           { background: var(--rec-green-soft); color: var(--rec-green); }
+.inv-flow.f-rejected           { background: var(--rec-red-soft); color: var(--rec-red); }
+.inv-flow.f-cancelled          { background: #f1f5f9; color: #64748b; }
+.inv-flow.f-active             { background: var(--rec-green-soft); color: var(--rec-green); }
+.inv-flow.f-inactive           { background: #f1f5f9; color: #64748b; }
+.inv-flow.f-in_stock           { background: var(--rec-green-soft); color: var(--rec-green); }
+.inv-flow.f-low_stock          { background: var(--rec-amber-soft); color: var(--rec-amber); }
+.inv-flow.f-out_of_stock       { background: var(--rec-red-soft); color: var(--rec-red); }
+.inv-flow.f-archived           { background: #f1f5f9; color: #64748b; }
+.apt-record-title .inv-flow { margin-left: .5rem; font-size: .72rem; }
+
+/* ═════════════════════ Buttons ════════════════════════════════ */
+/* Secondary destructive action in a modal footer (Reject / Cancel Transfer / Cancel Order) */
+.btn.inv-btn-danger { border: 1px solid #fecaca; background: #fff; color: #dc2626; }
+.btn.inv-btn-danger:hover, .btn.inv-btn-danger:focus-visible { border-color: #fca5a5; background: #fef2f2; color: #b91c1c; }
+.btn.inv-btn-danger:focus-visible { box-shadow: 0 0 0 3px rgba(220, 38, 38, .15); }
+/* Footer buttons: icon + label never change the button height */
+:is(.apt-record-footer, .page-header-right-items) .btn > i { font-size: 1em; line-height: 1; vertical-align: -1px; }
+.apt-record-footer .btn { white-space: nowrap; }
+
+/* ═════════════════════ Detail modals ══════════════════════════ */
+.es-detail-modal .inv-detail-dialog { max-width: 920px; }
+.inv-loading { padding: 48px 20px; text-align: center; color: var(--rec-muted); font-size: .88rem; }
+.inv-text { font-size: .855rem; line-height: 1.55; color: var(--rec-text); overflow-wrap: anywhere; }
+.inv-text-muted { color: var(--rec-muted); }
+.inv-text:empty { display: none; }
+.inv-empty-line { margin: 0; padding: .6rem 0; font-size: .84rem; color: var(--rec-muted); font-style: italic; }
+
+.inv-mini-list { list-style: none; margin: 0; padding: .2rem 0; }
+.inv-mini-list li {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: .55rem 0;
+  border-bottom: 1px solid var(--rec-row-border); font-size: .84rem;
+}
+.inv-mini-list li:last-child { border-bottom: 0; }
+.inv-mini-list .inv-mini-name { font-weight: 600; color: var(--rec-text); }
+.inv-mini-list .inv-mini-val { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.inv-mini-table { font-size: .84rem; }
+.inv-mini-table thead th {
+  padding: 9px 12px; border-bottom: 1px solid var(--rec-border); background: #f8fafc;
+  color: #475569; font-size: .74rem; font-weight: 600; white-space: nowrap;
+}
+.inv-mini-table tbody td { padding: 9px 12px; border-color: var(--rec-row-border); color: var(--rec-text); vertical-align: top; font-variant-numeric: tabular-nums; }
+.inv-mini-table tbody tr:last-child td { border-bottom: 0; }
+.inv-mini-table tfoot td { padding: 10px 12px; border-top: 1px solid var(--rec-border); border-bottom: 0; background: #f8fafc; font-weight: 700; color: var(--rec-text); }
+
+.inv-alert { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 1rem; padding: .65rem .85rem; border-radius: 10px; font-size: .84rem; line-height: 1.45; }
+.inv-alert > i { flex: 0 0 auto; margin-top: 2px; }
+.inv-alert + .inv-alert { margin-top: -.5rem; }
+.inv-alert-danger  { background: var(--rec-red-soft); color: var(--rec-red); border: 1px solid #fecaca; }
+.inv-alert-warning { background: var(--rec-amber-soft); color: var(--rec-amber); border: 1px solid #fde68a; }
+.inv-alert-info    { background: #f5f9ff; color: #1e3a8a; border: 1px solid #dbe7fb; }
+#ivAlerts:empty, #tvAlert:empty { display: none; }
+
+/* Timeline in transfer / order details */
+.inv-steps { list-style: none; margin: 0; padding: .35rem 0; }
+.inv-steps li { position: relative; padding: 0 0 .95rem 1.45rem; font-size: .84rem; line-height: 1.45; color: var(--rec-text); }
+.inv-steps li::before { content: ""; position: absolute; left: 3px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid #cbd5e1; }
+.inv-steps li::after { content: ""; position: absolute; left: 7px; top: 17px; bottom: 1px; width: 2px; background: #e2e8f0; }
+.inv-steps li:last-child { padding-bottom: 0; }
+.inv-steps li:last-child::after { display: none; }
+.inv-steps li.done::before { background: #16a34a; border-color: #16a34a; }
+.inv-steps li.bad::before { background: #dc2626; border-color: #dc2626; }
+.inv-steps li:not(.done):not(.bad) { color: var(--rec-muted); font-style: italic; }
+.inv-steps .inv-step-when { display: block; margin-top: 1px; color: var(--rec-muted); font-size: .76rem; font-style: normal; }
+
+/* ═════════════════════ Form modals ════════════════════════════ */
+/* Wider form for line tables with several columns (purchase order, receiving) */
+.apt-form-dialog.rec-form-dialog.inv-form-wide { max-width: 900px; }
+@media (min-width: 576px) and (max-width: 939.98px) { .apt-form-dialog.rec-form-dialog.inv-form-wide { max-width: calc(100% - 2rem); } }
+.rec-form-dialog .rec-help:first-child { margin-top: 0; }
+.rec-form-dialog .inv-lines-foot + .rec-help { margin-top: .6rem; }
+/* One field height (42px, the shared dropdown height) for inputs, dropdowns and date pickers */
+.apt-form-dialog .form-control:not(textarea):not(.form-control-sm),
+.apt-form-dialog .form-select:not(.form-select-sm) { height: 42px; min-height: 42px; padding-top: 0; padding-bottom: 0; }
+.es-staff .apt-form-dialog .modal-cs:not(.cs-sm):not(.cs-filter) .modal-cs-trigger { height: 42px; }
+.apt-form-dialog .apt-label .apt-opt { margin-left: 2px; }
+
+/* Movement form */
+.inv-type-seg { --rec-seg-cols: 3; }
+.inv-current {
+  display: flex; align-items: center; height: 42px; padding: 0 12px;
+  border: 1.5px solid #e2e8f0; border-radius: 9px; background: #f8fafc;
+  font-size: .9rem; font-weight: 700; color: var(--rec-text); font-variant-numeric: tabular-nums;
+}
+.inv-hint { display: flex; gap: 8px; align-items: flex-start; padding: .6rem .8rem; border-radius: 10px; font-size: .8rem; line-height: 1.45; }
+.inv-hint.is-bad  { background: var(--rec-red-soft); color: var(--rec-red); border: 1px solid #fecaca; }
+.inv-hint.is-warn { background: var(--rec-amber-soft); color: var(--rec-amber); border: 1px solid #fde68a; }
+.inv-hint.is-info { background: #f5f9ff; color: #1e3a8a; border: 1px solid #dbe7fb; }
+
+/* Line editor (transfer / request / order / delivery items) */
+.inv-lines { width: 100%; border-collapse: separate; border-spacing: 0; }
+.inv-lines thead th { padding: 0 8px 6px 0; font-size: .8rem; font-weight: 600; color: var(--ar-text, #1e293b); text-align: left; white-space: nowrap; }
+.inv-lines thead th:last-child { padding-right: 0; }
+.inv-lines td { padding: 0 8px 8px 0; vertical-align: top; border: 0; }
+.inv-lines td:last-child { padding-right: 0; }
+.inv-lines .inv-line-item { width: auto; min-width: 200px; }
+.inv-lines .inv-line-qty  { width: 104px; }
+.inv-lines .inv-line-cost { width: 136px; }
+.inv-lines .inv-line-lot  { width: 140px; }
+.inv-lines .inv-line-exp  { width: 168px; }
+.inv-lines .inv-line-act  { width: 38px; }
+/* One 38px row height for every control in a line */
+.apt-form-dialog .inv-lines .form-control-sm { height: 38px; min-height: 38px; padding: 0 10px; font-size: .84rem; border-radius: 8px; }
+.es-staff .inv-lines .modal-cs .modal-cs-trigger,
+.es-staff .inv-lines .modal-cs.cs-sm .modal-cs-trigger { height: 38px; font-size: .84rem; border-radius: 8px; }
+.inv-lines .inv-line-name { display: block; padding-top: 2px; font-size: .86rem; font-weight: 600; color: var(--rec-text); }
+.inv-line-help { margin-top: 3px; font-size: .74rem; color: var(--rec-muted); }
+.inv-line-del {
+  display: inline-grid; place-items: center; width: 38px; height: 38px; padding: 0;
+  border: 1.5px solid #e2e8f0; border-radius: 8px; background: #fff; color: #94a3b8; font-size: .9rem; cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.inv-line-del:hover { border-color: #fecaca; background: #fef2f2; color: #dc2626; }
+.inv-line-del:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(220, 38, 38, .15); border-color: #fca5a5; }
+.inv-lines-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: .25rem; }
+.inv-lines-foot .inv-total { margin-left: auto; font-size: .84rem; color: var(--rec-muted); }
+.inv-lines-foot .inv-total strong { margin-left: 6px; font-size: 1rem; color: var(--rec-text); font-variant-numeric: tabular-nums; }
+.inv-lines-scroll { overflow-x: auto; margin: 0 -2px; padding: 2px; }
+
+/* ═════════════════════ SweetAlert ═══════════════════════════ */
+/* Dialogs use the system es-swal design unchanged (es-swal.css). Only the
+   item list inside transfer / request dialogs: name left, quantity right. */
+.inv-swal-list { max-height: 200px; overflow-y: auto; }
+.inv-swal-list .inv-swal-li { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-swal-list strong { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+
+/* ═════════════════════ Responsive ═════════════════════════════ */
+@media (max-width: 767.98px) {
+  .inv-type-seg { --rec-seg-cols: 2; }
+  .rec-summary.inv-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px 16px; }
+  .inv-tabs { padding: 0 8px; }
+  /* Line editor: item on its own row, quantity / cost / remove underneath */
+  .inv-lines thead { display: none; }
+  .inv-lines tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 6px 8px; padding: 10px 0; border-bottom: 1px solid var(--rec-row-border); }
+  .inv-lines tbody tr:first-child { padding-top: 0; }
+  .inv-lines td { padding: 0; width: auto !important; min-width: 0 !important; }
+  .inv-lines .inv-line-item { grid-column: 1 / -1; }
+  .inv-lines tr:not(:has(.inv-line-cost)) .inv-line-qty { grid-column: 1 / 3; }
+  .inv-lines-scroll { overflow: visible; }
+  .inv-lines tr[data-line] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inv-lines tr[data-line] .inv-line-qty { grid-column: auto; }
+  .inv-lines tr[data-line] .inv-line-exp { grid-column: 1 / -1; }
+}
+@media (max-width: 575.98px) {
+  .inv-col-reason { min-width: 160px; }
+  .inv-notice { padding: 12px; }
+}

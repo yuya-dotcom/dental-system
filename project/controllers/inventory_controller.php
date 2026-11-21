@@ -10,6 +10,7 @@
 
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/appointment_controller.php'; // resolveCount + buildPageResult
+require_once __DIR__ . '/inventory_v2.php';             // inv_v2_ready() — extra columns after the migration
 
 const INV_PER_PAGE = 10;
 const MOV_PER_PAGE = 10;
@@ -39,7 +40,8 @@ function inventoryRecordsQuery(int $page, int $branchId, string $category, strin
     $offset = ($page - 1) * INV_PER_PAGE;
 
     $q = [
-        'select=item_id,item_code,item_name,category,branch_id,stock_quantity,min_stock,status,created_at,archived_at,branches(branch_name)',
+        'select=item_id,item_code,item_name,category,branch_id,stock_quantity,min_stock,status,created_at,updated_at,archived_at,branches(branch_name)'
+            . (inv_v2_ready() ? ',master_id,reorder_qty,inventory_items(unit,unit_cost,track_expiry)' : ''),
         $archived ? 'archived_at=not.is.null' : 'archived_at=is.null',
         $order,
         'limit='  . INV_PER_PAGE,
@@ -71,10 +73,10 @@ function getInventoryCategories(): array
 //  STOCK MOVEMENT QUERIES
 // ─────────────────────────────────────────────────────────────
 
-function getStockMovements(int $page, int $branchId, string $itemId): array
+function getStockMovements(int $page, int $branchId, string $itemId, string $type = '', string $from = '', string $to = ''): array
 {
     $offset = ($page - 1) * MOV_PER_PAGE;
-    $q = stockMovementsQuery($page, $branchId, $itemId);
+    $q = stockMovementsQuery($page, $branchId, $itemId, $type, $from, $to);
 
     // admin_get(): reuses the page's parallel prefetch (controllers/admin_batch.php) when present
     $result = (function_exists('admin_get') ? admin_get('inventory_movements', implode('&', $q), ['Prefer: count=exact']) : supabase_request('inventory_movements', 'GET', [], implode('&', $q), ['Prefer: count=exact']));
@@ -85,20 +87,25 @@ function getStockMovements(int $page, int $branchId, string $itemId): array
 }
 
 /** The PostgREST filter parts for getStockMovements() (also used to prefetch it). */
-function stockMovementsQuery(int $page, int $branchId, string $itemId): array
+function stockMovementsQuery(int $page, int $branchId, string $itemId, string $type = '', string $from = '', string $to = ''): array
 {
     $offset = ($page - 1) * MOV_PER_PAGE;
+    $v2 = inv_v2_ready();
 
     $q = [
-        'select=movement_id,movement_date,quantity_change,reason,performed_by,'
+        'select=movement_id,item_id,movement_date,created_at,quantity_change,reason,performed_by,'
+            . ($v2 ? 'movement_type,stock_before,stock_after,reference_no,batch_detail,' : '')
             . 'inventory(item_code,item_name),branches(branch_name)',
-        'order=movement_date.desc,created_at.desc',
+        'order=created_at.desc,movement_id.desc',
         'limit='  . MOV_PER_PAGE,
         'offset=' . $offset,
     ];
 
     if ($branchId !== 0) $q[] = 'branch_id=eq.' . $branchId;   // -1 (no scope) matches nothing
     if ($itemId)       $q[] = 'item_id=eq.'   . (int)$itemId;
+    if ($v2 && $type && isset(INV_TYPES[$type])) $q[] = 'movement_type=eq.' . $type;
+    if ($from)         $q[] = 'movement_date=gte.' . $from;
+    if ($to)           $q[] = 'movement_date=lte.' . $to;
 
     return $q;
 }
@@ -106,17 +113,6 @@ function stockMovementsQuery(int $page, int $branchId, string $itemId): array
 // ─────────────────────────────────────────────────────────────
 //  HELPERS
 // ─────────────────────────────────────────────────────────────
-
-function invStatusBadge(?string $status): string
-{
-    return match (strtolower($status ?? '')) {
-        'in_stock', 'active' => 'bg-soft-success text-success',
-        'low_stock'          => 'bg-soft-warning text-warning',
-        'out_of_stock'       => 'bg-soft-danger text-danger',
-        'inactive'           => 'bg-soft-secondary text-secondary',
-        default              => 'bg-soft-secondary text-secondary',
-    };
-}
 
 function invStatusLabel(?string $status): string
 {
