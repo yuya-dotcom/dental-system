@@ -123,6 +123,9 @@ $_snCats   = $_snViewer ? staffn_category_options($_snViewer) : [];
                                     <?= ucfirst($currentUser['role'] ?? '') ?>
                                 </span>
                             </div>
+                            <a href="settings.php" class="dropdown-item">
+                                <i class="feather-settings me-2"></i>Settings
+                            </a>
                             <div class="dropdown-divider"></div>
                             <a href="logout.php" class="dropdown-item text-danger" data-signout-confirm>
                                 <i class="feather-log-out me-2"></i>Sign Out

@@ -81,6 +81,8 @@ $navSections = [
             ['notification-center.php', 'Notification Center', ['owner', 'admin', 'dentist']],
             ['notification-records.php', 'Notification Log', ['owner', 'admin']],
         ]],
+        // Settings: every staff role; sections inside are role-gated (Database & Backup: owner)
+        ['icon' => 'feather-settings', 'label' => 'Settings', 'href' => 'settings.php', 'roles' => ['owner', 'admin', 'dentist']],
     ],
 ];
 

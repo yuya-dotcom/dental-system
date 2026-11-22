@@ -127,6 +127,7 @@ $allModules = [
     'appointment-schedules', 'appointment-records', 'patients',
     'treatments', 'billing', 'inventory', 'stock-transfers', 'procurement', 'accounts',
     'branches', 'dentists', 'services', 'service-records', 'patient-accounts', 'authentication', 'notifications',
+    'settings',   // Settings › Database & Backup downloads
 ];
 ?>
 <!DOCTYPE html>
