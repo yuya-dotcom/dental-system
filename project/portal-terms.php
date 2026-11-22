@@ -115,7 +115,7 @@ session_start();
                 </p>
                 </div>
 
-                <div class="terms-section">
+                <div class="terms-section" id="privacy" style="scroll-margin-top: 90px;">
                     <h2><span>6.</span>Privacy and Data Protection</h2>
                     <p>
                     Your personal and medical information is collected and processed in

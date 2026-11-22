@@ -26,6 +26,19 @@
   let state = null, registration = null;
 
   const showHint = (html) => { hint.innerHTML = html; hint.hidden = !html; };
+  // "Saved" / "Couldn't save" beside a switch, for a moment (Settings › Notifications)
+  const savedEl = { email: $('pnEmailSaved'), sms: $('pnSmsSaved'), push: $('pnPushSaved') };
+  const flash = (key, ok, text) => {
+    const el = savedEl[key];
+    if (!el) return;
+    clearTimeout(el._t);
+    el.className = 'pn-saved show ' + (ok ? 'ok' : 'err');
+    el.innerHTML = '<i class="fa-solid ' + (ok ? 'fa-check' : 'fa-triangle-exclamation') + '" aria-hidden="true"></i>' + text;
+    el._t = setTimeout(() => { el.className = 'pn-saved'; el.textContent = ''; }, ok ? 2200 : 4000);
+  };
+  // A channel that can't be used yet: switch disabled, the reason shown under it
+  const lock = (el, locked) => { el.dataset.locked = locked ? '1' : ''; el.disabled = !!locked; el.closest('.pn-row')?.classList.toggle('is-locked', !!locked); };
+  const goProfile = ' <a href="#" class="pn-link" data-pn-go="profile">Go to My Profile</a>';
   const api = (body) => fetch(API, { method: body ? 'POST' : 'GET', credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined }).then((r) => r.json().catch(() => ({ success: false })).then((j) => ({ status: r.status, ...j })));
   const keyBytes = (b64) => { const s = (b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'); return Uint8Array.from(atob(s), (c) => c.charCodeAt(0)); };
@@ -49,15 +62,20 @@
   async function render() {
     sw.email.checked = !!state.prefs.email;
     sw.sms.checked = !!state.prefs.sms;
-    $('pnEmailNote').textContent = state.email_ready ? 'To your verified email address' : 'Verify your email address to receive emails';
+    $('pnEmailNote').innerHTML = state.email_ready
+      ? 'Confirmations, changes and reminders sent to your verified email address'
+      : 'Verify your email address in My Profile to receive emails.' + goProfile;
     $('pnEmailNote').classList.toggle('warn', !state.email_ready);
-    $('pnSmsNote').textContent = state.phone_ready ? 'Text messages to your mobile number' : 'Add a valid mobile number to receive SMS';
+    lock(sw.email, !state.email_ready);
+    $('pnSmsNote').innerHTML = state.phone_ready
+      ? 'Short text messages to your mobile number'
+      : 'Add a valid mobile number in My Profile to receive SMS.' + goProfile;
     $('pnSmsNote').classList.toggle('warn', !state.phone_ready);
+    lock(sw.sms, !state.phone_ready);
     const blocker = pushBlocker();
     const sub = blocker ? null : await currentSubscription();
     sw.push.checked = !!(sub && state.prefs.push && state.endpoints.includes(sub.endpoint));
-    sw.push.dataset.locked = blocker ? '1' : '';
-    sw.push.disabled = !!blocker;
+    lock(sw.push, !!blocker);
     showHint(blocker);
     card.hidden = false;
     renderBanner(blocker, sw.push.checked);
@@ -67,8 +85,14 @@
     busy(el, true);
     const r = await api({ action: 'save_prefs', [field]: el.checked });
     busy(el, false);
-    if (!r.success) { el.checked = !el.checked; showHint('<i class="fa-solid fa-triangle-exclamation"></i>' + (r.message || 'Could not save. Please try again.')); return; }
+    if (!r.success) {
+      el.checked = !el.checked;
+      flash(field, false, 'Not saved');
+      showHint('<i class="fa-solid fa-triangle-exclamation"></i>' + (r.message || 'Could not save. Please try again.'));
+      return;
+    }
     state.prefs = r.prefs || state.prefs;
+    flash(field, true, el.checked ? 'On' : 'Off');
     showHint(pushBlocker());
   }
 
@@ -99,9 +123,11 @@
     try {
       if (on) await enablePush(); else await disablePush();
       sw.push.checked = on;
+      flash('push', true, on ? 'On' : 'Off');
       showHint(on ? '<i class="fa-solid fa-circle-check"></i>Push is on. You’ll get appointment updates on this device.' : '');
     } catch (e) {
       sw.push.checked = !on;
+      flash('push', false, 'Not saved');
       showHint('<i class="fa-solid fa-triangle-exclamation"></i>' + (e && e.message ? e.message : 'Something went wrong. Please try again.'));
     }
     busy(sw.push, false);
@@ -137,6 +163,12 @@
     banner.hidden = false;
   }
 
+  card.addEventListener('click', (e) => {
+    const go = e.target.closest('[data-pn-go="profile"]');
+    if (!go) return;
+    e.preventDefault();
+    if (typeof window.showPage === 'function') window.showPage('profile', null);
+  });
   sw.email.addEventListener('change', () => savePrefs('email', sw.email));
   sw.sms.addEventListener('change', () => savePrefs('sms', sw.sms));
   sw.push.addEventListener('change', () => togglePush(sw.push.checked));

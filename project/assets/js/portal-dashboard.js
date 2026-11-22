@@ -152,6 +152,14 @@ function fmtDate(d) {
   });
 }
 
+/** Table cell: the date with its time underneath (date only when there is no time). */
+function fmtDateTimeCell(date, time) {
+  if (!date) return "—";
+  const t = time ? fmtTime(String(time)) : "";
+  return '<span class="dt-cell"><span class="dt-date">' + fmtDate(date) + "</span>" +
+    (t ? '<span class="dt-time">' + t + "</span>" : "") + "</span>";
+}
+
 function fmtTime(t) {
   if (!t) return "";
   const [h, m] = t.split(":");
@@ -432,8 +440,8 @@ function showPage(page, linkEl) {
   if (page === "files") loadFiles();
   if (page === "waivers") loadWaivers();
   if (page === "profile") loadProfile();
-  // Settings shows verification + password state, which come with the profile data
-  if (page === "settings") loadProfile();
+  // Settings shows the password / sign-in state, which come with the profile data
+  if (page === "settings") { settingsInit(); loadProfile(); }
   closeSidebar();
   // A new section starts at its top (otherwise phones keep the old scroll position)
   window.scrollTo({ top: 0, behavior: "auto" });
@@ -735,7 +743,7 @@ function renderTreatments(all) {
 
       return `
         <tr>
-          <td data-label="Date">${fmtDate(t.treatment_date)}</td>
+          <td data-label="Date & Time">${fmtDateTimeCell(t.treatment_date, t.appointment_date === t.treatment_date ? t.appointment_time : null)}</td>
           <td data-label="Procedure">${t.service_name || "—"}</td>
           <td data-label="Dentist">${t.dentist_name || "—"}</td>
           <td data-label="Status">${statusBadge(t.status)}</td>
@@ -1068,7 +1076,7 @@ function renderBilling(data) {
     // Column order: Date · Total · Paid · Balance · Status · Action
     // (the invoice number is shown in View Details and on the receipt)
     return `<tr>
-        <td data-label="Date">${fmtDate(i.invoice_date)}</td>
+        <td data-label="Date & Time">${fmtDateTimeCell(i.invoice_date, i.invoice_time)}</td>
         <td data-label="Total">${peso(i.total_amount)}</td>
         <td data-label="Paid">${peso(i.amount_paid)}</td>
         <td data-label="Balance">${peso(bal)}</td>
@@ -1761,19 +1769,77 @@ async function doLogout() {
 // explains why. api/portal_auth.php change_password enforces the same rule.
 function syncPasswordControls() {
   const noPassword = window._hasPassword === false;
+  // Google-only accounts have no portal-managed password: no Change action at all
   const btn = document.getElementById("profPwBtn");
-  const tip = document.getElementById("profPwTip");
-  if (btn) {
-    btn.disabled = noPassword;
-    btn.setAttribute("aria-disabled", noPassword ? "true" : "false");
-    if (noPassword) btn.setAttribute("aria-describedby", "profPwTip");
-    else btn.removeAttribute("aria-describedby");
-  }
-  if (tip) {
-    tip.hidden = !noPassword;
-    if (!noPassword) window.hideInfoTip?.(tip);
+  if (btn) btn.hidden = noPassword;
+  const status = document.getElementById("stPwStatus");
+  if (status) status.textContent = noPassword
+    ? "No portal password — you sign in with your Google account"
+    : "Used to sign in with your email address";
+  const note = document.getElementById("stPwNote");
+  if (note) note.querySelector("span").textContent = noPassword
+    ? "Your sign-in is protected by your Google account. To change that password, use your Google account settings."
+    : "You'll be asked for your current password before it changes. Choose one with at least 8 characters that you don't use elsewhere.";
+  const method = document.getElementById("stSignInMethod");
+  if (method) method.textContent = window._authMethod === "google"
+    ? (noPassword ? "Google" : "Google (you also have a password)")
+    : "Email and password";
+}
+
+// ── SETTINGS: one section at a time ──────────────────────────────────────────
+// Desktop shows the menu beside the chosen section; phones show the menu first
+// and open a section full width with a Back button (#stLayout[data-view]).
+const ST_SECTIONS = ["security", "notifications", "records", "privacy"];
+let _stCurrent = null;
+
+function settingsShow(sec, fromMenu) {
+  if (!ST_SECTIONS.includes(sec)) sec = "security";
+  _stCurrent = sec;
+  document.querySelectorAll(".st-menu-item").forEach((b) => {
+    const on = b.dataset.st === sec;
+    b.classList.toggle("active", on);
+    if (on) b.setAttribute("aria-current", "true");
+    else b.removeAttribute("aria-current");
+  });
+  document.querySelectorAll(".st-panel").forEach((p) => { p.hidden = p.dataset.st !== sec; });
+  const layout = document.getElementById("stLayout");
+  if (layout && fromMenu) {
+    layout.dataset.view = "panel";
+    if (window.matchMedia("(max-width: 767.98px)").matches) {
+      window.scrollTo({ top: 0, behavior: "auto" });
+      document.querySelector(`#st-${sec} .st-back`)?.focus({ preventScroll: true });
+    }
   }
 }
+
+function settingsBack() {
+  const layout = document.getElementById("stLayout");
+  if (layout) layout.dataset.view = "menu";
+  document.querySelector(`.st-menu-item[data-st="${_stCurrent}"]`)?.focus({ preventScroll: true });
+  window.scrollTo({ top: 0, behavior: "auto" });
+}
+
+// Opening Settings: phones start at the menu; desktop keeps the last section.
+function settingsInit() {
+  const layout = document.getElementById("stLayout");
+  if (layout) layout.dataset.view = "menu";
+  settingsShow(_stCurrent || "security", false);
+}
+
+// Notifications section: a loading line until portal-notify.js shows the
+// switches, or a short message if they can't be loaded.
+(function watchNotifCard() {
+  const card = document.getElementById("pnCard");
+  const note = document.getElementById("stNotifLoading");
+  if (!card || !note) return;
+  const done = () => { if (!card.hidden) note.hidden = true; return !card.hidden; };
+  if (done()) return;
+  const mo = new MutationObserver(() => { if (done()) mo.disconnect(); });
+  mo.observe(card, { attributes: true, attributeFilter: ["hidden"] });
+  setTimeout(() => {
+    if (card.hidden) note.innerHTML = '<i class="fa-solid fa-circle-info" aria-hidden="true"></i> Notification settings aren’t available right now. Please try again later.';
+  }, 10000);
+})();
 
 async function openChangePassword() {
   if (window._hasPassword === false) return; // Google-only account: nothing to change
@@ -1801,7 +1867,12 @@ async function openChangePassword() {
              ${field("cp_current", "Current Password", "current-password")}
              ${field("cp_new", "New Password", "new-password")}
              ${field("cp_confirm", "Confirm New Password", "new-password")}
-           </div>`,
+           </div>
+           <ul class="es-pw-rules" id="cpRules" aria-live="polite">
+             <li data-rule="len"><i class="fa-solid fa-circle" aria-hidden="true"></i>At least 8 characters</li>
+             <li data-rule="diff"><i class="fa-solid fa-circle" aria-hidden="true"></i>Different from your current password</li>
+             <li data-rule="match"><i class="fa-solid fa-circle" aria-hidden="true"></i>New passwords match</li>
+           </ul>`,
     confirmButtonText: '<i class="fa-solid fa-check"></i> Update Password',
     cancelButtonText: "Cancel",
     showCancelButton: true,
@@ -1825,6 +1896,20 @@ async function openChangePassword() {
           if (e.key === "Enter") Swal.clickConfirm();
         }),
       );
+      // Live checklist (same three rules the server enforces)
+      const rules = popup.querySelector("#cpRules");
+      const check = () => {
+        const cur = document.getElementById("cp_current").value;
+        const nw = document.getElementById("cp_new").value;
+        const cf = document.getElementById("cp_confirm").value;
+        const state = { len: nw.length >= 8, diff: nw !== "" && nw !== cur, match: nw !== "" && nw === cf };
+        rules.querySelectorAll("li").forEach((li) => {
+          const ok = state[li.dataset.rule];
+          li.classList.toggle("ok", ok);
+          li.firstElementChild.className = "fa-solid " + (ok ? "fa-circle-check" : "fa-circle");
+        });
+      };
+      popup.querySelectorAll(".es-pw-input").forEach((i) => i.addEventListener("input", check));
       document.getElementById("cp_current").focus();
     },
     preConfirm: async () => {
@@ -2008,24 +2093,10 @@ function syncContactLock() {
   // Edit form: the (i) icon is always shown; its message follows the status
   setInfoTip(document.getElementById("pfContactTip"), locked
     ? "Verified numbers can't be edited here. Use Change Number to confirm a new one by SMS."
-    : "After saving, verify this number in Settings.", "About your contact number: ");
+    : "Verify phone number.", "About your contact number: ");
   const inFieldBtn = document.getElementById("pfContactChangeWrap");
   if (inFieldBtn) inFieldBtn.hidden = !locked;
   syncVerifyTips();
-  syncSettingsContact();
-}
-
-// Settings › Contact Verification: the email and number being verified (they
-// are edited in My Profile), and "Add in My Profile" while there is no number.
-function syncSettingsContact() {
-  const email = document.getElementById("pf_email")?.value.trim() || "";
-  const phone = document.getElementById("pf_contact")?.value.trim() || "";
-  const ev = document.getElementById("setEmailValue");
-  const pv = document.getElementById("setPhoneValue");
-  if (ev) ev.textContent = email || "—";
-  if (pv) pv.textContent = phone ? "+63 " + phone : "No mobile number yet";
-  const add = document.getElementById("setPhoneAdd");
-  if (add) add.hidden = !!phone;
 }
 
 // ── Settings › Download My Records ───────────────────────────────────────────
@@ -2060,7 +2131,15 @@ async function downloadMyRecords(btn) {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
-    Swal.close();
+    Swal.fire({
+      icon: "success",
+      title: "Records Downloaded",
+      html: '<p class="es-swal-text">' + escapeHtmlText(name) + " was saved to your device.</p>",
+      timer: 2600,
+      timerProgressBar: true,
+      showConfirmButton: false,
+      customClass: ES_SWAL_CLASS,
+    });
   } catch (e) {
     Swal.fire({
       icon: "error",
@@ -2073,6 +2152,38 @@ async function downloadMyRecords(btn) {
   } finally {
     if (btn) btn.disabled = false;
   }
+}
+
+// Settings › Privacy & Data: opens the patient's mail app with a pre-filled
+// request to the clinic (the plain mailto: link still works without JS).
+function openDataRequestEmail(e) {
+  const to = e.currentTarget.dataset.clinicEmail;
+  if (!to) return;
+  e.preventDefault();
+  location.href = dataRequestMailto(to);
+}
+
+function dataRequestMailto(to) {
+  const acc = accountData || {};
+  const name = [acc.first_name, acc.last_name].filter(Boolean).join(" ");
+  const email = document.getElementById("pf_email")?.value || acc.email || "";
+  const body = [
+    "Hello EssenciaSmile,",
+    "",
+    "I would like to make a request about my personal information:",
+    "[ ] A copy of my information",
+    "[ ] A correction",
+    "[ ] A privacy concern",
+    "",
+    "Details:",
+    "",
+    "",
+    "Name: " + (name || ""),
+    "Registered email: " + email,
+    "",
+    "Thank you.",
+  ].join("\n");
+  return "mailto:" + to + "?subject=" + encodeURIComponent("Personal Data Request (Patient Portal)") + "&body=" + encodeURIComponent(body);
 }
 
 function escapeHtmlText(s) {

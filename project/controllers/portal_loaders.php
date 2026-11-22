@@ -272,6 +272,18 @@ function pl_dental_chart(int $accountId): Generator
     return ['success' => true, 'chart' => array_values($chart), 'history' => $r['h']['data'] ?? []];
 }
 
+/** "HH:MM:SS" (Asia/Manila) of $createdAt when it falls on $invoiceDate, else null. */
+function portal_invoice_time(?string $invoiceDate, ?string $createdAt): ?string
+{
+    if (!$invoiceDate || !$createdAt) return null;
+    try {
+        $t = (new DateTimeImmutable($createdAt))->setTimezone(new DateTimeZone('Asia/Manila'));
+    } catch (Throwable $e) {
+        return null;
+    }
+    return $t->format('Y-m-d') === substr($invoiceDate, 0, 10) ? $t->format('H:i:s') : null;
+}
+
 // ── GET BILLING ────────────────────────────────────────────────────────────────
 function pl_billing(int $accountId): Generator
 {
@@ -280,7 +292,7 @@ function pl_billing(int $accountId): Generator
 
     $r = yield ['inv' => sbq('invoices', 'patient_id=eq.' . $patientId .
         '&select=invoice_id,invoice_code,invoice_date,total_amount,amount_paid,balance,' .
-        'payment_status,treatment_id,appointment_id,branch_id,treatments(treatment_code)' .
+        'payment_status,treatment_id,appointment_id,branch_id,created_at,treatments(treatment_code)' .
         '&order=invoice_date.desc')];
     $rows = is_array($r['inv']['data'] ?? null) ? $r['inv']['data'] : [];
 
@@ -364,6 +376,9 @@ function pl_billing(int $accountId): Generator
             'invoice_id'     => $row['invoice_id'],
             'invoice_code'   => $row['invoice_code'],
             'invoice_date'   => $row['invoice_date'],
+            // invoice_date has no time: the time the invoice was created (Manila),
+            // only when that falls on the invoice date — otherwise none is shown
+            'invoice_time'   => portal_invoice_time($row['invoice_date'] ?? null, $row['created_at'] ?? null),
             'total_amount'   => $row['total_amount'],
             'amount_paid'    => $row['amount_paid'],
             'payment_status' => $row['payment_status'],

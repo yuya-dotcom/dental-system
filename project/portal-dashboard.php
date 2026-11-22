@@ -12,6 +12,8 @@ $portalAccountId = (int)$_SESSION['portal_account_id'];
 // show it at once (the dashboard request fills in the full name afterwards).
 $portalFirstName = trim((string)($_SESSION['portal_name'] ?? ''));
 $portalInitial   = $portalFirstName !== '' ? mb_strtoupper(mb_substr($portalFirstName, 0, 1)) : '—';
+// Clinic email for Settings › Privacy & Data › Personal data requests (same address as contact-us-page.php)
+$CLINIC_EMAIL = 'essencia.smile@gmail.com';
 
 // Registration rule: a verified email OR phone (checked in the DB, enforced by the APIs too)
 // and the gender for the questionnaire modal's "women only" block. Both are cached in the
@@ -58,7 +60,7 @@ session_write_close();
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/portal-login.css?v=11">
     <link rel="stylesheet" href="assets/css/odontogram.css?v=3">
-    <link rel="stylesheet" href="assets/css/portal-dashboard.css?v=26">
+    <link rel="stylesheet" href="assets/css/portal-dashboard.css?v=29">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <!-- Installable app + Web Push (assets/js/portal-notify.js, sw.js) -->
@@ -346,7 +348,7 @@ session_write_close();
                 <table class="portal-table pt-stack">
                     <thead>
                         <tr>
-                            <th>Date</th>
+                            <th>Date &amp; Time</th>
                             <th>Procedure</th>
                             <th>Dentist</th>
                             <th>Status</th>
@@ -519,7 +521,7 @@ session_write_close();
                 <table class="portal-table pt-stack">
                     <thead>
                         <tr>
-                            <th>Date</th>
+                            <th>Date &amp; Time</th>
                             <th>Total</th>
                             <th>Paid</th>
                             <th>Balance</th>
@@ -683,127 +685,194 @@ session_write_close();
              Right: view panel (read-only) or edit panel (form)
         ══════════════════════════════════════════════════ -->
         <!-- ══ SETTINGS ═══════════════════════════════════════════════════════
-             Account settings, each in one place only: contact verification
-             (status + Verify buttons; the numbers themselves are edited in My
-             Profile), Change Password, notification channels, and a PDF of the
-             patient's own records (api/portal_records_pdf.php). -->
+             A menu of sections; only the chosen one shows (settingsShow()).
+             Desktop/tablet: menu on the left, section on the right. Phones: the
+             menu first, a section opens full width with a Back button.
+               security      → Change Password (syncPasswordControls / openChangePassword)
+               notifications → #pnCard switches (assets/js/portal-notify.js)
+               records       → PDF (api/portal_records_pdf.php, downloadMyRecords)
+               privacy       → Terms § 6 (portal-terms.php#privacy), Contact Us, clinic email
+             Contact verification lives in My Profile › Contact Information. -->
         <div class="page-body" id="page-settings">
-            <div class="set-layout">
+            <div class="st-layout" id="stLayout" data-view="menu">
 
-                <!-- Contact Verification -->
-                <section class="prof-card set-card" aria-labelledby="setVerifyTitle">
-                    <div class="set-head">
-                        <span class="set-head-ico green" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></span>
-                        <div>
-                            <h3 class="set-title" id="setVerifyTitle">Contact Verification</h3>
-                            <p class="set-sub">Verify your email or mobile number to book appointments</p>
-                        </div>
+                <nav class="st-menu" aria-label="Settings sections">
+                    <div class="st-menu-head">
+                        <span class="st-menu-title">Settings</span>
+                        <span class="st-menu-sub">Manage your account and preferences</span>
                     </div>
-                    <div class="set-row">
-                        <span class="set-ico" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
-                        <div class="set-txt">
-                            <span class="t">Email</span>
-                            <span class="d" id="setEmailValue">—</span>
+                    <button type="button" class="st-menu-item" data-st="security" onclick="settingsShow('security', true)" aria-controls="st-security">
+                        <span class="st-ico" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></span>
+                        <span class="st-menu-txt"><span class="t">Password &amp; Security</span><span class="d">Password and sign-in method</span></span>
+                        <i class="fa-solid fa-chevron-right st-menu-chev" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="st-menu-item" data-st="notifications" onclick="settingsShow('notifications', true)" aria-controls="st-notifications">
+                        <span class="st-ico" aria-hidden="true"><i class="fa-solid fa-bell"></i></span>
+                        <span class="st-menu-txt"><span class="t">Notifications</span><span class="d">Email, SMS and push</span></span>
+                        <i class="fa-solid fa-chevron-right st-menu-chev" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="st-menu-item" data-st="records" onclick="settingsShow('records', true)" aria-controls="st-records">
+                        <span class="st-ico" aria-hidden="true"><i class="fa-solid fa-folder-open"></i></span>
+                        <span class="st-menu-txt"><span class="t">My Records &amp; Documents</span><span class="d">Download a PDF copy</span></span>
+                        <i class="fa-solid fa-chevron-right st-menu-chev" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="st-menu-item" data-st="privacy" onclick="settingsShow('privacy', true)" aria-controls="st-privacy">
+                        <span class="st-ico" aria-hidden="true"><i class="fa-solid fa-user-shield"></i></span>
+                        <span class="st-menu-txt"><span class="t">Privacy &amp; Data</span><span class="d">Policy and data requests</span></span>
+                        <i class="fa-solid fa-chevron-right st-menu-chev" aria-hidden="true"></i>
+                    </button>
+                </nav>
+
+                <div class="st-panels">
+
+                    <!-- ── Password & Security ── -->
+                    <section class="st-panel" id="st-security" data-st="security" aria-labelledby="stSecurityTitle" hidden>
+                        <button type="button" class="st-back" onclick="settingsBack()"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Settings</button>
+                        <header class="st-panel-head">
+                            <h3 class="st-panel-title" id="stSecurityTitle">Password &amp; Security</h3>
+                            <p class="st-panel-sub">Keep your portal account safe.</p>
+                        </header>
+                        <div class="st-group">
+                            <div class="st-item">
+                                <span class="st-ico" aria-hidden="true"><i class="fa-solid fa-key"></i></span>
+                                <div class="st-item-txt">
+                                    <span class="t">Password</span>
+                                    <span class="d" id="stPwStatus">Used to sign in with your email address</span>
+                                </div>
+                                <div class="st-item-act">
+                                    <!-- Hidden for Google-only accounts (no portal password): syncPasswordControls() -->
+                                    <button type="button" class="st-btn st-btn-outline" id="profPwBtn" onclick="openChangePassword()">
+                                        <i class="fa-solid fa-pen" aria-hidden="true"></i><span>Change Password</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="st-item">
+                                <span class="st-ico" aria-hidden="true"><i class="fa-solid fa-right-to-bracket"></i></span>
+                                <div class="st-item-txt">
+                                    <span class="t">Sign-in method</span>
+                                    <span class="d" id="stSignInMethod">—</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="set-act">
-                            <span id="emailVerifiedBadge" style="display:none;">
-                                <span class="prof-badge prof-badge-ok"><i class="fa-solid fa-circle-check"></i> Verified</span>
-                            </span>
-                            <span id="emailVerifyBtnWrap" style="display:none;">
-                                <button type="button" class="set-btn" onclick="sendVerificationEmail(this)" aria-label="Verify email: send a verification link">
-                                    <i class="fa-solid fa-envelope" aria-hidden="true"></i><span>Verify Email</span>
+                        <p class="st-note" id="stPwNote"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                            <span>You'll be asked for your current password before it changes. Choose one with at least 8 characters that you don't use elsewhere.</span></p>
+                    </section>
+
+                    <!-- ── Notifications ── -->
+                    <section class="st-panel" id="st-notifications" data-st="notifications" aria-labelledby="stNotifTitle" hidden>
+                        <button type="button" class="st-back" onclick="settingsBack()"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Settings</button>
+                        <header class="st-panel-head">
+                            <h3 class="st-panel-title" id="stNotifTitle">Notifications</h3>
+                            <p class="st-panel-sub">How we tell you about appointment confirmations, changes and reminders. Changes save automatically.</p>
+                        </header>
+                        <!-- portal-notify.js unhides #pnCard once the preferences load -->
+                        <div class="pn-card st-group" id="pnCard" hidden>
+                            <div class="pn-row">
+                                <span class="st-ico" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
+                                <label class="pn-txt" for="pnEmail"><span class="t">Email notifications</span><span class="d" id="pnEmailNote">To your verified email address</span></label>
+                                <span class="pn-saved" id="pnEmailSaved" aria-live="polite"></span>
+                                <input type="checkbox" class="pn-switch" id="pnEmail" role="switch">
+                            </div>
+                            <div class="pn-row">
+                                <span class="st-ico" aria-hidden="true"><i class="fa-solid fa-comment-sms"></i></span>
+                                <label class="pn-txt" for="pnSms"><span class="t">SMS notifications</span><span class="d" id="pnSmsNote">Text messages to your mobile number</span></label>
+                                <span class="pn-saved" id="pnSmsSaved" aria-live="polite"></span>
+                                <input type="checkbox" class="pn-switch" id="pnSms" role="switch">
+                            </div>
+                            <div class="pn-row">
+                                <span class="st-ico" aria-hidden="true"><i class="fa-solid fa-mobile-screen-button"></i></span>
+                                <label class="pn-txt" for="pnPush"><span class="t">Push notifications</span><span class="d" id="pnPushNote">Alerts on this device, even when the portal is closed</span></label>
+                                <span class="pn-saved" id="pnPushSaved" aria-live="polite"></span>
+                                <input type="checkbox" class="pn-switch" id="pnPush" role="switch">
+                            </div>
+                        </div>
+                        <p class="pn-hint" id="pnHint" hidden></p>
+                        <p class="st-note" id="stNotifLoading"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> <span>Loading your notification settings…</span></p>
+                    </section>
+
+                    <!-- ── My Records & Documents ── -->
+                    <section class="st-panel" id="st-records" data-st="records" aria-labelledby="stRecTitle" hidden>
+                        <button type="button" class="st-back" onclick="settingsBack()"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Settings</button>
+                        <header class="st-panel-head">
+                            <h3 class="st-panel-title" id="stRecTitle">My Records &amp; Documents</h3>
+                            <p class="st-panel-sub">Download a copy of your personal information, appointments, treatments, invoices, and payments.</p>
+                        </header>
+                        <div class="st-group st-rec">
+                            <div class="st-rec-doc" aria-hidden="true"><i class="fa-regular fa-file-lines"></i><span>PDF</span></div>
+                            <div class="st-rec-body">
+                                <span class="st-rec-title">Patient Records</span>
+                                <ul class="st-rec-list">
+                                    <li><i class="fa-solid fa-check"></i> Personal information</li>
+                                    <li><i class="fa-solid fa-check"></i> Appointments</li>
+                                    <li><i class="fa-solid fa-check"></i> Treatments</li>
+                                    <li><i class="fa-solid fa-check"></i> Invoices and payments</li>
+                                </ul>
+                            </div>
+                            <div class="st-rec-act">
+                                <button type="button" class="st-btn" id="setRecBtn" onclick="downloadMyRecords(this)">
+                                    <i class="fa-solid fa-download" aria-hidden="true"></i><span>Download PDF</span>
                                 </button>
-                            </span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="set-row">
-                        <span class="set-ico" aria-hidden="true"><i class="fa-solid fa-mobile-screen"></i></span>
-                        <div class="set-txt">
-                            <span class="t">Mobile Number</span>
-                            <span class="d" id="setPhoneValue">—</span>
-                        </div>
-                        <div class="set-act">
-                            <span id="phoneVerifiedBadge" style="display:none;">
-                                <span class="prof-badge prof-badge-ok"><i class="fa-solid fa-circle-check"></i> Verified</span>
-                            </span>
-                            <span id="phoneVerifyBtnWrap" style="display:none;">
-                                <button type="button" class="set-btn" onclick="startPhoneVerification()" aria-label="Verify number by SMS">
-                                    <i class="fa-solid fa-mobile-screen" aria-hidden="true"></i><span>Verify Number</span>
-                                </button>
-                            </span>
-                            <button type="button" class="set-btn set-btn-light" id="setPhoneAdd" hidden onclick="showPage('profile', null); enterEditMode();">
-                                <i class="fa-solid fa-plus" aria-hidden="true"></i><span>Add in My Profile</span>
-                            </button>
-                        </div>
-                    </div>
-                    <p class="contact-rule-note" id="contactRuleNote" style="display:none;"></p>
-                </section>
+                        <p class="st-note"><i class="fa-solid fa-lock" aria-hidden="true"></i>
+                            <span>Created from your own account when you click, and only for you. For a certified copy of your dental records, please contact the clinic.</span></p>
+                    </section>
 
-                <!-- Password -->
-                <section class="prof-card set-card" aria-labelledby="setPwTitle">
-                    <div class="set-head">
-                        <span class="set-head-ico blue" aria-hidden="true"><i class="fa-solid fa-key"></i></span>
-                        <div>
-                            <h3 class="set-title" id="setPwTitle">Password</h3>
-                            <p class="set-sub">Change the password you use to sign in with your email</p>
+                    <!-- ── Privacy & Data ── -->
+                    <section class="st-panel" id="st-privacy" data-st="privacy" aria-labelledby="stPrivacyTitle" hidden>
+                        <button type="button" class="st-back" onclick="settingsBack()"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Settings</button>
+                        <header class="st-panel-head">
+                            <h3 class="st-panel-title" id="stPrivacyTitle">Privacy &amp; Data</h3>
+                            <p class="st-panel-sub">Learn how your personal information is collected, managed, and protected.</p>
+                        </header>
+                        <div class="st-group">
+                            <!-- No separate Privacy Policy page exists yet: this opens the privacy
+                                 section of the existing Terms and Conditions (portal-terms.php#privacy). -->
+                            <div class="st-item">
+                                <span class="st-ico" aria-hidden="true"><i class="fa-solid fa-file-shield"></i></span>
+                                <div class="st-item-txt">
+                                    <span class="t">Privacy Policy</span>
+                                    <span class="d">Privacy and Data Protection, in our Terms and Conditions</span>
+                                </div>
+                                <div class="st-item-act">
+                                    <a class="st-btn st-btn-outline" href="portal-terms.php#privacy" target="_blank" rel="noopener">
+                                        <span>View</span><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="st-item st-item-block">
+                                <span class="st-ico" aria-hidden="true"><i class="fa-solid fa-circle-info"></i></span>
+                                <div class="st-item-txt">
+                                    <span class="t">How your information is used</span>
+                                    <ul class="st-facts">
+                                        <li>Your personal and medical details are used only to manage your appointments, treatments and billing with EssenciaSmile.</li>
+                                        <li>Your health answers (such as allergies and medical conditions) help our dentists give you safe and appropriate care.</li>
+                                        <li>We do not sell your information to third parties.</li>
+                                        <li>Your information is handled in accordance with the Philippine Data Privacy Act of 2012.</li>
+                                        <li>You can review and update your details anytime in <a href="#" onclick="showPage('profile', null); return false;">My Profile</a>.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="st-item st-item-block">
+                                <span class="st-ico" aria-hidden="true"><i class="fa-solid fa-envelope-open-text"></i></span>
+                                <div class="st-item-txt">
+                                    <span class="t">Personal data requests</span>
+                                    <span class="d">For a copy of your information, a correction we can't make in My Profile, or a privacy concern, contact the clinic. Our staff review each request, since some records must be kept for your care and the clinic's recordkeeping.</span>
+                                    <div class="st-actions">
+                                        <a class="st-btn" id="stDataRequestBtn" href="mailto:<?= htmlspecialchars($CLINIC_EMAIL) ?>" data-clinic-email="<?= htmlspecialchars($CLINIC_EMAIL) ?>" onclick="openDataRequestEmail(event)">
+                                            <i class="fa-solid fa-envelope" aria-hidden="true"></i><span>Email the Clinic</span>
+                                        </a>
+                                        <a class="st-btn st-btn-outline" href="contact-us-page.php" target="_blank" rel="noopener">
+                                            <i class="fa-solid fa-address-book" aria-hidden="true"></i><span>Contact Us</span>
+                                        </a>
+                                    </div>
+                                    <span class="st-fine"><?= htmlspecialchars($CLINIC_EMAIL) ?></span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <!-- Disabled for Google-only accounts (no password): syncPasswordControls() -->
-                    <div class="set-row set-row-end">
-                        <button type="button" class="set-btn" id="profPwBtn" onclick="openChangePassword()">
-                            <i class="fa-solid fa-key" aria-hidden="true"></i><span>Change Password</span>
-                        </button>
-                        <button type="button" class="info-tip" id="profPwTip" hidden
-                            data-tip="You don't have a password because you signed in with Google."
-                            aria-label="Why is Change Password unavailable? You don't have a password because you signed in with Google.">
-                            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                </section>
+                    </section>
 
-                <!-- Notification settings (assets/js/portal-notify.js → api/portal_notification_settings.php) -->
-                <section class="prof-card pn-card set-card" id="pnCard" aria-labelledby="pnTitle" hidden>
-                    <div class="pn-head">
-                        <span class="pn-head-ico" aria-hidden="true"><i class="fa-solid fa-bell"></i></span>
-                        <div>
-                            <h3 class="pn-title" id="pnTitle">Notifications</h3>
-                            <p class="pn-sub">Appointment confirmations, changes and reminders</p>
-                        </div>
-                    </div>
-                    <div class="pn-row">
-                        <span class="pn-ico" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
-                        <label class="pn-txt" for="pnEmail"><span class="t">Email</span><span class="d" id="pnEmailNote">To your verified email address</span></label>
-                        <input type="checkbox" class="pn-switch" id="pnEmail" role="switch">
-                    </div>
-                    <div class="pn-row">
-                        <span class="pn-ico" aria-hidden="true"><i class="fa-solid fa-comment-sms"></i></span>
-                        <label class="pn-txt" for="pnSms"><span class="t">SMS</span><span class="d" id="pnSmsNote">Text messages to your mobile number</span></label>
-                        <input type="checkbox" class="pn-switch" id="pnSms" role="switch">
-                    </div>
-                    <div class="pn-row">
-                        <span class="pn-ico" aria-hidden="true"><i class="fa-solid fa-mobile-screen-button"></i></span>
-                        <label class="pn-txt" for="pnPush"><span class="t">Push on this device</span><span class="d" id="pnPushNote">Alerts even when the portal is closed</span></label>
-                        <input type="checkbox" class="pn-switch" id="pnPush" role="switch">
-                    </div>
-                    <p class="pn-hint" id="pnHint" hidden></p>
-                </section>
-
-                <!-- Download My Records -->
-                <section class="prof-card set-card" aria-labelledby="setRecTitle">
-                    <div class="set-head">
-                        <span class="set-head-ico violet" aria-hidden="true"><i class="fa-solid fa-file-arrow-down"></i></span>
-                        <div>
-                            <h3 class="set-title" id="setRecTitle">Download My Records</h3>
-                            <p class="set-sub">A PDF of your details, appointments, treatments, invoices and payments</p>
-                        </div>
-                    </div>
-                    <div class="set-row set-row-end">
-                        <button type="button" class="set-btn" id="setRecBtn" onclick="downloadMyRecords(this)">
-                            <i class="fa-solid fa-download" aria-hidden="true"></i><span>Download PDF</span>
-                        </button>
-                    </div>
-                </section>
-
+                </div>
             </div>
         </div>
 
@@ -994,16 +1063,55 @@ session_write_close();
                                 <div class="prof-collapse-inner">
                                     <div class="prof-section-body">
                                     <div class="row g-3 prof-fields">
-                                        <!-- Email / Contact Number: values only. Their verification status and
-                                             the Verify buttons are on Settings › Contact Verification;
-                                             Change Number stays in Edit Profile (inside the Contact Number field). -->
+                                        <!-- Email / Contact Number: unverified → (i) icon beside the label
+                                             (syncVerifyTips) and the verify button inside the field, on the
+                                             right (same as Change Number in the edit form). Verified → the
+                                             "Verified" pill. Status: patient_accounts.is_verified / phone_verified.
+                                             Change Number is only in Edit Profile (inside the Contact Number field). -->
                                         <div class="col-md-6">
-                                            <div class="view-field-label" id="vfEmailLabel">Email Address</div>
-                                            <div class="view-field-value" id="vf_email">—</div>
+                                            <div class="pf-label-row">
+                                                <div class="view-field-label" id="vfEmailLabel">Email Address</div>
+                                                <button type="button" class="info-tip" id="vfEmailTip" hidden data-tip="" aria-label="Email address status">
+                                                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
+                                            <div class="prof-value-row">
+                                                <div class="view-field-value" id="vf_email">—</div>
+                                                <span id="emailVerifiedBadge" style="display:none;">
+                                                    <span class="prof-badge prof-badge-ok">
+                                                        <i class="fa-solid fa-circle-check"></i> Verified
+                                                    </span>
+                                                </span>
+                                                <span id="emailVerifyBtnWrap" class="prof-field-action-wrap" style="display:none;">
+                                                    <button type="button" class="prof-field-action" onclick="sendVerificationEmail(this)" aria-label="Verify email: send a verification link">
+                                                        <i class="fa-solid fa-envelope" aria-hidden="true"></i><span>Verify Email</span>
+                                                    </button>
+                                                </span>
+                                            </div>
                                         </div>
                                         <div class="col-md-6">
-                                            <div class="view-field-label" id="vfPhoneLabel">Contact Number</div>
-                                            <div class="view-field-value" id="vf_contact">—</div>
+                                            <div class="pf-label-row">
+                                                <div class="view-field-label" id="vfPhoneLabel">Contact Number</div>
+                                                <button type="button" class="info-tip" id="vfPhoneTip" hidden data-tip="" aria-label="Contact number status">
+                                                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
+                                            <div class="prof-value-row">
+                                                <div class="view-field-value" id="vf_contact">—</div>
+                                                <span id="phoneVerifiedBadge" style="display:none;">
+                                                    <span class="prof-badge prof-badge-ok">
+                                                        <i class="fa-solid fa-circle-check"></i> Verified
+                                                    </span>
+                                                </span>
+                                                <span id="phoneVerifyBtnWrap" class="prof-field-action-wrap" style="display:none;">
+                                                    <button type="button" class="prof-field-action" onclick="startPhoneVerification()" aria-label="Verify number by SMS">
+                                                        <i class="fa-solid fa-mobile-screen" aria-hidden="true"></i><span>Verify Number</span>
+                                                    </button>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="col-12">
+                                            <p class="contact-rule-note" id="contactRuleNote" style="display:none;"></p>
                                         </div>
                                         <div class="col-md-6">
                                             <div class="view-field-label">Home Phone</div>
@@ -2391,8 +2499,8 @@ session_write_close();
             return _phDataPromise;
         }
     </script>
-    <script src="assets/js/portal-dashboard.js?v=32"></script>
-    <script src="assets/js/portal-notify.js?v=1"></script>
+    <script src="assets/js/portal-dashboard.js?v=34"></script>
+    <script src="assets/js/portal-notify.js?v=2"></script>
 
     <script>
         // Step 2 of a phone check: enter the 6-digit SMS code. Shared by
