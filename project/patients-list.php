@@ -79,10 +79,10 @@ $sortBase = listUrl('patients-list.php', ['branch' => $filterBranch, 'status' =>
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-records.css?v=7">
     <link rel="stylesheet" href="assets/css/analytics.css?v=8">
-    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=10">
 </head>
 
 <body>
@@ -205,8 +205,12 @@ $sortBase = listUrl('patients-list.php', ['branch' => $filterBranch, 'status' =>
                                                                         <i class="feather-eye"></i> View Details
                                                                     </a>
                                                                     <?php if (isOwner()): ?>
-                                                                    <a href="appointments-schedule.php?patient_id=<?= (int)($p['patient_id'] ?? 0) ?>"
-                                                                        class="dropdown-item">
+                                                                    <?php /* This patient's Appointment Records; no records → notice (patCheckApts) */ ?>
+                                                                    <a href="appointments-records.php?patient=<?= (int)($p['patient_id'] ?? 0) ?>"
+                                                                        class="dropdown-item" data-es-full
+                                                                        data-has-apts="<?= ($p['has_appointments'] ?? null) === false ? '0' : '1' ?>"
+                                                                        data-patient-name="<?= htmlspecialchars($pn) ?>"
+                                                                        onclick="return patCheckApts(this, event)">
                                                                         <i class="feather-calendar"></i> View Appointments
                                                                     </a>
                                                                     <?php endif; ?>
@@ -248,6 +252,28 @@ $sortBase = listUrl('patients-list.php', ['branch' => $filterBranch, 'status' =>
                 branch: 'filterBranch',
                 status: 'filterStatus'
             });
+        }
+
+        // View Appointments → this patient's Appointment Records. A patient with no
+        // appointment at all gets a notice instead of an empty list.
+        function patCheckApts(link, ev) {
+            if (link.dataset.hasApts !== '0') return true;          // follow the link
+            ev.preventDefault();
+            const name = link.dataset.patientName || 'This patient';
+            Swal.fire({
+                icon: 'info',
+                iconHtml: '<i class="feather-calendar es-swal-glyph"></i>',
+                title: 'No Appointment Records Yet',
+                html: '<p class="es-swal-text"><strong>' + _esc(name) + '</strong> has no appointment records yet. '
+                    + 'Their appointments will be listed here once one is booked in the Patient Portal or added at the clinic.</p>',
+                confirmButtonText: 'OK',
+                buttonsStyling: false,
+                customClass: window.ES_SWAL_CLASS,
+            });
+            return false;
+        }
+        function _esc(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
     </script>
 </body>

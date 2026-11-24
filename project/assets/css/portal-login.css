@@ -1075,15 +1075,15 @@ html {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: .35rem;
-    min-height: 46px;
-    padding: .35rem .7rem;
-    border: 2.5px solid var(--border);
+    gap: .3rem;
+    min-height: 36px;
+    padding: .25rem .6rem;
+    border: 2px solid var(--border);
     border-radius: 999px;
     background: #fff;
     color: var(--slate);
     font-family: var(--font-body);
-    font-size: .74rem;
+    font-size: .7rem;
     font-weight: 700;
     line-height: 1.15;
     text-align: left;
@@ -1092,7 +1092,7 @@ html {
 }
 .gender-opt i {
     flex-shrink: 0;
-    font-size: 1rem;
+    font-size: .85rem;
     color: #9fb3cc;
     transition: color .18s;
 }
@@ -1111,17 +1111,61 @@ html {
 }
 .gender-opt.active i { color: #7cc0fa; text-shadow: none; }
 
+/* Colour coding: Male = blue, Female = pink (icon always tinted, full colour when selected) */
+.gender-opt[data-gender="Male"] i { color: #3b82f6; }
+.gender-opt[data-gender="Male"]:hover { border-color: #93c5fd; }
+.gender-opt[data-gender="Male"].active {
+    border-color: #2563eb;
+    background: #dbeafe;
+    color: #1d4ed8;
+    text-shadow: none;
+}
+.gender-opt[data-gender="Male"].active i { color: #2563eb; }
+
+.gender-opt[data-gender="Female"] i { color: #ec4899; }
+.gender-opt[data-gender="Female"]:hover { border-color: #f9a8d4; }
+.gender-opt[data-gender="Female"]:focus-visible { box-shadow: 0 0 0 3.5px rgba(236,72,153,.25); }
+.gender-opt[data-gender="Female"].active {
+    border-color: #db2777;
+    background: #fce7f3;
+    color: #be185d;
+    text-shadow: none;
+}
+.gender-opt[data-gender="Female"].active i { color: #db2777; }
+
+.gender-opt[data-gender="Non-binary"] i { color: #8b5cf6; }
+.gender-opt[data-gender="Non-binary"]:hover { border-color: #c4b5fd; }
+.gender-opt[data-gender="Non-binary"]:focus-visible { box-shadow: 0 0 0 3.5px rgba(139,92,246,.25); }
+.gender-opt[data-gender="Non-binary"].active {
+    border-color: #7c3aed;
+    background: #ede9fe;
+    color: #6d28d9;
+    text-shadow: none;
+}
+.gender-opt[data-gender="Non-binary"].active i { color: #7c3aed; }
+
+.gender-opt[data-gender="Prefer not to say"] i { color: #64748b; }
+.gender-opt[data-gender="Prefer not to say"]:hover { border-color: #cbd5e1; }
+.gender-opt[data-gender="Prefer not to say"]:focus-visible { box-shadow: 0 0 0 3.5px rgba(100,116,139,.25); }
+.gender-opt[data-gender="Prefer not to say"].active {
+    border-color: #475569;
+    background: #f1f5f9;
+    color: #334155;
+    text-shadow: none;
+}
+.gender-opt[data-gender="Prefer not to say"].active i { color: #475569; }
+
 /* Narrow phones: still one row — icon above the label */
 @media (max-width: 480px) {
     .gender-choice { gap: .3rem; }
     .gender-choice .gender-opt { flex: 1 1 0; }   /* equal widths on phones */
     .gender-opt {
         flex-direction: column;
-        gap: .2rem;
-        min-height: 58px;
-        padding: .4rem .25rem;
-        border-radius: 18px;
-        font-size: .68rem;
+        gap: .15rem;
+        min-height: 48px;
+        padding: .3rem .25rem;
+        border-radius: 14px;
+        font-size: .66rem;
         text-align: center;
     }
 }

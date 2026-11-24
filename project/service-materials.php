@@ -44,7 +44,7 @@ sort($svcTypes);
     <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
 </head>
 <body>
@@ -176,7 +176,7 @@ sort($svcTypes);
                                     Select a service to manage its materials
                                 </h5>
                                 <div class="card-header-action">
-                                    <button class="btn btn-primary btn-sm" id="addMaterialBtn"
+                                    <button class="btn btn-primary btn-sm es-btn-compact" id="addMaterialBtn"
                                             onclick="openAddMaterialModal()" style="display:none;">
                                         <i class="feather-plus me-1"></i> Add Material
                                     </button>

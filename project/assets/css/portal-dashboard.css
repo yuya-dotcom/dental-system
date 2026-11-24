@@ -459,6 +459,16 @@ body {
   background: #a855f7;
 }
 
+/* No Show: solid dark grey — every soft tone is already another status */
+.badge-no_show {
+  background: #4b5563;
+  color: #fff;
+}
+
+.badge-no_show::before {
+  background: #fff;
+}
+
 .badge-paid {
   background: var(--green-light);
   color: #166534;

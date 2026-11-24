@@ -124,7 +124,7 @@
   }
 
   const STATUS_BADGE = { confirmed: 'an-pill info', completed: 'an-pill up', cancelled: 'an-pill down',
-    checked_in: 'an-pill info', no_show: 'an-pill', pending: 'an-pill warn' };
+    checked_in: 'an-pill info', no_show: 'an-pill noshow', pending: 'an-pill warn' };
   const label = (s) => String(s || '—').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
   function renderToday(list, failed, branchScoped) {

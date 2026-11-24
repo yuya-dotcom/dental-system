@@ -63,7 +63,7 @@ $tabs = [
     <link rel="stylesheet" type="text/css" href="assets/vendors/css/vendors.min.css">
     <link rel="stylesheet" type="text/css" href="assets/css/theme.min.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
     <link rel="stylesheet" href="assets/css/analytics.css?v=8">
 </head>
@@ -171,7 +171,7 @@ $tabs = [
         window.ES_FORECAST_SOURCE = <?= json_encode($fcSource) ?>;
         window.ES_ANALYTICS = <?= json_encode($anConfig, JSON_HEX_TAG | JSON_HEX_AMP) ?>;
     </script>
-    <script src="assets/js/forecast-charts.js?v=17"></script>
-    <script src="assets/js/analytics-history.js?v=5"></script>
+    <script src="assets/js/forecast-charts.js?v=18"></script>
+    <script src="assets/js/analytics-history.js?v=6"></script>
 </body>
 </html>

@@ -116,6 +116,20 @@ foreach ($navSections as $caption => $groups) {
         // assets/css/custom-select.css (the patient portal doesn't include this sidebar).
         document.documentElement.classList.add('es-staff');
 
+        // Night mode before the first paint (the theme only applies its saved
+        // choice on DOM ready, so dark pages flashed white). Same key as the theme.
+        try {
+            if (localStorage.getItem('app-skin-dark') === 'app-skin-dark') document.documentElement.classList.add('app-skin-dark');
+        } catch (e) { /* storage blocked: light */ }
+        // Fade colours only while the user switches mode (not on every page load)
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest || !e.target.closest('.dark-button, .light-button')) return;
+            var h = document.documentElement;
+            h.classList.add('es-theme-anim');
+            clearTimeout(window.esThemeAnimT);
+            window.esThemeAnimT = setTimeout(function () { h.classList.remove('es-theme-anim'); }, 400);
+        }, true);
+
         // Show / Hide Filters: filters are hidden by default. Apply that BEFORE
         // the toolbar is parsed (this script runs at the top of <body>), so the
         // filters never flash and then collapse. Only a page where the user
@@ -132,6 +146,17 @@ foreach ($navSections as $caption => $groups) {
                 document.documentElement.classList.add('minimenu');
             }
         } catch (e) { /* storage blocked: keep the default (expanded) */ }
+
+        // Opened from a navigation skeleton (assets/js/es-skeleton.js): fade
+        // the content in over it. Chromium crossfades with a view transition
+        // instead (es-skeleton.css), so the class is only for other browsers.
+        try {
+            var esSkT = +sessionStorage.getItem('esSk:arrive');
+            if (esSkT) {
+                sessionStorage.removeItem('esSk:arrive');
+                if (Date.now() - esSkT < 60000 && !('onpagereveal' in window)) document.documentElement.classList.add('es-sk-arrive');
+            }
+        } catch (e) { /* storage blocked: no fade */ }
 
         // ── Back-navigation / bfcache guard ──────────────────────────────
         // When a user logs out and presses Back, some browsers restore the
@@ -165,7 +190,13 @@ foreach ($navSections as $caption => $groups) {
         })();
     </script>
 <link rel="stylesheet" href="assets/css/es-sidebar.css?v=1">
+<!-- Night mode for the page stylesheets (generated: tools/build_dark_css.py) + shell / responsive / night mode -->
+<link rel="stylesheet" href="assets/css/es-dark.css?v=1">
+<link rel="stylesheet" href="assets/css/es-theme.css?v=2">
 <script src="assets/js/es-sidebar.js?v=1" defer></script>
+<!-- Instant page skeleton on navigation (sidebar + links to other staff pages) -->
+<link rel="stylesheet" href="assets/css/es-skeleton.css?v=1">
+<script src="assets/js/es-skeleton.js?v=2" defer></script>
 <!-- Row action button (⋮) + menu design for every module (from Appointment Records) -->
 <link rel="stylesheet" href="assets/css/es-actions.css?v=1">
 <script src="assets/js/es-actions.js?v=2"></script>
@@ -175,8 +206,9 @@ foreach ($navSections as $caption => $groups) {
     <div class="navbar-wrapper">
         <div class="m-header">
             <a href="<?= $isOwner ? 'dashboard.php' : htmlspecialchars(esModuleHome() ?? 'unauthorized.php') ?>" class="b-brand">
-                <img src="assets/images/EssenciaSmile-Original-Logo.svg" alt="EssenciaSmile" class="logo logo-lg" width="194" height="34" style="max-width:100%;height:auto;">
-                <img src="assets/images/Essencia-abbr.png" alt="EssenciaSmile" class="logo logo-sm" width="42" height="32">
+                <!-- Company logo (SVG). logo-sm = the tooth mark of the same SVG, shown in the collapsed rail -->
+                <img src="assets/images/EssenciaSmile-Original-Logo.svg" alt="EssenciaSmile" class="logo logo-lg" width="182" height="32">
+                <img src="assets/images/EssenciaSmile-Icon.svg" alt="EssenciaSmile" class="logo logo-sm" width="40" height="29">
 
             </a>
         </div>

@@ -34,9 +34,6 @@ $_snCats   = $_snViewer ? staffn_category_options($_snViewer) : [];
                     <a href="javascript:void(0);" id="menu-mini-button"><i class="feather-align-left"></i></a>
                     <a href="javascript:void(0);" id="menu-expend-button" style="display:none;"><i class="feather-arrow-right"></i></a>
                 </div>
-                <div class="nxl-lavel-mega-menu-toggle d-flex d-lg-none">
-                    <a href="javascript:void(0);" id="nxl-lavel-mega-menu-open"><i class="feather-align-left"></i></a>
-                </div>
             </div>
 
             <!-- ── Header Right ─────────────────────────────── -->
@@ -139,5 +136,5 @@ $_snCats   = $_snViewer ? staffn_category_options($_snViewer) : [];
     </header>
     <!-- Sign-out confirmation shared with the patient portal (handles a[data-signout-confirm]) -->
     <script src="assets/js/signout-confirm.js?v=3"></script>
-    <link rel="stylesheet" href="assets/css/es-notifications.css?v=6">
-    <script src="assets/js/es-notifications.js?v=2" defer></script>
+    <link rel="stylesheet" href="assets/css/es-notifications.css?v=7">
+    <script src="assets/js/es-notifications.js?v=4" defer></script>

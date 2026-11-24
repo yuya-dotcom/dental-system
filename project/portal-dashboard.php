@@ -60,7 +60,7 @@ session_write_close();
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/portal-login.css?v=11">
     <link rel="stylesheet" href="assets/css/odontogram.css?v=3">
-    <link rel="stylesheet" href="assets/css/portal-dashboard.css?v=29">
+    <link rel="stylesheet" href="assets/css/portal-dashboard.css?v=30">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <!-- Installable app + Web Push (assets/js/portal-notify.js, sw.js) -->
@@ -2499,7 +2499,7 @@ session_write_close();
             return _phDataPromise;
         }
     </script>
-    <script src="assets/js/portal-dashboard.js?v=34"></script>
+    <script src="assets/js/portal-dashboard.js?v=36"></script>
     <script src="assets/js/portal-notify.js?v=2"></script>
 
     <script>
@@ -2718,7 +2718,9 @@ session_write_close();
                 showCancelButton: unlockedBooking,
                 cancelButtonText: 'Later',
                 buttonsStyling: false,
-                customClass: ES_SWAL_CLASS,
+                // Compact pair (es-swal.css): "Book Appointment" stays on one line,
+                // same size as "Later", like the other paired portal alerts
+                customClass: Object.assign({}, ES_SWAL_CLASS, { actions: 'es-swal-actions es-swal-actions-compact' }),
             }).then((r) => {
                 if (unlockedBooking && r.isConfirmed) handleBookAppt();
             });
@@ -3489,7 +3491,7 @@ session_write_close();
 
             function statusBadge(s) {
                 return '<span class="badge-status badge-' + s + '">' +
-                    (s === 'checked_in' ? 'Checked In' : s.charAt(0).toUpperCase() + s.slice(1)) +
+                    (s === 'checked_in' ? 'Checked In' : s === 'no_show' ? 'No Show' : s.charAt(0).toUpperCase() + s.slice(1)) +
                     '</span>';
             }
 

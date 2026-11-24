@@ -58,6 +58,7 @@ function aptStatusPillClass(string $s): string
         'checked_in' => 'violet',
         'completed'  => 'up',
         'cancelled'  => 'down',
+        'no_show'    => 'noshow',     // solid grey pill (assets/css/es-theme.css)
         default      => 'slate',
     };
 }

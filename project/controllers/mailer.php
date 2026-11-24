@@ -51,3 +51,41 @@ function createMailer(): PHPMailer {
 
     return $mail;
 }
+/**
+ * Returns the <img src> for the email logo ($file is under assets/images/).
+ *
+ * The logo is always loaded from a public https site, never attached: Gmail
+ * lists an embedded (CID) image as an attachment chip ("EssenciaSmile-Logo.png")
+ * in the inbox, even though it is only the header logo.
+ *   - Live site (APP_BASE_URL is public https): this site's own copy.
+ *   - Local XAMPP / LAN (no public URL): the live site's copy, so local test
+ *     emails look the same. Override with 'email_asset_base_url' in
+ *     config/secrets.php; set it to '' to embed the logo again.
+ */
+const MAILER_DEFAULT_ASSET_BASE = 'https://essenciasmile.online';
+
+function mailer_logo_src(PHPMailer $mail, string $file): string
+{
+    require_once __DIR__ . '/../config/app.php';   // APP_BASE_URL, app_url()
+    $host = strtolower((string)parse_url(APP_BASE_URL, PHP_URL_HOST));
+    $isPublic = str_starts_with(APP_BASE_URL, 'https://') && $host !== ''
+        && $host !== 'localhost' && !str_ends_with($host, '.local')
+        && (filter_var($host, FILTER_VALIDATE_IP) === false
+            || filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false);
+
+    $base = APP_BASE_URL;
+    if (!$isPublic) {
+        $secrets = is_file(__DIR__ . '/../config/secrets.php') ? (require __DIR__ . '/../config/secrets.php') : [];
+        $base    = rtrim((string)($secrets['email_asset_base_url'] ?? MAILER_DEFAULT_ASSET_BASE), '/');
+        unset($secrets);
+    }
+
+    if ($base !== '') {
+        // ?v= = file date, so a changed logo is not served from old caches
+        $v = is_file($file) ? '?v=' . filemtime($file) : '';
+        return $base . '/assets/images/' . rawurlencode(basename($file)) . $v;
+    }
+    if (!is_file($file)) return '';
+    $mail->addEmbeddedImage($file, 'essencia-logo', 'EssenciaSmile-Logo.png', 'base64', 'image/png');
+    return 'cid:essencia-logo';
+}

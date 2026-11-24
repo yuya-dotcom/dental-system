@@ -140,11 +140,7 @@ function sendVerificationEmail(int $account_id, string $email, string $first_nam
         $mail = createMailer();
         $mail->CharSet = 'UTF-8';
         $mail->addAddress($email, $first_name);
-        $logo_src = '';
-        if (is_file(EMAIL_LOGO_PNG)) {
-            $mail->addEmbeddedImage(EMAIL_LOGO_PNG, 'essencia-logo', 'EssenciaSmile-Logo.png', 'base64', 'image/png');
-            $logo_src = 'cid:essencia-logo';
-        }
+        $logo_src = mailer_logo_src($mail, EMAIL_LOGO_PNG);   // hosted URL on the live site (no Gmail attachment chip)
         $mail->Subject = 'Verify your email address – EssenciaSmile';
         $mail->Body    = verification_email_html($first_name, $verify_link, $logo_src);
         $mail->AltBody = "Hi $first_name,\n\nPlease verify your email address to complete your EssenciaSmile Patient Portal registration:\n$verify_link\n\nThis link expires in 24 hours and can be used only once. If you did not create this account, you can ignore this email.";

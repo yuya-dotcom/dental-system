@@ -104,8 +104,9 @@ $linkRow = fn(string $href, string $icon, string $title, string $desc) =>
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=3">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
-    <link rel="stylesheet" href="assets/css/es-settings.css?v=5">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
+    <link rel="stylesheet" href="assets/css/es-records.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-settings.css?v=6">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -242,7 +243,7 @@ $linkRow = fn(string $href, string $icon, string $title, string $desc) =>
 
                             <!-- Good to know -->
                             <article class="set-card">
-                                <?= $cardHead('feather-info', 'slate', 'Good to know', '') ?>
+                                <div class="set-card-head is-center"><span class="set-icon set-tone-slate"><i class="feather-info"></i></span><h3 class="set-card-title">Good to know</h3></div>
                                 <ul class="set-tips">
                                     <li><i class="feather-repeat"></i><span><strong>Back up once a week</strong> and before any big change. The status above turns orange when a backup is due.</span></li>
                                     <li><i class="feather-lock"></i><span><strong>Keep backups private.</strong> Save them on a password-protected drive or private folder — never send them by email or chat.</span></li>
@@ -271,38 +272,13 @@ $linkRow = fn(string $href, string $icon, string $title, string $desc) =>
                                 <p>Keep your account safe and check where it has been used.</p>
                             </div>
 
-                            <!-- Password: closed until "Change Password" is clicked -->
+                            <!-- Password: "Change Password" opens #pwModal (below the page) -->
                             <article class="set-card" id="pwCard">
                                 <div class="set-card-row">
                                     <?= $cardHead('feather-key', 'orange', 'Password', 'Change the password you use to sign in. Use one you don\'t use anywhere else.') ?>
-                                    <button type="button" class="btn btn-outline-primary set-btn" id="pwOpen" aria-expanded="false" aria-controls="pwPanel">
+                                    <button type="button" class="btn btn-outline-primary set-btn" id="pwOpen" aria-haspopup="dialog" aria-controls="pwModal">
                                         <i class="feather-edit-2"></i><span>Change Password</span>
                                     </button>
-                                </div>
-                                <div class="set-collapse" id="pwPanel" hidden>
-                                    <form id="pwForm" class="set-form" novalidate autocomplete="off">
-                                        <input type="text" name="username" value="<?= $e($me['email']) ?>" autocomplete="username" hidden>
-                                        <div class="set-form-grid">
-                                            <label class="set-field">
-                                                <span class="set-label">Current password</span>
-                                                <input type="password" class="form-control" name="current_password" autocomplete="current-password" maxlength="200" required>
-                                            </label>
-                                            <label class="set-field">
-                                                <span class="set-label">New password</span>
-                                                <input type="password" class="form-control" name="new_password" autocomplete="new-password" maxlength="200" required>
-                                                <span class="set-help">At least 8 characters, including a letter and a number.</span>
-                                            </label>
-                                            <label class="set-field">
-                                                <span class="set-label">Type the new password again</span>
-                                                <input type="password" class="form-control" name="confirm_password" autocomplete="new-password" maxlength="200" required>
-                                            </label>
-                                        </div>
-                                        <div class="set-form-msg" id="pwMsg" role="alert" hidden></div>
-                                        <div class="set-card-foot">
-                                            <button type="submit" class="btn btn-primary set-btn" id="pwSave"><i class="feather-check"></i><span>Save New Password</span></button>
-                                            <button type="button" class="btn btn-light set-btn" id="pwCancel">Cancel</button>
-                                        </div>
-                                    </form>
                                 </div>
                                 <div class="set-form-msg is-ok" id="pwDone" role="status" hidden></div>
                             </article>
@@ -374,7 +350,7 @@ $linkRow = fn(string $href, string $icon, string $title, string $desc) =>
                                                 <h3 class="set-card-title"><?= $e($name) ?></h3>
                                                 <span class="set-pill <?= $on ? 'is-ok' : 'is-warn' ?>"><?= $on ? 'Working' : 'Not set up' ?></span>
                                             </div>
-                                            <p class="set-card-desc"><?= $e($desc) ?><?= $on ? '' : ' Ask your IT support to set this up.' ?></p>
+                                            <p class="set-card-desc"><?= $e($desc) ?></p>
                                         </div>
                                     </article>
                                 <?php endforeach; ?>
@@ -465,6 +441,61 @@ $linkRow = fn(string $href, string $icon, string $title, string $desc) =>
         </div>
     </main>
 
+    <!-- ══ CHANGE PASSWORD (own account; same look as Accounts › Reset Password) ══ -->
+    <div class="modal fade es-detail-modal" id="pwModal" tabindex="-1" aria-labelledby="pwModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down apt-form-dialog rec-form-dialog rec-form-narrow">
+            <form class="modal-content apt-record-content" id="pwForm" novalidate autocomplete="off">
+                <div class="modal-header apt-record-header">
+                    <div class="apt-record-title-wrap">
+                        <div class="apt-record-icon" aria-hidden="true"><i class="feather-key"></i></div>
+                        <div class="min-w-0">
+                            <h5 class="apt-record-title mb-0" id="pwModalTitle">Change Password</h5>
+                            <div class="apt-record-meta">For <strong><?= $e($me['full_name']) ?></strong></div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body apt-form-body">
+                    <div id="pwMsg" class="apt-form-alert" role="alert" style="display:none;"></div>
+                    <!-- lets the browser's password manager pair the new password with this account -->
+                    <input type="text" name="username" value="<?= $e($me['email']) ?>" autocomplete="username" hidden>
+                    <div class="apt-field">
+                        <label class="apt-label" for="pw_current">Current Password <span class="apt-req" aria-hidden="true">*</span></label>
+                        <div class="rec-pw">
+                            <input type="password" id="pw_current" name="current_password" class="form-control" autocomplete="current-password" maxlength="200" placeholder="Your current password" required>
+                            <button type="button" class="rec-pw-toggle" data-pw-toggle="pw_current" aria-label="Show password"><i class="feather-eye"></i></button>
+                        </div>
+                        <div class="apt-field-err" data-err-for="current_password"></div>
+                    </div>
+                    <div class="apt-field">
+                        <label class="apt-label" for="pw_new">New Password <span class="apt-req" aria-hidden="true">*</span></label>
+                        <div class="rec-pw">
+                            <input type="password" id="pw_new" name="new_password" class="form-control" autocomplete="new-password" maxlength="200" placeholder="At least 8 characters" required>
+                            <button type="button" class="rec-pw-toggle" data-pw-toggle="pw_new" aria-label="Show password"><i class="feather-eye"></i></button>
+                        </div>
+                        <div class="apt-field-err" data-err-for="new_password"></div>
+                        <div class="rec-help">At least 8 characters, including a letter and a number.</div>
+                    </div>
+                    <div class="apt-field mb-0">
+                        <label class="apt-label" for="pw_confirm">Confirm New Password <span class="apt-req" aria-hidden="true">*</span></label>
+                        <div class="rec-pw">
+                            <input type="password" id="pw_confirm" name="confirm_password" class="form-control" autocomplete="new-password" maxlength="200" placeholder="Type the new password again" required>
+                            <button type="button" class="rec-pw-toggle" data-pw-toggle="pw_confirm" aria-label="Show password"><i class="feather-eye"></i></button>
+                        </div>
+                        <div class="apt-field-err" data-err-for="confirm_password"></div>
+                    </div>
+                </div>
+                <div class="modal-footer apt-record-footer apt-form-footer">
+                    <span class="apt-form-hint"><span class="apt-req">*</span> Required</span>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary px-4" id="pwSave"><i class="feather-check me-1"></i> Save New Password</button>
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="assets/vendors/js/vendors.min.js"></script>
     <script src="assets/js/common-init.min.js"></script>
     <script src="assets/js/theme-customizer-init.min.js"></script>
@@ -472,6 +503,6 @@ $linkRow = fn(string $href, string $icon, string $title, string $desc) =>
     <script src="assets/js/admin.js?v=7"></script>
     <script src="assets/js/es-swal.js?v=3"></script>
     <script>window.ES_SETTINGS = { zipAes: <?= $zipAes ? 'true' : 'false' ?>, zipMin: <?= SET_ZIP_MIN_PASSWORD ?> };</script>
-    <script src="assets/js/es-settings.js?v=5"></script>
+    <script src="assets/js/es-settings.js?v=6"></script>
 </body>
 </html>

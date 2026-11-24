@@ -109,202 +109,6 @@ function schStatusDisplay(string $s): string
     <link rel="stylesheet" href="assets/css/admin.css?v=5">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <style>
-        /* ── Calendar slot styles ─────────────────────────── */
-        #appointmentModal .slot-empty {
-            font-size: 0.82rem;
-            color: #6b7a8d;
-            text-align: center;
-            padding: 1.75rem 1rem;
-            line-height: 1.7;
-        }
-
-        #appointmentModal .slot-loading {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.82rem;
-            color: #6b7a8d;
-            padding: 0.75rem 0;
-        }
-
-        #appointmentModal .slot-legend {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 0.75rem;
-            flex-wrap: wrap;
-        }
-
-        #appointmentModal .slot-legend span {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 0.72rem;
-            color: #6b7a8d;
-            font-weight: 500;
-        }
-
-        #appointmentModal .legend-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 3px;
-            flex-shrink: 0;
-        }
-
-        #appointmentModal .slot-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 0.4rem;
-        }
-
-        #appointmentModal .slot-btn {
-            border-radius: 9px;
-            font-size: 0.78rem;
-            font-weight: 500;
-            padding: 0.45rem 0.25rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.15s;
-            border: 1.5px solid;
-            width: 100%;
-            display: block;
-            font-family: inherit;
-        }
-
-        #appointmentModal .slot-btn-available {
-            background: #e8f0fe;
-            border-color: rgba(13, 110, 253, 0.3);
-            color: #0a58ca;
-        }
-
-        #appointmentModal .slot-btn-available:hover:not(:disabled) {
-            background: #0d6efd;
-            border-color: #0d6efd;
-            color: #fff;
-            transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(13, 110, 253, 0.22);
-        }
-
-        #appointmentModal .slot-btn-available.selected {
-            background: #0d6efd;
-            border-color: #0d6efd;
-            color: #fff;
-            box-shadow: 0 3px 10px rgba(13, 110, 253, 0.22);
-        }
-
-        #appointmentModal .slot-btn-booked {
-            background: #f1f4f8;
-            border-color: #dee2e6;
-            color: #b8c0cc;
-            cursor: not-allowed;
-            text-decoration: line-through;
-        }
-
-        #appointmentModal .slot-count {
-            font-size: 0.72rem;
-            color: #6b7a8d;
-            text-align: center;
-            margin-top: 0.6rem;
-            margin-bottom: 0;
-        }
-
-        /* ── FullCalendar overrides ────────────────────────── */
-        #adminCalendarWrap .fc .fc-toolbar-title {
-            font-size: 0.9rem !important;
-            font-weight: 700;
-            color: #1c2b3a;
-        }
-
-        #adminCalendarWrap .fc .fc-button-primary {
-            background: #fff !important;
-            border: 1.5px solid #dee2e6 !important;
-            color: #6b7a8d !important;
-            border-radius: 8px !important;
-            box-shadow: none !important;
-            font-size: 0.75rem !important;
-            padding: 0.25rem 0.55rem !important;
-            transition: all 0.15s !important;
-            font-family: inherit !important;
-        }
-
-        #adminCalendarWrap .fc .fc-button-primary:hover {
-            background: #e8f0fe !important;
-            border-color: #0d6efd !important;
-            color: #0d6efd !important;
-        }
-
-        #adminCalendarWrap .fc .fc-button-primary:focus { box-shadow: none !important; }
-
-        #adminCalendarWrap .fc .fc-col-header-cell-cushion {
-            font-size: 0.67rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #6b7a8d;
-            text-decoration: none;
-            padding: 5px 2px;
-        }
-
-        #adminCalendarWrap .fc .fc-daygrid-day-number {
-            font-size: 0.78rem;
-            font-weight: 500;
-            color: #1c2b3a;
-            text-decoration: none;
-            padding: 4px 6px;
-            border-radius: 50%;
-            transition: background 0.15s, color 0.15s;
-            min-width: 24px;
-            text-align: center;
-            display: inline-block;
-        }
-
-        #adminCalendarWrap .fc .fc-daygrid-day:not(.fc-day-disabled):not(.fc-day-fully-booked):hover .fc-daygrid-day-number {
-            background: #e8f0fe;
-            color: #0d6efd;
-        }
-
-        #adminCalendarWrap .fc .fc-day-today { background: transparent !important; }
-
-        #adminCalendarWrap .fc .fc-day-today .fc-daygrid-day-number {
-            background: #cfe2ff;
-            color: #0a58ca;
-            font-weight: 700;
-        }
-
-        #adminCalendarWrap .fc-day-selected { background-color: #e8f0fe !important; }
-
-        #adminCalendarWrap .fc-day-selected .fc-daygrid-day-number {
-            background: #0d6efd !important;
-            color: #fff !important;
-            font-weight: 700;
-        }
-
-        #adminCalendarWrap .fc-day-fully-booked {
-            background-color: #fff5f5 !important;
-            cursor: not-allowed !important;
-            position: relative;
-        }
-
-        #adminCalendarWrap .fc-day-fully-booked .fc-daygrid-day-number { color: #ccc !important; text-decoration: line-through; }
-
-        #adminCalendarWrap .fc-day-fully-booked::after {
-            content: "Full";
-            position: absolute;
-            bottom: 3px;
-            right: 5px;
-            font-size: 8px;
-            font-weight: 800;
-            color: #dc3545;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        #adminCalendarWrap .fc .fc-scrollgrid { border: none !important; }
-        #adminCalendarWrap .fc .fc-scrollgrid td,
-        #adminCalendarWrap .fc .fc-scrollgrid th { border-color: #edf2f7 !important; }
-        #adminCalendarWrap .fc .fc-toolbar { margin-bottom: 0.75rem !important; }
-        #adminCalendarWrap .fc .fc-daygrid-day-frame { min-height: 36px; }
-        #adminCalendarWrap .fc .fc-daygrid-day.fc-day-disabled { opacity: 0.35; }
-
         @media (min-width: 768px) {
             .border-end-md { border-right: 1px solid #edf2f7 !important; }
         }
@@ -391,10 +195,11 @@ function schStatusDisplay(string $s): string
         }
         .svc-chip-remove:hover { color: #dc3545; }
     </style>
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-records.css?v=7">
     <link rel="stylesheet" href="assets/css/analytics.css?v=8">
-    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=10">
+    <link rel="stylesheet" href="assets/css/apt-schedule-picker.css?v=1">
 </head>
 
 <body>
@@ -647,7 +452,9 @@ function schStatusDisplay(string $s): string
                                     <?php endif; ?>
                                 </div>
                                 <div class="apt-form-card-body apt-sched-body">
-                                    <div class="apt-sched-left">
+                                    <!-- Top row: branch (when the account may choose) + the chosen
+                                         date & time, so both boxes below line up top and bottom. -->
+                                    <div class="apt-sched-top">
                                         <?php if (!$aptFixedBranch): ?>
                                         <div class="apt-field apt-branch-field">
                                             <label class="apt-label" for="apt_branch">Branch <span class="apt-req" aria-hidden="true">*</span></label>
@@ -660,37 +467,47 @@ function schStatusDisplay(string $s): string
                                             <div class="apt-field-err" data-err-for="apt_branch"></div>
                                         </div>
                                         <?php endif; ?>
+                                        <div class="apt-field apt-dt-field">
+                                            <div class="apt-label">Selected Schedule</div>
+                                            <!-- appointments.js shows/hides #aptDateTimeSummary; the empty state
+                                                 below shows whenever it is hidden (CSS sibling rule). -->
+                                            <div id="aptDateTimeSummary" class="apt-dt-summary" style="display:none;">
+                                                <i class="feather-check-circle"></i>
+                                                <span id="aptDateTimeText"></span>
+                                            </div>
+                                            <div class="apt-dt-empty"><i class="feather-calendar"></i> No date and time chosen yet</div>
+                                        </div>
+                                    </div>
+                                    <div class="apt-sched-left">
                                         <div class="apt-label">Available Date <span class="apt-req" aria-hidden="true">*</span></div>
-                                        <div id="adminCalendarWrap" class="rounded-3 border">
-                                            <div class="slot-empty">
-                                                <svg width="30" height="30" viewBox="0 0 32 32" fill="none" style="margin-bottom:6px;opacity:0.3;">
-                                                    <rect x="3" y="5" width="26" height="22" rx="3" stroke="#6b7a8d" stroke-width="1.5" />
-                                                    <path d="M9 3v4M23 3v4M3 12h26" stroke="#6b7a8d" stroke-width="1.5" stroke-linecap="round" />
-                                                </svg><br>
-                                                Select a branch to load available dates.
+                                        <div id="adminCalendarWrap" class="apt-cal-box">
+                                            <div class="slot-empty apt-pick-empty">
+                                                <span class="apt-pick-empty-icon"><i class="feather-map-pin"></i></span>
+                                                <strong>No branch selected</strong>
+                                                Select a branch to load its available dates.
                                             </div>
                                         </div>
                                         <div class="apt-field-err" data-err-for="apt_date"></div>
                                     </div>
                                     <div class="apt-sched-right">
                                         <div class="apt-slots-head">
-                                            <div class="apt-label mb-0"><i class="feather-clock me-1"></i>Available Time Slot <span class="apt-req" aria-hidden="true">*</span></div>
-                                            <button type="button" class="apt-slots-refresh" id="aptSlotsRefresh" hidden title="Check availability again">
+                                            <div class="apt-label mb-0">Available Time Slot <span class="apt-req" aria-hidden="true">*</span></div>
+                                            <button type="button" class="apt-slots-refresh" id="aptSlotsRefresh" hidden title="Check availability again" aria-label="Refresh time slots">
                                                 <i class="feather-refresh-cw"></i> Refresh
                                             </button>
                                         </div>
                                         <div id="adminTimeSlots">
                                             <div id="adminTimeSlotsGrid">
-                                                <div class="slot-empty apt-slots-placeholder"><i class="feather-clock"></i><br>Choose a date to see the available times.</div>
+                                                <div class="slot-empty apt-pick-empty apt-slots-placeholder">
+                                                    <span class="apt-pick-empty-icon"><i class="feather-clock"></i></span>
+                                                    <strong>No date selected</strong>
+                                                    Choose a date to see the available times.
+                                                </div>
                                             </div>
                                         </div>
                                         <div class="apt-field-err" data-err-for="apt_time"></div>
                                         <input type="hidden" id="apt_date">
                                         <input type="hidden" id="apt_time">
-                                        <div id="aptDateTimeSummary" class="apt-dt-summary" style="display:none;">
-                                            <i class="feather-check-circle"></i>
-                                            <span id="aptDateTimeText"></span>
-                                        </div>
                                     </div>
                                 </div>
                             </section>
@@ -1104,7 +921,7 @@ function schStatusDisplay(string $s): string
         })(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;
     </script>
     <script>window.APT_FIXED_BRANCH = <?= (int)$aptFixedBranch ?>;</script>
-    <script src="assets/js/appointments.js?v=12"></script>
+    <script src="assets/js/appointments.js?v=14"></script>
     <script>
         const CURRENT_USER_NAME = <?= json_encode($_SESSION['full_name'] ?? $_SESSION['username'] ?? '', JSON_HEX_TAG | JSON_HEX_QUOT) ?>;
 
@@ -1143,16 +960,7 @@ function schStatusDisplay(string $s): string
             document.getElementById('apt_date').value    = '';
             document.getElementById('apt_time').value    = '';
 
-            const calWrap = document.getElementById('adminCalendarWrap');
-            calWrap.className    = 'rounded-3 border';
-            calWrap.style.cssText = '';
-            calWrap.innerHTML    = `
-                <div class="slot-empty">
-                    <svg width="30" height="30" viewBox="0 0 32 32" fill="none" style="margin-bottom:6px;opacity:0.3;">
-                        <rect x="3" y="5" width="26" height="22" rx="3" stroke="#6b7a8d" stroke-width="1.5"/>
-                        <path d="M9 3v4M23 3v4M3 12h26" stroke="#6b7a8d" stroke-width="1.5" stroke-linecap="round"/>
-                    </svg><br>Select a branch to load available dates.
-                </div>`;
+            if (window._aptCalPlaceholder) window._aptCalPlaceholder();
 
             if (window._aptSlotsPlaceholder) window._aptSlotsPlaceholder();
             document.getElementById('aptDateTimeSummary').style.display = 'none';
@@ -1186,16 +994,7 @@ function schStatusDisplay(string $s): string
             document.getElementById('aptFormHint').innerHTML = '<span class="apt-req">*</span> Required fields';
             window._aptEditPreset = null;
 
-            const calWrap = document.getElementById('adminCalendarWrap');
-            calWrap.className    = 'rounded-3 border';
-            calWrap.style.cssText = '';
-            calWrap.innerHTML    = `
-                <div class="slot-empty">
-                    <svg width="30" height="30" viewBox="0 0 32 32" fill="none" style="margin-bottom:6px;opacity:0.3;">
-                        <rect x="3" y="5" width="26" height="22" rx="3" stroke="#6b7a8d" stroke-width="1.5"/>
-                        <path d="M9 3v4M23 3v4M3 12h26" stroke="#6b7a8d" stroke-width="1.5" stroke-linecap="round"/>
-                    </svg><br>Select a branch to load available dates.
-                </div>`;
+            if (window._aptCalPlaceholder) window._aptCalPlaceholder();
             if (window._aptSlotsPlaceholder) window._aptSlotsPlaceholder();
             document.getElementById('aptDateTimeSummary').style.display = 'none';
             document.getElementById('modalSaveBtn').innerHTML           = '<i class="feather-save me-1"></i> Save Changes';
@@ -1299,7 +1098,7 @@ function schStatusDisplay(string $s): string
                         checked_in: 'bg-soft-primary text-primary',
                         completed:  'bg-soft-info text-info',
                         cancelled:  'bg-soft-danger text-danger',
-                        no_show:    'bg-soft-secondary text-secondary',
+                        no_show:    'es-noshow',
                     };
                     const statusLabel = apt.status === 'checked_in'
                         ? 'Checked In'

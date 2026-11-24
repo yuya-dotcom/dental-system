@@ -127,6 +127,11 @@ function patientListParts(int $branchId, string $status, array $extra, string $c
     $sel = $cols . ',lv:appointments(appointment_date,appointment_time,branch_id,branches(branch_name))';
     // Any non-zero scope filters (a -1 "no valid branch" scope matches nobody: fail closed)
     if ($branchId !== 0) $sel .= ',vis:appointments!inner(appointment_id)';
+    // Every-branch page rows: does the patient have ANY appointment? (Patients List ›
+    // View Appointments shows a notice instead of an empty list). One id at most per
+    // patient, in the same request. Branch-scoped lists already know (the inner 'vis').
+    $anyApt = $branchId === 0 && $cols === PAT_LIST_COLS;
+    if ($anyApt) $sel .= ',apt:appointments(appointment_id)';
     $q = [
         'select=' . $sel,
         'lv.status=in.(' . PAT_VISIT_STATUSES . ')',
@@ -138,6 +143,7 @@ function patientListParts(int $branchId, string $status, array $extra, string $c
         $q[] = 'vis.branch_id=eq.' . $branchId;
         $q[] = 'vis.limit=1';
     }
+    if ($anyApt) $q[] = 'apt.limit=1';
     if ($status) $q[] = 'status=eq.' . urlencode($status);
     return array_merge($q, $extra);
 }
@@ -166,7 +172,10 @@ function patWithLastVisit(array $row): array
     $row['last_visit_date']   = $lv['appointment_date'] ?? null;
     $row['last_visit_time']   = $lv['appointment_time'] ?? null;
     $row['last_visit_branch'] = $lv['branches']['branch_name'] ?? null;
-    unset($row['lv'], $row['vis']);
+    // true / false when the query asked (page rows); null when it didn't (sort-only rows)
+    $row['has_appointments']  = array_key_exists('vis', $row) || array_key_exists('apt', $row)
+        ? !empty($row['vis']) || !empty($row['apt']) : null;
+    unset($row['lv'], $row['vis'], $row['apt']);
     return $row;
 }
 

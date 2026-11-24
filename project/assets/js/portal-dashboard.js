@@ -169,7 +169,7 @@ function fmtTime(t) {
 }
 
 function statusBadge(s) {
-  return `<span class="badge-status badge-${s || "pending"}">${(s || "pending").replace("_", " ")}</span>`;
+  return `<span class="badge-status badge-${s || "pending"}">${statusWord(s || "pending")}</span>`;
 }
 
 function payBadge(s) {
@@ -2318,7 +2318,8 @@ async function checkContactStatus(prefetched) {
       showCancelButton: wasBlocked,
       cancelButtonText: "Later",
       buttonsStyling: false,
-      customClass: ES_SWAL_TONE("success"),
+      // Compact pair (es-swal.css), same as the in-page "Phone Verified!" alert
+      customClass: Object.assign(ES_SWAL_TONE("success"), { actions: "es-swal-actions es-swal-actions-compact" }),
     }).then((r) => {
       if (wasBlocked && r.isConfirmed) handleBookAppt();
     });

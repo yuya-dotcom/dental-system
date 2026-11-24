@@ -108,9 +108,9 @@ html.es-ft-hidden .list-toolbar:not([data-es-no-collapse]) { display: none; }
 .es-filter-toggle[aria-expanded="true"] .es-ft-caret { transform: rotate(180deg); }
 /* Label typography matches the header action buttons (.6rem); the label keeps a fixed
    width so the button is the same size in both states. */
-.es-filter-toggle .es-ft-label { font-size: 11px; display: inline-block; text-align: center; line-height: 1; }
-.es-filter-toggle[aria-expanded="false"] .es-ft-label { min-width: 115.6px; }   /* "SHOW FILTERS" at 11px */
-.es-filter-toggle[aria-expanded="true"]  .es-ft-label { min-width: 103.6px; }   /* "HIDE FILTERS" at 11px */
+.es-filter-toggle .es-ft-label { font-size: 10px; letter-spacing: .45px; display: inline-block; text-align: center; line-height: 1; }
+.es-filter-toggle[aria-expanded="false"] .es-ft-label { min-width: 104px; }   /* "SHOW FILTERS" at 10px */
+.es-filter-toggle[aria-expanded="true"]  .es-ft-label { min-width: 94px; }    /* "HIDE FILTERS" at 10px */
 .es-ft-count {
   display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px;
   background: #185fa5; color: #fff; font-size: .6875rem; line-height: 18px; text-align: center;
@@ -208,10 +208,21 @@ html.es-ft-hidden .list-toolbar:not([data-es-no-collapse]) { display: none; }
    don't load this file.
    ============================================================= */
 
+/* Pagination: the boxed (rounded-rectangle) page buttons of Appointments on EVERY staff
+   list. The theme draws them as circles; appointments-records.css only fixed .ar-page pages,
+   so Inventory, Accounts, Branches, Dentists and Service Pricing were still round. */
+.nxl-container ul.pagination-common-style li a { border-radius: 8px !important; }
+.nxl-container ul.pagination-common-style li a.active { background: #3454d1 !important; border-color: #3454d1 !important; color: #fff !important; }
+html.app-skin-dark .nxl-container ul.pagination-common-style li a.active { background: #5473ef !important; border-color: #5473ef !important; }
+
 /* Readable buttons: the theme draws buttons at 9–10px; 11px everywhere on staff pages */
 .nxl-container .btn { font-size: 11px; }
 .nxl-container .btn-sm, .nxl-container .btn-group-sm > .btn { font-size: 11px; }
 .nxl-container .hdr-btn { font-size: 11px !important; }
+/* Page-header actions (Add …, Export, New …, Back to List, Print, Mark all as read, Publish
+   Announcement, template Edit) and Show Filters: a touch smaller than the 11px body buttons so
+   the uppercase labels look less bulky. Size/colour/icons unchanged. */
+.nxl-container .hdr-btn, .nxl-container .btn.es-btn-compact { font-size: 10px !important; letter-spacing: .45px; }
 .nxl-container .an-fc-tag { font-size: 11px; }
 .nxl-container .btn:focus-visible { box-shadow: 0 0 0 3px rgba(24, 95, 165, .25); outline: none; }
 

@@ -31,6 +31,8 @@ $filterBranch = isset($_GET['branch']) ? (int)$_GET['branch'] : getSessionBranch
 if (!isOwner() && $filterBranch !== getSessionBranch()) $filterBranch = getSessionBranch();
 $filterStatus = in_array($_GET['status'] ?? '', ['pending', 'confirmed', 'checked_in', 'completed', 'cancelled', 'no_show'], true) ? $_GET['status'] : '';
 $page         = max(1, (int)($_GET['page'] ?? 1));
+// ?patient=ID — one patient's records (Patients List › View Appointments). Still branch-scoped below.
+$filterPatient = max(0, (int)($_GET['patient'] ?? 0));
 
 // Sort (table headers) / search / appointment date (validated in list_filters.php)
 $sortOptions  = [
@@ -53,7 +55,8 @@ $dateFrom      = isOwner() ? listDate('from') : $aptDate;
 $dateTo        = isOwner() ? listDate('to')   : $aptDate;
 $extra         = listSearchFilter($search, ['appointment_code']);
 array_push($extra, ...listDateRange('appointment_date', $dateFrom, $dateTo));
-$filtersOn     = listActiveCount([isOwner() ? $filterBranch : 0, $filterStatus, $search, $dateFrom, isOwner() ? $dateTo : '', $sortKey !== 'date_asc']);
+if ($filterPatient) $extra[] = 'patient_id=eq.' . $filterPatient;
+$filtersOn     = listActiveCount([isOwner() ? $filterBranch : 0, $filterStatus, $search, $dateFrom, isOwner() ? $dateTo : '', $sortKey !== 'date_asc', $filterPatient]);
 
 // Ended, never-checked-in appointments become No Show before the list is read
 // (same shared, throttled rule as the Schedule — controllers/appointment_lifecycle.php)
@@ -70,8 +73,24 @@ $from         = $data['from'];
 $to           = $data['to'];
 
 $dateParams = isOwner() ? ['from' => $dateFrom, 'to' => $dateTo] : ['date' => $aptDate];
-$baseUrl = listUrl('appointments-records.php', ['branch' => isOwner() ? $filterBranch : 0, 'status' => $filterStatus, 'q' => $search] + $dateParams + ['sort' => $sortKey === 'date_asc' ? '' : $sortKey]);
-$sortBase = listUrl('appointments-records.php', ['branch' => isOwner() ? $filterBranch : 0, 'status' => $filterStatus, 'q' => $search] + $dateParams);
+$baseUrl = listUrl('appointments-records.php', ['branch' => isOwner() ? $filterBranch : 0, 'status' => $filterStatus, 'q' => $search] + $dateParams + ['patient' => $filterPatient, 'sort' => $sortKey === 'date_asc' ? '' : $sortKey]);
+$sortBase = listUrl('appointments-records.php', ['branch' => isOwner() ? $filterBranch : 0, 'status' => $filterStatus, 'q' => $search] + $dateParams + ['patient' => $filterPatient]);
+
+// Name for the "Appointments of …" bar: from the rows already loaded; only when the page is
+// empty (e.g. a status chip with no matches) is the patient read — owner only, so a branch
+// account never learns the name of a patient it has no records for.
+$patientScope = null;
+if ($filterPatient) {
+    foreach ($appointments as $a) {
+        if (!empty($a['patients']['full_name'])) { $patientScope = $a['patients']; break; }
+    }
+    if (!$patientScope && isOwner()) {
+        $pr = supabase_request('patients', 'GET', [], 'select=full_name,patient_code&patient_id=eq.' . $filterPatient . '&limit=1');
+        $patientScope = (is_array($pr['data'] ?? null) && isset($pr['data'][0])) ? $pr['data'][0] : null;
+    }
+}
+// Reset / "Show all patients" keep the other filters but drop the patient
+$allPatientsUrl = listUrl('appointments-records.php', ['branch' => isOwner() ? $filterBranch : 0, 'status' => $filterStatus, 'q' => $search] + $dateParams + ['sort' => $sortKey === 'date_asc' ? '' : $sortKey]);
 
 // ── Local badge helpers (mirror appointment_controller values) ─
 function aptStatusBadgeClass(string $s): string
@@ -82,7 +101,7 @@ function aptStatusBadgeClass(string $s): string
         'checked_in' => 'bg-soft-primary text-primary-emphasis',
         'completed'  => 'bg-soft-info text-info',
         'cancelled'  => 'bg-soft-danger text-danger',
-        'no_show'    => 'bg-soft-secondary text-secondary',
+        'no_show'    => 'es-noshow',
         default      => 'bg-soft-secondary text-secondary',
     };
 }
@@ -115,10 +134,10 @@ require_once __DIR__ . '/controllers/record_ui.php';
     <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <!-- Analytics design language + this page's list / modal styles -->
     <link rel="stylesheet" href="assets/css/analytics.css?v=8">
-    <link rel="stylesheet" href="assets/css/appointments-records.css?v=8">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=10">
 </head>
 
 <body>
@@ -173,7 +192,7 @@ require_once __DIR__ . '/controllers/record_ui.php';
                             <!-- Quick status filter (sets the Status filter below and applies it) -->
                             <div class="ar-quick" role="group" aria-label="Show appointments by status">
                                 <?php foreach (['' => ['All', ''], 'pending' => ['Pending', 'warn'], 'confirmed' => ['Confirmed', 'info'], 'checked_in' => ['Checked In', 'violet'],
-                                                'completed' => ['Completed', 'up'], 'cancelled' => ['Cancelled', 'down'], 'no_show' => ['No Show', 'slate']] as $sv => [$sl, $tone]): ?>
+                                                'completed' => ['Completed', 'up'], 'cancelled' => ['Cancelled', 'down'], 'no_show' => ['No Show', 'noshow']] as $sv => [$sl, $tone]): ?>
                                 <button type="button" class="ar-quick-btn<?= $filterStatus === $sv ? ' is-active' : '' ?>" aria-pressed="<?= $filterStatus === $sv ? 'true' : 'false' ?>"
                                         onclick="arQuickStatus('<?= $sv ?>')"><?php if ($tone): ?><span class="ar-qdot t-<?= $tone ?>"></span><?php endif; ?><?= $sl ?></button>
                                 <?php endforeach; ?>
@@ -181,6 +200,22 @@ require_once __DIR__ . '/controllers/record_ui.php';
 
                             <!-- Status is chosen with the chips above (no Status dropdown in the filters) -->
                             <input type="hidden" id="filterStatus" value="<?= htmlspecialchars($filterStatus) ?>">
+                            <!-- One patient's records (from Patients List): kept by applyFilters() via data-list-param -->
+                            <input type="hidden" id="filterPatient" data-list-param="patient" value="<?= $filterPatient ?: '' ?>">
+                            <?php if ($filterPatient): ?>
+                            <div class="ar-patient-scope" role="status">
+                                <span class="ar-patient-scope-icon" aria-hidden="true"><i class="feather-user"></i></span>
+                                <span class="ar-patient-scope-text">
+                                    Showing the appointment records of
+                                    <strong><?= htmlspecialchars(aptNameCase((string)($patientScope['full_name'] ?? 'this patient'))) ?></strong>
+                                    <?php if (!empty($patientScope['patient_code'])): ?><span class="ar-patient-scope-code"><?= htmlspecialchars($patientScope['patient_code']) ?></span><?php endif; ?>
+                                </span>
+                                <span class="ar-patient-scope-actions">
+                                    <a href="patient-records.php?id=<?= $filterPatient ?>" data-es-full><i class="feather-file-text"></i> Patient Record</a>
+                                    <a href="<?= htmlspecialchars($allPatientsUrl) ?>" class="ar-patient-scope-clear"><i class="feather-x"></i> Show all patients</a>
+                                </span>
+                            </div>
+                            <?php endif; ?>
 
                             <div class="list-toolbar">
                                 <?= listSearchControl($search, 'Appointment code') ?>
@@ -373,7 +408,7 @@ require_once __DIR__ . '/controllers/record_ui.php';
     <script src="assets/js/es-ajax.js?v=7"></script>
     <script src="assets/js/apt-details.js?v=1"></script>
     <script src="assets/js/custom-select.js?v=3"></script>
-    <script src="assets/js/appointments.js?v=13"></script>
+    <script src="assets/js/appointments.js?v=14"></script>
     <script>
         function applyFilters() {
             window._applyFilters('appointments-records.php', {
@@ -777,7 +812,7 @@ require_once __DIR__ . '/controllers/record_ui.php';
             var printedAt = new Date().toLocaleString('en-PH', { dateStyle: 'long', timeStyle: 'short' });
             var abs = function(path) { return new URL(path, location.href).href; };
             var logo = abs('assets/images/EssenciaSmile-Original-Logo.svg');
-            var tone = function(s) { return ({ pending: 'amber', confirmed: 'blue', checked_in: 'violet', completed: 'green', cancelled: 'red', paid: 'green', partial: 'amber', unpaid: 'red', ongoing: 'blue' })[s] || 'slate'; };
+            var tone = function(s) { return ({ pending: 'amber', confirmed: 'blue', checked_in: 'violet', completed: 'green', cancelled: 'red', no_show: 'noshow', paid: 'green', partial: 'amber', unpaid: 'red', ongoing: 'blue' })[s] || 'slate'; };
             var pill = function(label, s) { return '<span class="pill ' + tone(s) + '"><i></i>' + e(label) + '</span>'; };
             var payStatus = (bill && bill.payment_status) || apt.payment_status || 'unpaid';
             var dentist = apt.dentists && apt.dentists.full_name ? e(apt.dentists.full_name) : '<span class="na">Not assigned</span>';
@@ -872,7 +907,7 @@ require_once __DIR__ . '/controllers/record_ui.php';
                 '.pill{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:999px;font-size:9.5px;font-weight:600;margin-left:2px;}' +
                 '.pill i{width:5px;height:5px;border-radius:50%;background:currentColor;}' +
                 '.pill.green{background:#e3f6ec;color:#188a52;}.pill.amber{background:#fff1d9;color:#b26a00;}.pill.red{background:#fdeaea;color:#d23f3f;}' +
-                '.pill.blue{background:#e8f0fb;color:#185fa5;}.pill.violet{background:#f1ebfa;color:#7246b5;}.pill.slate{background:#eef2f7;color:#475569;}' +
+                '.pill.blue{background:#e8f0fb;color:#185fa5;}.pill.violet{background:#f1ebfa;color:#7246b5;}.pill.slate{background:#eef2f7;color:#475569;}.pill.noshow{background:#4b5563;color:#fff;}' +
                 '.notes{margin:2px 0;white-space:pre-wrap;overflow-wrap:anywhere;}.na{color:#9ca3af;font-style:italic;margin:0;}' +
                 '.sign{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:36px;break-inside:avoid;}' +
                 '.sign div{border-top:1px solid #9ca3af;padding-top:5px;text-align:center;font-size:9.5px;color:#6b7280;}' +
@@ -992,7 +1027,8 @@ require_once __DIR__ . '/controllers/record_ui.php';
                 confirmed: 'Confirmed',
                 checked_in: 'Checked In',
                 completed: 'Completed',
-                cancelled: 'Cancelled'
+                cancelled: 'Cancelled',
+                no_show: 'No Show'
             })[s] || _arCapFirst(s) || '—';
         }
 
@@ -1002,7 +1038,8 @@ require_once __DIR__ . '/controllers/record_ui.php';
                 confirmed: 'bg-soft-success text-success',
                 checked_in: 'bg-soft-primary text-primary',
                 completed: 'bg-soft-info text-info',
-                cancelled: 'bg-soft-danger text-danger'
+                cancelled: 'bg-soft-danger text-danger',
+                no_show: 'es-noshow'
             })[s] || 'bg-soft-secondary text-secondary';
         }
 

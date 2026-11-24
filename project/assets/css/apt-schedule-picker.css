@@ -1,0 +1,296 @@
+/* ══════════════════════════════════════════════════════════════════════
+   Add / Edit Appointment → Schedule card (appointments-schedule.php)
+   Branch + "Selected Schedule" on top; month picker | time slots below,
+   both boxes the same height. Markup is built by assets/js/appointments.js
+   (_initAdminCal, _renderSlots). Loaded last, so it wins over the older
+   calendar rules in custom.css / admin.css without touching other pages.
+   ══════════════════════════════════════════════════════════════════════ */
+#appointmentModal {
+    --sp-primary: #2563eb;
+    --sp-primary-soft: #eff6ff;
+    --sp-primary-line: #bfdbfe;
+    --sp-border: #e2e8f0;
+    --sp-hair: #f1f5f9;
+    --sp-text: #1e293b;
+    --sp-muted: #64748b;
+    --sp-faint: #cbd5e1;
+    --sp-danger: #ef4444;
+    --sp-radius: 14px;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────────── */
+#appointmentModal .apt-sched-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.85rem 1rem;
+    align-items: stretch;
+    padding: 0.85rem 1rem 1rem;
+}
+#appointmentModal .apt-sched-top {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+#appointmentModal .apt-sched-top > .apt-field { margin-bottom: 0; }
+#appointmentModal .apt-sched-top > .apt-dt-field:only-child { grid-column: 1 / -1; }
+#appointmentModal .apt-sched-left,
+#appointmentModal .apt-sched-right { display: flex; flex-direction: column; min-width: 0; }
+
+/* Both column labels sit on one line of equal height */
+#appointmentModal .apt-sched-left > .apt-label { display: block; line-height: 28px; margin: 0 0 0.45rem; }
+#appointmentModal .apt-slots-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    min-height: 28px; margin: 0 0 0.45rem;
+}
+#appointmentModal .apt-slots-refresh {
+    display: inline-flex; align-items: center; gap: 0.3rem; height: 28px; padding: 0 0.6rem;
+    border: 1px solid var(--sp-border); border-radius: 8px; background: #fff;
+    font-size: 0.74rem; font-weight: 600; color: var(--sp-primary); cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+#appointmentModal .apt-slots-refresh[hidden] { display: none; }
+#appointmentModal .apt-slots-refresh:hover { background: var(--sp-primary-soft); border-color: var(--sp-primary-line); }
+#appointmentModal .apt-slots-refresh:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); }
+
+/* ── Selected Schedule readout (always the same height → no jumping) ── */
+#appointmentModal .apt-dt-summary,
+#appointmentModal .apt-dt-empty {
+    align-items: center; gap: 0.5rem; min-height: 42px; margin: 0; padding: 0 0.85rem;
+    border-radius: 10px; font-size: 0.84rem;
+}
+#appointmentModal .apt-dt-summary {
+    border: 1px solid #bbf7d0; background: #f0fdf4; color: #15803d; font-weight: 600;
+}
+#appointmentModal .apt-dt-empty {
+    display: none;
+    border: 1.5px dashed #d8e0ec; background: #fafbfd; color: #94a3b8; font-weight: 500;
+}
+#appointmentModal #aptDateTimeSummary[style*="none"] + .apt-dt-empty { display: flex; }
+
+/* ── Empty / placeholder states (both boxes) ───────────────────────── */
+#appointmentModal .apt-pick-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
+    flex: 1; height: 100%; padding: 1.5rem 1rem;
+    font-size: 0.8rem; line-height: 1.5; color: var(--sp-muted); text-align: center;
+}
+#appointmentModal .apt-pick-empty strong { font-size: 0.86rem; font-weight: 600; color: var(--sp-text); }
+#appointmentModal .apt-pick-empty-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 42px; height: 42px; margin-bottom: 0.4rem; border-radius: 50%;
+    background: var(--sp-primary-soft); color: var(--sp-primary); font-size: 1.05rem;
+}
+#appointmentModal .apt-slot-keep { display: block; margin-top: 0.4rem; color: #15803d; font-weight: 600; }
+
+/* ── Month picker ──────────────────────────────────────────────────── */
+#appointmentModal #adminCalendarWrap.apt-cal-box {
+    display: flex; flex-direction: column; flex: 1;
+    min-height: 318px; padding: 0.6rem 0.65rem 0.55rem;
+    border: 1px solid var(--sp-border) !important; border-radius: var(--sp-radius) !important;
+    background: #fff;
+}
+#appointmentModal #adminCalendarWrap .fc { font-family: inherit; }
+#appointmentModal #adminCalendarWrap .fc .fc-header-toolbar { margin: 0 0 0.4rem !important; padding: 0 0.1rem; }
+#appointmentModal #adminCalendarWrap .fc .fc-toolbar-title { font-size: 0.92rem !important; font-weight: 700; color: var(--sp-text); }
+#appointmentModal #adminCalendarWrap .fc .fc-button-primary {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; padding: 0 !important;
+    background: #fff !important; border: 1px solid var(--sp-border) !important; border-radius: 8px !important;
+    color: var(--sp-muted) !important; box-shadow: none !important; font-size: 0.8rem !important;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+#appointmentModal #adminCalendarWrap .fc .fc-button-primary:not(:disabled):hover {
+    background: var(--sp-primary-soft) !important; border-color: var(--sp-primary-line) !important; color: var(--sp-primary) !important;
+}
+#appointmentModal #adminCalendarWrap .fc .fc-button-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+#appointmentModal #adminCalendarWrap .fc .fc-button-primary:focus-visible { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2) !important; }
+
+/* No grid lines: a clean date picker */
+#appointmentModal #adminCalendarWrap .fc .fc-scrollgrid,
+#appointmentModal #adminCalendarWrap .fc-theme-standard td,
+#appointmentModal #adminCalendarWrap .fc-theme-standard th { border: 0 !important; }
+#appointmentModal #adminCalendarWrap .fc .fc-view-harness { min-height: 0; }
+/* FullCalendar stamps pixel widths on its tables; keep them fluid so the
+   month never clips when the modal / column changes width without a
+   window resize event. */
+#appointmentModal #adminCalendarWrap .fc .fc-col-header,
+#appointmentModal #adminCalendarWrap .fc .fc-daygrid-body,
+#appointmentModal #adminCalendarWrap .fc .fc-scrollgrid-sync-table { width: 100% !important; }
+#appointmentModal #adminCalendarWrap .fc .fc-col-header-cell-cushion {
+    padding: 0.2rem 0 0.4rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: #94a3b8; text-decoration: none; cursor: default;
+}
+
+/* Day cells */
+#appointmentModal #adminCalendarWrap .fc .fc-daygrid-day,
+#appointmentModal #adminCalendarWrap .fc .fc-day-today,
+#appointmentModal #adminCalendarWrap .fc-day-selected,
+#appointmentModal #adminCalendarWrap .fc-day-fully-booked,
+#appointmentModal #adminCalendarWrap .fc-day-closed { background: transparent !important; }
+#appointmentModal #adminCalendarWrap .fc .fc-daygrid-day-frame {
+    display: flex; align-items: center; justify-content: center; min-height: 0; height: 40px;
+}
+#appointmentModal #adminCalendarWrap .fc .fc-daygrid-day-top { justify-content: center; }
+#appointmentModal #adminCalendarWrap .fc .fc-daygrid-day-events,
+#appointmentModal #adminCalendarWrap .fc .fc-daygrid-day-bg { display: none; }
+#appointmentModal #adminCalendarWrap .fc .fc-daygrid-day-number {
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; padding: 0 !important; border-radius: 10px;
+    font-size: 0.82rem; font-weight: 500; color: var(--sp-text); text-decoration: none;
+    transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+}
+
+/* Cursor: a hand on every bookable day (FullCalendar's day number is an
+   <a> without href, which showed the text I-beam); blocked days say so. */
+#appointmentModal #adminCalendarWrap .fc .fc-daygrid-day,
+#appointmentModal #adminCalendarWrap .fc .fc-daygrid-day * { cursor: pointer; user-select: none; }
+#appointmentModal #adminCalendarWrap .fc .fc-day-closed,
+#appointmentModal #adminCalendarWrap .fc .fc-day-closed *,
+#appointmentModal #adminCalendarWrap .fc .fc-day-unavail,
+#appointmentModal #adminCalendarWrap .fc .fc-day-unavail *,
+#appointmentModal #adminCalendarWrap .fc .fc-day-fully-booked,
+#appointmentModal #adminCalendarWrap .fc .fc-day-fully-booked * { cursor: not-allowed !important; }
+#appointmentModal #adminCalendarWrap .fc .fc-day-disabled,
+#appointmentModal #adminCalendarWrap .fc .fc-day-disabled * { cursor: default !important; }
+
+/* Hover (bookable days only) */
+#appointmentModal #adminCalendarWrap .fc .fc-daygrid-day:not(.fc-day-closed):not(.fc-day-unavail):not(.fc-day-fully-booked):not(.fc-day-disabled):not(.fc-day-selected):hover .fc-daygrid-day-number {
+    background: var(--sp-primary-soft); color: var(--sp-primary);
+}
+/* Today: thin ring (bookings start tomorrow, so it is usually muted too) */
+#appointmentModal #adminCalendarWrap .fc .fc-day-today .fc-daygrid-day-number {
+    box-shadow: inset 0 0 0 1.5px var(--sp-primary-line); font-weight: 600;
+}
+/* Selected */
+#appointmentModal #adminCalendarWrap .fc .fc-day-selected .fc-daygrid-day-number {
+    background: var(--sp-primary) !important; color: #fff !important; font-weight: 700;
+    box-shadow: 0 4px 10px -2px rgba(37, 99, 235, 0.45);
+}
+/* Before tomorrow / closed: muted (closed also struck through) */
+#appointmentModal #adminCalendarWrap .fc .fc-day-unavail .fc-daygrid-day-number { color: var(--sp-faint) !important; }
+#appointmentModal #adminCalendarWrap .fc .fc-day-closed .fc-daygrid-day-number {
+    color: var(--sp-faint) !important; text-decoration: line-through; text-decoration-color: #e2e8f0;
+}
+/* Fully booked: muted number + small red dot (replaces the old "FULL" tag) */
+#appointmentModal #adminCalendarWrap .fc-day-fully-booked::after { content: none !important; }
+#appointmentModal #adminCalendarWrap .fc .fc-day-fully-booked .fc-daygrid-day-number { color: #94a3b8 !important; text-decoration: none; }
+#appointmentModal #adminCalendarWrap .fc .fc-day-fully-booked .fc-daygrid-day-number::after {
+    content: ""; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px;
+    border-radius: 50%; background: var(--sp-danger);
+}
+
+/* Legend under the month */
+#appointmentModal .apt-cal-legend {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 0.35rem 1rem;
+    margin-top: auto; padding-top: 0.55rem; border-top: 1px solid var(--sp-hair);
+    font-size: 0.7rem; color: var(--sp-muted);
+}
+#appointmentModal .apt-cal-legend span,
+#appointmentModal .slot-foot span { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+#appointmentModal .apt-lg { display: inline-block; flex-shrink: 0; width: 10px; height: 10px; border-radius: 3px; }
+#appointmentModal .apt-lg-sel  { background: var(--sp-primary); }
+#appointmentModal .apt-lg-open { background: #f5f8ff; border: 1px solid #c7d7fb; }
+#appointmentModal .apt-lg-off  { background: #f1f5f9; border: 1px solid #e2e8f0; }
+#appointmentModal .apt-lg-full { width: 6px; height: 6px; margin: 0 2px; border-radius: 50%; background: var(--sp-danger); }
+
+/* ── Time-slot panel ───────────────────────────────────────────────── */
+/* No inner scrolling: the panel is as tall as its times, and the grid row
+   stretches whichever box is shorter (calendar or slots) to the same height. */
+#appointmentModal #adminTimeSlots {
+    display: flex; flex-direction: column; flex: 1; min-height: 318px; padding: 0;
+    border: 1px solid var(--sp-border); border-radius: var(--sp-radius);
+    background: #fff; overflow: hidden;
+}
+#appointmentModal #adminTimeSlotsGrid {
+    display: flex; flex-direction: column; flex: 1;
+    max-height: none; overflow: visible;
+}
+#appointmentModal .slot-head {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.35rem 0.6rem;
+    flex-shrink: 0; padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--sp-hair); background: #f8fafc;
+}
+#appointmentModal .slot-head-date { font-size: 0.85rem; font-weight: 700; color: var(--sp-text); }
+#appointmentModal .slot-head-meta { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; }
+#appointmentModal .slot-pill {
+    display: inline-flex; align-items: center; gap: 0.25rem; height: 22px; padding: 0 0.5rem;
+    border: 1px solid var(--sp-border); border-radius: 999px; background: #fff;
+    font-size: 0.7rem; font-weight: 600; color: var(--sp-muted); white-space: nowrap;
+}
+#appointmentModal .slot-pill i { font-size: 0.72rem; }
+#appointmentModal .slot-pill-ok   { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
+#appointmentModal .slot-pill-none { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+
+#appointmentModal .slot-body { flex: 1; padding: 0.7rem 0.8rem 0.75rem; }
+
+#appointmentModal .slot-group-label {
+    display: flex; align-items: baseline; justify-content: space-between; margin: 0 0 0.4rem;
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #94a3b8;
+}
+#appointmentModal .slot-grid + .slot-group-label { margin-top: 0.8rem; }
+#appointmentModal .slot-group-count { font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--sp-muted); }
+#appointmentModal .slot-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 0.4rem;
+}
+#appointmentModal .slot-btn {
+    display: flex; align-items: center; justify-content: center; width: 100%; height: 34px; padding: 0 0.25rem;
+    border: 1px solid; border-radius: 9px; font-family: inherit; font-size: 0.78rem; font-weight: 600;
+    white-space: nowrap; cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s;
+}
+#appointmentModal .slot-btn-available { background: #f5f8ff; border-color: #d6e2fb; color: #1d4ed8; }
+#appointmentModal .slot-btn-available:hover:not(.selected) { background: var(--sp-primary-soft); border-color: #93b4f6; }
+#appointmentModal .slot-btn-available.selected {
+    background: var(--sp-primary); border-color: var(--sp-primary); color: #fff;
+    box-shadow: 0 4px 10px -2px rgba(37, 99, 235, 0.45);
+}
+#appointmentModal .slot-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25); }
+#appointmentModal .slot-btn-booked {
+    background: #f8fafc; border-color: #eef2f7; color: var(--sp-faint);
+    text-decoration: line-through; cursor: not-allowed;
+}
+#appointmentModal .slot-foot {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 0.35rem 1rem; flex-shrink: 0;
+    padding: 0.5rem 0.8rem; border-top: 1px solid var(--sp-hair);
+    font-size: 0.7rem; color: var(--sp-muted);
+}
+#appointmentModal .apt-slot-warn {
+    flex-shrink: 0; margin: 0.6rem 0.8rem 0; padding: 0.45rem 0.65rem; border-radius: 8px;
+    background: #fffbeb; color: #92400e; font-size: 0.76rem;
+}
+/* Failed request message (appointments.js → _loadTimeSlots) */
+#appointmentModal #adminTimeSlotsGrid > .slot-empty.text-danger {
+    margin: auto; padding: 1.25rem; font-size: 0.8rem; text-align: center;
+}
+
+/* Loading skeleton (same shape as the list) */
+#appointmentModal .slot-loading { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0; gap: 0; }
+#appointmentModal .slot-sk {
+    display: block; border-radius: 8px;
+    background: linear-gradient(90deg, #f1f5f9 0%, #e9eef5 40%, #f1f5f9 80%);
+    background-size: 200% 100%; animation: spShimmer 1.2s ease-in-out infinite;
+}
+#appointmentModal .slot-sk-title { width: 42%; height: 14px; }
+#appointmentModal .slot-sk-meta  { width: 28%; height: 14px; }
+#appointmentModal .slot-sk-label { width: 70px; height: 10px; margin-bottom: 0.5rem; }
+#appointmentModal .slot-loading .slot-grid + .slot-sk-label { margin-top: 0.9rem; }
+#appointmentModal .slot-sk-chip  { height: 34px; border-radius: 9px; }
+@keyframes spShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { #appointmentModal .slot-sk { animation: none; } }
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 991.98px) {
+    #appointmentModal .apt-sched-body,
+    #appointmentModal .apt-sched-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+/* Phones: one column, calendar then times */
+@media (max-width: 575.98px) {
+    #appointmentModal .apt-sched-body,
+    #appointmentModal .apt-sched-top { grid-template-columns: minmax(0, 1fr); }
+    #appointmentModal .apt-sched-top > .apt-dt-field:only-child { grid-column: auto; }
+    #appointmentModal #adminTimeSlots { min-height: 220px; }
+    #appointmentModal #adminCalendarWrap.apt-cal-box { min-height: 0; }
+    #appointmentModal #adminCalendarWrap .fc .fc-daygrid-day-number { width: 32px; height: 32px; }
+}

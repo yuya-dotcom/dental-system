@@ -260,9 +260,9 @@ function notify_email_send(string $to, string $subject, string $html, string $te
         $mail = createMailer();
         $mail->Timeout = 15;
         $mail->addAddress($to);
-        if (is_file(NOTIFY_LOGO_PNG)) $mail->addEmbeddedImage(NOTIFY_LOGO_PNG, 'essencia-logo', 'EssenciaSmile-Logo.png', 'base64', 'image/png');
+        // Templates use cid:essencia-logo; on the live site it becomes the hosted URL (no Gmail attachment chip)
         $mail->Subject = $subject;
-        $mail->Body    = $html;
+        $mail->Body    = str_replace('cid:essencia-logo', mailer_logo_src($mail, NOTIFY_LOGO_PNG), $html);
         $mail->AltBody = $text;
         $mail->send();
         return ['ok' => true, 'reference' => $mail->getLastMessageID()];

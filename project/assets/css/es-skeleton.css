@@ -1,0 +1,144 @@
+/* =============================================================
+   Page skeletons for staff navigation (Admin / Owner / Dentist).
+   Loaded by partials/sidebar.php on every staff page; built by
+   assets/js/es-skeleton.js.
+
+   When a sidebar link (or another link to a staff page) is clicked, the
+   current page's header + content are swapped for a skeleton of the
+   page being opened, straight away. The browser keeps that on screen
+   until the new page arrives, then the new page fades in over it.
+
+   The shimmer colours match the Dashboard's .dash-skel (analytics.css),
+   so every loading placeholder in the system looks the same.
+   ============================================================= */
+
+:root {
+  --sk-base: #eef2f7;
+  --sk-shine: #e2e8f0;
+  --sk-line: #eef1f5;
+}
+html.app-skin-dark {
+  --sk-base: #1a2336;
+  --sk-shine: #243049;
+  --sk-line: #1f2a3c;
+}
+
+/* ── The shimmer block ─────────────────────────────────────── */
+.sk {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--sk-base) 25%, var(--sk-shine) 37%, var(--sk-base) 63%);
+  background-size: 400% 100%;
+  animation: es-sk-shine 1.3s ease infinite;
+}
+.sk.i { display: inline-block; vertical-align: middle; }
+.sk.c { border-radius: 50%; }
+.sk.r8 { border-radius: 8px; }
+.sk.pill { border-radius: 999px; }
+.sk + .sk.l2 { margin-top: 8px; }
+@keyframes es-sk-shine {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* ── Swap: hide the old page, show the skeleton ─────────────── */
+html.es-sk-nav .nxl-content > :not(.es-sk) { display: none !important; }
+html.es-sk-nav .modal,
+html.es-sk-nav .modal-backdrop,
+html.es-sk-nav .swal2-container,
+html.es-sk-nav .es-processing,
+html.es-sk-nav .es-nav-flyout,
+html.es-sk-nav .es-nav-tip { display: none !important; }
+html.es-sk-nav body { overflow: auto !important; padding-right: 0 !important; }
+.es-sk { animation: es-sk-in .12s ease-out; }
+@keyframes es-sk-in { from { opacity: .4; } to { opacity: 1; } }
+.es-sk .card { overflow: hidden; }
+.es-sk .card:hover { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, .1), 0 1px 2px -1px rgba(0, 0, 0, .1); }
+
+/* Page header: the real title + breadcrumb, button placeholders */
+.es-sk .page-header-right-items-wrapper { display: flex; align-items: center; gap: 8px; }
+.es-sk .sk.btn-ph { height: 36px; border-radius: 8px; }
+
+/* Card header */
+.es-sk .card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 61px; }
+.sk-hd-l { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sk-hd-r { display: flex; align-items: center; gap: 6px; }
+
+/* Between the card header and the table: stat tiles, status chips, tabs, filter toggle */
+.sk-pre { display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: 16px 25px; border-bottom: 1px solid var(--sk-line); }
+.sk-stats { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 12px; }
+.sk-stat { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--sk-line); border-radius: 10px; }
+.sk-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sk-tabs { display: flex; gap: 22px; padding-bottom: 10px; border-bottom: 1px solid var(--sk-line); }
+
+/* Table */
+.sk-table { width: 100%; table-layout: fixed; margin: 0; border-collapse: collapse; }
+.sk-table th,
+.sk-table td { padding: 0 16px; vertical-align: middle; border-bottom: 1px solid var(--sk-line); background: transparent; }
+.sk-table th:first-child,
+.sk-table td:first-child { padding-left: 25px; }
+.sk-table th:last-child,
+.sk-table td:last-child { padding-right: 25px; }
+.sk-table thead tr { height: 46px; }
+.sk-table thead th { background: rgba(127, 140, 160, .05); }
+.sk-table tbody tr { height: 62px; }
+.sk-table tbody tr:last-child td { border-bottom: 0; }
+.sk-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sk-cell.r { justify-content: flex-end; }
+.sk-cell > div { flex: 1 1 auto; min-width: 0; }
+.sk-cell.r > div { flex: 0 1 auto; display: flex; flex-direction: column; align-items: flex-end; }
+
+/* Footer: "Showing …" + pager */
+.es-sk .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 57px; }
+
+/* Dashboard / analytics pieces */
+.sk-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; min-height: 22px; }
+.sk-kpi .card-body { display: flex; flex-direction: column; gap: 12px; min-height: 152px; }
+.sk-kpi-top { display: flex; align-items: center; justify-content: space-between; }
+.sk-chart { position: relative; display: flex; align-items: flex-end; gap: 4%; height: var(--h, 300px); padding: 8px 4px 24px 34px; }
+.sk-chart::before { content: ""; position: absolute; inset: 8px 4px 24px 34px;
+  background: repeating-linear-gradient(to bottom, var(--sk-line) 0 1px, transparent 1px 25%); }
+.sk-chart > .sk { position: relative; flex: 1 1 0; border-radius: 6px 6px 2px 2px; }
+.sk-list > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 25px; border-bottom: 1px solid var(--sk-line); }
+.sk-list > div:last-child { border-bottom: 0; }
+.sk-list .sk-who { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 auto; }
+.sk-list .sk-who > div { flex: 1 1 auto; min-width: 0; }
+.sk-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.sk-tiles > div { display: flex; align-items: center; gap: 12px; padding: 18px 22px; border-right: 1px solid var(--sk-line); }
+.sk-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 20px; }
+.sk-form > div { display: flex; flex-direction: column; gap: 8px; }
+.sk-side { display: flex; flex-direction: column; gap: 6px; padding: 18px; border-right: 1px solid var(--sk-line); }
+.sk-side > .sk { height: 34px; border-radius: 8px; }
+.sk-split { display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+
+/* Phones: lists become cards (assets/js/es-responsive.js) and grids stack */
+@media (max-width: 767.98px) {
+  .sk-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sk-pre { padding: 14px 16px; }
+  .sk-cards > div { padding: 14px 16px; border-bottom: 1px solid var(--sk-line); display: flex; flex-direction: column; gap: 9px; }
+  .sk-form { grid-template-columns: minmax(0, 1fr); }
+  .sk-split { grid-template-columns: minmax(0, 1fr); }
+  .sk-side { flex-direction: row; overflow: hidden; border-right: 0; border-bottom: 1px solid var(--sk-line); }
+  .sk-side > .sk { width: 110px !important; flex: none; }
+  .sk-hide-sm { display: none !important; }
+}
+
+/* ── Arrival: the new page fades in over the skeleton ───────── */
+/* Chromium 126+: a cross-document view transition crossfades the skeleton
+   into the new page (both pages opt in through this stylesheet). */
+@view-transition { navigation: auto; }
+::view-transition-old(root),
+::view-transition-new(root) { animation-duration: .22s; }
+/* Other browsers: the early script in partials/sidebar.php sets this class
+   when the page was opened from a skeleton. */
+html.es-sk-arrive .nxl-content { animation: es-sk-arrive .22s ease-out; }
+@keyframes es-sk-arrive { from { opacity: .35; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+  .sk { animation: none; }
+  .es-sk, html.es-sk-arrive .nxl-content { animation: none; }
+}

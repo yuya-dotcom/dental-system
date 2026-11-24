@@ -149,10 +149,10 @@ if (!empty($treatments)) {
             opacity: 0.85;
         }
     </style>
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-records.css?v=7">
     <link rel="stylesheet" href="assets/css/analytics.css?v=8">
-    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=10">
 </head>
 
 <body>
@@ -504,7 +504,7 @@ if (!empty($treatments)) {
                                 </select>
                             </div>
                             <div class="tw-field tw-span-full">
-                                <label class="tw-label" for="work_procedure_notes">Procedure Notes <span class="tw-req" aria-hidden="true">*</span></label>
+                                <label class="tw-label" for="work_procedure_notes">Procedure Notes <span class="tw-optional">(optional)</span></label>
                                 <textarea id="work_procedure_notes" class="form-control tw-input tw-textarea" rows="3"
                                     placeholder="Describe what was performed e.g. Extraction of lower left molar..."></textarea>
                             </div>
@@ -805,7 +805,7 @@ if (!empty($treatments)) {
     <script src="assets/js/es-records.js?v=3"></script>
     <script src="assets/js/odontogram.js?v=2"></script>
     <script src="assets/js/treatments-active-chart.js?v=4"></script>
-    <script src="assets/js/treatments-active.js?v=10"></script>
+    <script src="assets/js/treatments-active.js?v=11"></script>
     <script>
         window._sessionBranchId = '<?= getSessionBranch() ?>';
         window._currentUser = '<?= htmlspecialchars($currentUser['full_name'] ?? '', ENT_QUOTES) ?>';

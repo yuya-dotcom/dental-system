@@ -50,7 +50,8 @@ function prApptPill(?string $status): string
         'confirmed', 'checked_in', 'in_progress' => 'pr-pill-blue',
         'completed'                              => 'pr-pill-green',
         'pending', 'rescheduled'                 => 'pr-pill-amber',
-        'cancelled', 'no_show', 'declined'       => 'pr-pill-red',
+        'cancelled', 'declined'                  => 'pr-pill-red',
+        'no_show'                                => 'pr-pill-noshow',
         default                                  => '',
     };
     return '<span class="pr-pill ' . $cls . '">' . htmlspecialchars(ucwords(str_replace('_', ' ', $s ?: '—'))) . '</span>';
@@ -72,12 +73,12 @@ function prApptPill(?string $status): string
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <link rel="stylesheet" href="assets/css/odontogram.css?v=3">
-    <link rel="stylesheet" href="assets/css/patient-record.css?v=5">
+    <link rel="stylesheet" href="assets/css/patient-record.css?v=8">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-records.css?v=7">
     <link rel="stylesheet" href="assets/css/analytics.css?v=8">
-    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=10">
 </head>
 
 <body>
@@ -100,10 +101,10 @@ function prApptPill(?string $status): string
                     </ul>
                 </div>
                 <div class="page-header-right ms-auto d-flex align-items-center gap-2">
-                    <a href="patients-list.php" class="btn btn-light btn-sm">
+                    <a href="patients-list.php" class="btn btn-light btn-sm es-btn-compact">
                         <i class="feather-arrow-left me-1"></i> Back to List
                     </a>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prPrintBtn" aria-haspopup="dialog">
+                    <button type="button" class="btn btn-outline-secondary btn-sm es-btn-compact" id="prPrintBtn" aria-haspopup="dialog">
                         <i class="feather-printer me-1"></i> Print
                     </button>
                 </div>
@@ -392,7 +393,7 @@ function prApptPill(?string $status): string
                                                     <option value="correction">Correction</option>
                                                 </select>
                                                 <button type="button" class="btn btn-primary btn-sm px-3" id="pr_chartSave" disabled>
-                                                    <i class="feather-save me-1"></i> Save changes
+                                                    <i class="feather-save me-1"></i> Save Changes
                                                 </button>
                                                 <button type="button" class="btn btn-light btn-sm" id="pr_chartDiscard" disabled>Discard</button>
                                             </div>
@@ -518,7 +519,7 @@ function prApptPill(?string $status): string
                 confirmed: 'blue', checked_in: 'blue', in_progress: 'blue', ongoing: 'blue',
                 completed: 'green', paid: 'green', signed: 'green',
                 pending: 'amber', rescheduled: 'amber', partial: 'amber', partially_paid: 'amber', unpaid: 'red',
-                cancelled: 'red', no_show: 'red', declined: 'red', overdue: 'red',
+                cancelled: 'red', no_show: 'noshow', declined: 'red', overdue: 'red',
             };
             return `<span class="pr-pill ${map[s] ? 'pr-pill-' + map[s] : ''}">${esc(ucwords(s))}</span>`;
         }
@@ -659,8 +660,11 @@ function prApptPill(?string $status): string
                     renderTab(containerId, action, data);
                 })
                 .catch(err => {
+                    // try again the next time the tab is opened
+                    const key = { get_appointments: 'appointments', get_treatments: 'treatments', get_billing: 'billing', get_notes: 'notes' }[action];
+                    if (key) loaded[key] = false;
                     document.getElementById(containerId).innerHTML =
-                        `<p class="text-danger small"><i class="feather-alert-circle me-1"></i>${esc(err.message)}</p>`;
+                        `<p class="text-danger small"><i class="feather-alert-circle me-1"></i>${esc(err.message || 'Could not load this tab.')}</p>`;
                 });
         }
 
@@ -669,7 +673,17 @@ function prApptPill(?string $status): string
             if (action === 'get_appointments') el.innerHTML = renderAppointments(data);
             if (action === 'get_treatments') el.innerHTML = renderTreatments(data);
             if (action === 'get_billing') el.innerHTML = renderBilling(data);
-            if (action === 'get_notes') el.innerHTML = renderNotes(data);
+            if (action === 'get_notes') {
+                el.innerHTML = renderNotes(data);
+                if (window.enhanceDatePickers) window.enhanceDatePickers();
+            }
+        }
+
+        // Today as YYYY-MM-DD in the browser's (clinic's) time zone — toISOString() is UTC,
+        // which gave yesterday's date before 8:00 AM in the Philippines.
+        function localToday() {
+            const d = new Date();
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
         }
 
         // ── Render: Appointments ─────────────────────────────────────────────
@@ -779,8 +793,9 @@ function prApptPill(?string $status): string
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label" for="noteDate">Date <span class="text-danger">*</span></label>
-                            <input type="date" id="noteDate" class="form-control"
-                                value="${new Date().toISOString().slice(0, 10)}">
+                            <!-- Shared calendar picker (custom-select.js); clinic-local today, no future dates -->
+                            <input type="date" id="noteDate" class="form-control js-date-picker" data-dp-max="today"
+                                placeholder="Select date" value="${localToday()}">
                         </div>
                         <div class="col-md-9">
                             <label class="form-label" for="noteText">Note <span class="text-danger">*</span></label>
@@ -1000,11 +1015,11 @@ function prApptPill(?string $status): string
                     <h6 class="pr-section-title"><span><i class="feather-upload me-1"></i> Upload File</span>
                         <span class="pr-hint">Appears in the patient's portal under My Files</span></h6>
                     <div id="pfUploadErr" class="alert alert-danger small py-2 px-3 mb-3" style="display:none;"></div>
-                    <div class="row g-3 align-items-end">
+                    <div class="row g-3 align-items-end pr-upload-row">
                         <div class="col-md-4">
                             <label class="form-label" for="pfType">File Type <span class="text-danger">*</span></label>
                             <select id="pfType" class="form-select js-custom-select" data-cs-float>
-                                <option value="">— Select type —</option>
+                                <option value="">Select Type</option>
                                 ${pfTypes.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('')}
                             </select>
                         </div>
@@ -1150,6 +1165,7 @@ function prApptPill(?string $status): string
                 .then(r => r.json())
                 .then(data => {
                     document.getElementById('waivers-content').innerHTML = renderWaivers(data.waivers ?? []);
+                    if (window.enhanceCustomSelects) window.enhanceCustomSelects();   // Waiver Type → shared custom dropdown
                 })
                 .catch(() => {
                     document.getElementById('waivers-content').innerHTML =
@@ -1169,11 +1185,11 @@ function prApptPill(?string $status): string
                 <div class="pr-form">
                     <h6 class="pr-section-title"><span><i class="feather-upload me-1"></i> Upload Waiver</span></h6>
                     <div id="waiverUploadErr" class="alert alert-danger small py-2 px-3 mb-3" style="display:none;"></div>
-                    <div class="row g-3 align-items-end">
+                    <div class="row g-3 align-items-end pr-upload-row">
                         <div class="col-md-5">
                             <label class="form-label" for="waiverType">Waiver Type <span class="text-danger">*</span></label>
                             <select id="waiverType" class="form-select js-custom-select" data-cs-float>
-                                <option value="">— Select type —</option>
+                                <option value="">Select Type</option>
                                 ${typeOptions}
                             </select>
                         </div>

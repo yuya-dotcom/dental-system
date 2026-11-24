@@ -117,7 +117,12 @@
   function emptyHTML(text, error) {
     return '<div class="esn-empty' + (error ? " is-error" : "") + '"><i class="' + (error ? "feather-alert-circle" : "feather-check-circle") + '"></i>' + esc(text) + "</div>";
   }
-  var LOADING = '<div class="esn-loading"><span class="spinner-border text-primary" role="status"></span>Loading notifications…</div>';
+  // Loading rows: the same skeleton design as page navigation (assets/css/es-skeleton.css)
+  var LOADING = '<div class="sk-list" role="status" aria-label="Loading notifications">' + [62, 48, 70, 55, 66].map(function (w) {
+    return '<div><div class="sk-who"><span class="sk c" style="width:36px;height:36px"></span><div style="display:flex;flex-direction:column;gap:8px">' +
+      '<span class="sk" style="width:' + w + '%"></span><span class="sk" style="width:' + (w + 18) + '%;height:10px"></span></div></div>' +
+      '<span class="sk" style="width:54px;height:10px"></span></div>';
+  }).join('') + '</div>';
 
   // Mark one row read in the UI
   function paintRead(el) {
@@ -301,6 +306,7 @@
     function loadPage() {
       var mine = ++pseq;
       syncUrl();
+      if (typeof paintReset === "function") paintReset();
       plist.innerHTML = LOADING;
       var q = API + "?action=list&per=" + PER + "&page=" + f.page +
         "&state=" + encodeURIComponent(f.state) + "&category=" + encodeURIComponent(f.category) +
@@ -319,21 +325,34 @@
           : emptyHTML(f.state === "unread" ? "You're all caught up — no unread notifications" + (filtered ? " here." : ".") : (filtered ? "No notifications match these filters." : "No notifications yet."), false);
         var from = j.total ? (f.page - 1) * PER + 1 : 0, to = Math.min(j.total, f.page * PER);
         pfoot.hidden = j.total <= 0;
-        pfoot.innerHTML = '<span>Showing ' + from + "–" + to + " of " + j.total + "</span>" +
-          '<span class="esn-pager">' +
-          '<button type="button" class="btn btn-sm btn-light" data-page="' + (f.page - 1) + '"' + (f.page <= 1 ? " disabled" : "") + ' aria-label="Previous page"><i class="feather-chevron-left"></i></button>' +
-          '<span class="align-self-center px-2">Page ' + f.page + " of " + j.pages + "</span>" +
-          '<button type="button" class="btn btn-sm btn-light" data-page="' + (f.page + 1) + '"' + (f.page >= j.pages ? " disabled" : "") + ' aria-label="Next page"><i class="feather-chevron-right"></i></button>' +
-          "</span>";
+        pfoot.innerHTML = '<span>Showing ' + from + "–" + to + " of " + j.total + "</span>" + pagerHTML(f.page, j.pages);
       }).catch(function (err) {
         if (mine !== pseq) return;
         plist.innerHTML = emptyHTML(err.message || "Notifications could not be loaded.", true);
       });
     }
 
+    // Same boxed pager as listPager() in controllers/list_filters.php (window of 5 + first/last)
+    function pagerHTML(cur, pages) {
+      if (pages <= 1) return "";
+      var off = function (dir) { return '<li><a class="text-muted" style="pointer-events:none;opacity:.4;" aria-disabled="true"><i class="bi bi-arrow-' + dir + '"></i></a></li>'; };
+      var link = function (p, label, extra) { return '<li><a href="#" data-page="' + p + '"' + (extra || "") + ">" + label + "</a></li>"; };
+      var gap = '<li><span class="px-1 text-muted">…</span></li>';
+      var wS = Math.max(1, cur - 2), wE = Math.min(pages, wS + 4); wS = Math.max(1, wE - 4);
+      var h = '<ul class="list-unstyled d-flex align-items-center gap-1 mb-0 pagination-common-style" aria-label="Pages">';
+      h += cur > 1 ? link(cur - 1, '<i class="bi bi-arrow-left"></i>', ' aria-label="Previous page"') : off("left");
+      if (wS > 1) h += link(1, "1") + (wS > 2 ? gap : "");
+      for (var p = wS; p <= wE; p++) h += link(p, String(p), p === cur ? ' class="active" aria-current="page"' : "");
+      if (wE < pages) h += (wE < pages - 1 ? gap : "") + link(pages, String(pages));
+      h += cur < pages ? link(cur + 1, '<i class="bi bi-arrow-right"></i>', ' aria-label="Next page"') : off("right");
+      return h + "</ul>";
+    }
+
     pfoot.addEventListener("click", function (e) {
       var b = e.target.closest("[data-page]");
-      if (!b || b.disabled) return;
+      if (!b) return;
+      e.preventDefault();
+      if (b.classList.contains("active")) return;
       f.page = Math.max(1, parseInt(b.getAttribute("data-page"), 10) || 1);
       loadPage();
       page.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -343,13 +362,43 @@
       var label = f.category && sel.category ? sel.category.options[sel.category.selectedIndex].text : "";
       markAllConfirm(f.category, label).then(function (done) { if (done) loadPage(); }).catch(function (err) { swalError(err.message); });
     });
+    // Reset: back to the default list (All / every category, priority, branch, page 1).
+    // Same behaviour as listResetControl() on the other list pages: greyed out when
+    // nothing is filtered, otherwise shows how many filters are on.
     var reset = document.getElementById("esnPageReset");
+    var DEFAULTS = { state: "all", category: "", priority: "", branch: "" };
+    function activeFilters() {
+      return Object.keys(DEFAULTS).filter(function (k) { return sel[k] && f[k] !== DEFAULTS[k]; }).length;
+    }
+    function paintReset() {
+      if (!reset) return;
+      var n = activeFilters();
+      reset.disabled = n === 0;
+      reset.classList.toggle("disabled", n === 0);
+      reset.title = n ? "Clear all filters" : "No filters applied";
+      reset.innerHTML = '<i class="feather-rotate-ccw me-1" aria-hidden="true"></i>Reset' +
+        (n ? ' <span class="list-active-count">' + n + "</span>" : "");
+      // the "Show Filters" button's count badge (added by es-ajax.js)
+      var tog = page.querySelector(".es-filter-toggle");
+      if (tog) {
+        var c = tog.querySelector(".es-ft-count");
+        if (n && !c) { c = document.createElement("span"); c.className = "es-ft-count"; c.title = "Active filters"; tog.insertBefore(c, tog.querySelector(".es-ft-caret")); }
+        if (c) { if (n) c.textContent = String(n); else c.remove(); }
+      }
+    }
     if (reset) reset.addEventListener("click", function () {
-      f = { state: "all", category: "", priority: "", branch: "", page: 1 };
-      Object.keys(sel).forEach(function (k) { if (sel[k]) sel[k].value = f[k]; });
+      f = { state: DEFAULTS.state, category: DEFAULTS.category, priority: DEFAULTS.priority, branch: DEFAULTS.branch, page: 1 };
+      Object.keys(sel).forEach(function (k) {
+        var s = sel[k];
+        if (!s) return;
+        s.value = f[k];
+        if (s._csRefresh) s._csRefresh();     // custom dropdown shows the default label again
+      });
       loadPage();
     });
     wireList(plist, function () { if (f.state === "unread") loadPage(); });
     loadPage();
+    // es-ajax.js adds the "Show Filters" button on DOMContentLoaded: give it the count too
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(paintReset, 0); });
   }
 })();

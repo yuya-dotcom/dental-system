@@ -90,7 +90,7 @@ $canBilling = !isDentist();
         @media (max-width:575.98px) { .dash-stats { grid-template-columns:repeat(2, minmax(0, 1fr)); } .dash-stat { padding:1rem; } .dash-chart { min-height:250px; } }
         @media (prefers-reduced-motion: reduce) { .summary-arrow, a.an-ico, .an-kpi .progress-bar { transition:none; } }
     </style>
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
 </head>
 <body>
@@ -186,7 +186,7 @@ $canBilling = !isDentist();
                             </div>
                             <div class="card-body pb-2">
                                 <div class="dash-chart" id="chartAppointments" role="img" aria-label="Appointments per month: total, completed and cancelled">
-                                    <div class="dash-chart-state"><span class="es-spin"></span>Loading chart…</div>
+                                    <div class="sk-chart" aria-hidden="true"><?php foreach ([46, 62, 38, 74, 58, 84] as $skH): ?><span class="sk" style="height:<?= $skH ?>%"></span><?php endforeach; ?></div>
                                 </div>
                             </div>
                             <details class="dash-table"><summary>Show as table</summary><div class="table-responsive px-3 pb-3" id="tableAppointments"></div></details>
@@ -231,14 +231,14 @@ $canBilling = !isDentist();
                     <div class="<?= isOwner() ? 'col-xxl-6' : 'col-12' ?>">
                         <div class="card stretch stretch-full">
                             <div class="card-header"><h5 class="card-title">Top Services Booked <small>all time</small></h5></div>
-                            <div class="card-body p-0" id="topServices"><div class="px-4 py-3 text-muted fs-12"><span class="es-spin me-2"></span>Loading…</div></div>
+                            <div class="card-body p-0" id="topServices"><div class="sk-list" aria-hidden="true"><?php for ($skI = 0; $skI < 5; $skI++): ?><div><div class="sk-who"><span class="sk c" style="width:32px;height:32px"></span><div style="display:flex;flex-direction:column;gap:8px"><span class="sk" style="width:<?= [62, 48, 70, 55, 40][$skI] ?>%"></span><span class="sk" style="width:<?= [34, 28, 40, 30, 25][$skI] ?>%;height:10px"></span></div></div><span class="sk" style="width:60px;height:14px"></span></div><?php endfor; ?></div></div>
                         </div>
                     </div>
                     <?php if (isOwner()): ?>
                     <div class="col-xxl-6">
                         <div class="card stretch stretch-full">
                             <div class="card-header"><h5 class="card-title">Appointments by Branch <small>all time</small></h5></div>
-                            <div class="card-body p-0" id="byBranch"><div class="px-4 py-3 text-muted fs-12"><span class="es-spin me-2"></span>Loading…</div></div>
+                            <div class="card-body p-0" id="byBranch"><div class="sk-list" aria-hidden="true"><?php for ($skI = 0; $skI < 5; $skI++): ?><div><div class="sk-who"><span class="sk c" style="width:32px;height:32px"></span><div style="display:flex;flex-direction:column;gap:8px"><span class="sk" style="width:<?= [62, 48, 70, 55, 40][$skI] ?>%"></span><span class="sk" style="width:<?= [34, 28, 40, 30, 25][$skI] ?>%;height:10px"></span></div></div><span class="sk" style="width:60px;height:14px"></span></div><?php endfor; ?></div></div>
                         </div>
                     </div>
                     <?php endif; ?>
@@ -254,7 +254,7 @@ $canBilling = !isDentist();
                             </div>
                             <div class="card-body pb-2">
                                 <div class="dash-chart" id="chartRevenue" role="img" aria-label="Payments received per month">
-                                    <div class="dash-chart-state"><span class="es-spin"></span>Loading chart…</div>
+                                    <div class="sk-chart" aria-hidden="true"><?php foreach ([46, 62, 38, 74, 58, 84] as $skH): ?><span class="sk" style="height:<?= $skH ?>%"></span><?php endforeach; ?></div>
                                 </div>
                             </div>
                             <details class="dash-table"><summary>Show as table</summary><div class="table-responsive px-3 pb-3" id="tableRevenue"></div></details>
@@ -297,7 +297,7 @@ $canBilling = !isDentist();
                                 <div class="table-responsive">
                                     <table class="table table-hover mb-0 an-table">
                                         <thead><tr><th>Code</th><th>Time</th><th>Patient</th><th>Service</th><th>Branch</th><th>Status</th></tr></thead>
-                                        <tbody id="todayBody"><tr><td colspan="6" class="text-center py-4 text-muted"><span class="es-spin me-2"></span>Loading today's appointments…</td></tr></tbody>
+                                        <tbody id="todayBody"><?php for ($skI = 0; $skI < 4; $skI++): ?><tr aria-hidden="true"><?php foreach ([60, 50, 75, 65, 55] as $skW): ?><td><span class="sk" style="width:<?= $skW ?>%"></span></td><?php endforeach; ?><td><span class="sk pill" style="width:78px;height:22px"></span></td></tr><?php endfor; ?></tbody>
                                     </table>
                                 </div>
                             </div>
@@ -317,7 +317,7 @@ $canBilling = !isDentist();
                                 <a href="inventory-records.php?status=low_stock" class="dash-kv text-decoration-none"><span class="text-muted"><span class="an-key me-2" style="background:var(--an-warn)"></span>Low stock</span><span class="v text-warning" data-v="inv.low"><span class="dash-skel"></span></span></a>
                                 <a href="inventory-records.php?status=out_of_stock" class="dash-kv text-decoration-none"><span class="text-muted"><span class="an-key me-2" style="background:var(--an-bad)"></span>Out of stock</span><span class="v text-danger" data-v="inv.out"><span class="dash-skel"></span></span></a>
                                 <div class="dash-sec border-top">Stock alerts</div>
-                                <div id="stockAlerts"><div class="px-4 py-3 text-muted fs-12"><span class="es-spin me-2"></span>Loading…</div></div>
+                                <div id="stockAlerts"><div class="sk-list" aria-hidden="true"><?php for ($skI = 0; $skI < 3; $skI++): ?><div><div class="sk-who"><span class="sk c" style="width:32px;height:32px"></span><div style="display:flex;flex-direction:column;gap:8px"><span class="sk" style="width:<?= [62, 48, 70, 55, 40][$skI] ?>%"></span><span class="sk" style="width:<?= [34, 28, 40, 30, 25][$skI] ?>%;height:10px"></span></div></div><span class="sk" style="width:64px;height:14px"></span></div><?php endfor; ?></div></div>
                             </div>
                         </div>
                     </div>
@@ -363,6 +363,6 @@ $canBilling = !isDentist();
     <script src="assets/js/theme-customizer-init.min.js"></script>
     <script src="assets/js/custom-select.js?v=3"></script>
     <script>window.ES_DASH = <?= json_encode(['branches' => (object)array_column(array_map(fn($b) => ['id' => (int)$b['branch_id'], 'name' => (string)$b['branch_name']], $branches), 'name', 'id')], JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
-    <script src="assets/js/dashboard.js?v=6"></script>
+    <script src="assets/js/dashboard.js?v=7"></script>
 </body>
 </html>

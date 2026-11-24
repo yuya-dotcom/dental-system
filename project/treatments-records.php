@@ -70,10 +70,10 @@ $sortBase = listUrl('treatments-records.php', ['branch' => $filterBranch, 'statu
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <link rel="stylesheet" href="assets/css/treatments.css">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-records.css?v=7">
     <link rel="stylesheet" href="assets/css/analytics.css?v=8">
-    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=10">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>

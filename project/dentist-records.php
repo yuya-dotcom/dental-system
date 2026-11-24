@@ -119,7 +119,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES);
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-records.css?v=7">
 </head>
 <body>
@@ -134,16 +134,6 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES);
                         <li class="breadcrumb-item"><a href="dashboard.php">Home</a></li>
                         <li class="breadcrumb-item">Records</li>
                     </ul>
-                </div>
-                <div class="page-header-right ms-auto">
-                    <div class="page-header-right-items">
-                        <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-                            <a href="accounts-records.php?role=dentist" class="btn btn-light-brand btn-sm hdr-btn"
-                               data-bs-toggle="tooltip" title="Dentists who need to sign in are added as Dentist accounts in Accounts">
-                                <i class="feather-key me-1"></i> Dentist Accounts
-                            </a>
-                        </div>
-                    </div>
                 </div>
             </div>
             <div class="main-content">

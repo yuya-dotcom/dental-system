@@ -169,7 +169,18 @@ function nr_mask(?string $r): string
         .nr-stat.is-sent .nr-stat-value { color: #1e8449; }
         .nr-ch { display: inline-flex; align-items: center; gap: 5px; font-size: .78rem; font-weight: 600; }
         .nr-recipient { font-family: monospace; font-size: .78rem; color: #6b7a90; }
-        .nr-reason { font-size: .74rem; color: #c0392b; max-width: 260px; white-space: normal; display: block; }
+        /* Status cell: pill (+ attempts) on one line, reason in a soft callout below */
+        .nr-status { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 300px; }
+        .nr-status-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .nr-status-meta { display: inline-flex; align-items: center; gap: 4px; font-size: .74rem; color: #8a94a6; }
+        .nr-status-meta i { font-size: .72rem; }
+        .nr-reason { display: flex; align-items: flex-start; gap: 7px; width: 100%; padding: 7px 10px; border-radius: 8px; font-size: .74rem; line-height: 1.45; white-space: normal; }
+        .nr-reason i { flex: 0 0 auto; font-size: .8rem; margin-top: 2px; }
+        .nr-reason span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .nr-reason.is-failed  { background: #fef3f2; border: 1px solid #fee4e2; color: #7a271a; }
+        .nr-reason.is-failed i { color: #d92d20; }
+        .nr-reason.is-skipped { background: #fffaeb; border: 1px solid #fef0c7; color: #7a4a0e; }
+        .nr-reason.is-skipped i { color: #b54708; }
         .nr-sub { font-size: .76rem; color: #8a94a6; }
         .nr-setup { margin: 20px; }
         .nr-email-frame { width: 100%; height: 460px; border: 1px solid #e9eef5; border-radius: 8px; background: #fff; }
@@ -181,10 +192,10 @@ function nr_mask(?string $r): string
         .nr-ann-form .form-label { font-size: .8rem; font-weight: 600; }
         .nr-chips code { background: #eef4fb; color: #185fa5; border-radius: 4px; padding: 1px 5px; margin: 0 3px 3px 0; display: inline-block; font-size: .76rem; cursor: pointer; }
     </style>
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-records.css?v=7">
     <link rel="stylesheet" href="assets/css/analytics.css?v=8">
-    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=10">
 </head>
 
 <body>
@@ -325,10 +336,20 @@ function nr_mask(?string $r): string
                                                 <td><span class="nr-ch"><i class="<?= $channelIcons[$r['channel']] ?? 'feather-send' ?>"></i><?= $e($channelLabels[$r['channel']] ?? $r['channel']) ?></span></td>
                                                 <?php if ($isOwner): ?><td><?= recBranch($r['branches']['branch_name'] ?? '', $branches ?? []) ?></td><?php endif; ?>
                                                 <td>
-                                                    <?= recPill($statusLabels[$st] ?? $st, recToneFromBadge($statusClass[$st] ?? '')) ?>
-                                                    <?php if ($r['channel'] === 'sms' && $st === 'sent' && !empty($r['provider_status'])): ?><span class="nr-sub d-block">Carrier: <?= $e($r['provider_status']) ?></span><?php endif; ?>
-                                                    <?php if ((int)$r['attempts'] > 1): ?><span class="nr-sub d-block"><?= (int)$r['attempts'] ?> attempts</span><?php endif; ?>
-                                                    <?php if (in_array($st, ['failed', 'skipped'], true) && !empty($r['failure_reason'])): ?><span class="nr-reason" title="<?= $e($r['failure_reason']) ?>"><?= $e(mb_strimwidth($r['failure_reason'], 0, 90, '…')) ?></span><?php endif; ?>
+                                                    <!-- Status first; the reason sits under it in a soft callout (full text in View Details) -->
+                                                    <div class="nr-status">
+                                                        <div class="nr-status-top">
+                                                            <?= recPill($statusLabels[$st] ?? $st, recToneFromBadge($statusClass[$st] ?? '')) ?>
+                                                            <?php if ((int)$r['attempts'] > 1): ?><span class="nr-status-meta"><i class="feather-repeat"></i><?= (int)$r['attempts'] ?> attempts</span><?php endif; ?>
+                                                        </div>
+                                                        <?php if ($r['channel'] === 'sms' && $st === 'sent' && !empty($r['provider_status'])): ?><span class="nr-status-meta">Carrier: <?= $e($r['provider_status']) ?></span><?php endif; ?>
+                                                        <?php if (in_array($st, ['failed', 'skipped'], true) && !empty($r['failure_reason'])): ?>
+                                                            <div class="nr-reason is-<?= $st ?>" title="<?= $e($r['failure_reason']) ?>">
+                                                                <i class="<?= $st === 'failed' ? 'feather-alert-circle' : 'feather-info' ?>" aria-hidden="true"></i>
+                                                                <span><?= $e(mb_strimwidth($r['failure_reason'], 0, 140, '…')) ?></span>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </div>
                                                 </td>
                                                 <td class="rec-col-action">
                                                     <div class="dropdown">
@@ -376,8 +397,8 @@ function nr_mask(?string $r): string
                                                 <td><?= $t['channel'] === 'sms' ? '<span class="rec-muted">—</span>' : '<span class="rec-strong">' . $e($t['subject']) . '</span>' ?></td>
                                                 <td><div class="nr-tpl-body"><?= $e($t['message_body']) ?></div></td>
                                                 <td><?= recPill($t['is_active'] ? 'On' : 'Off', $t['is_active'] ? 'up' : 'slate') ?></td>
-                                                <td><span class="rec-date d-block"><?= $e(date('M d, Y', strtotime($t['updated_at']))) ?></span><?= !empty($t['updated_by']) ? '<span class="rec-date-sub">' . $e($t['updated_by']) . '</span>' : '' ?></td>
-                                                <td class="rec-col-action"><button type="button" class="btn btn-sm btn-light" data-tpl="<?= $e(json_encode($t, JSON_UNESCAPED_UNICODE)) ?>" onclick="nrEditTpl(this)"><i class="feather-edit-2 me-1"></i>Edit</button></td>
+                                                <td><?php $tu = strtotime($t['updated_at']); ?><?= recWhen(date('M d, Y', $tu), date('h:i A', $tu)) ?><?= !empty($t['updated_by']) ? '<span class="rec-date-sub d-block">by ' . $e($t['updated_by']) . '</span>' : '' ?></td>
+                                                <td class="rec-col-action"><button type="button" class="btn btn-sm btn-light es-btn-compact" data-tpl="<?= $e(json_encode($t, JSON_UNESCAPED_UNICODE)) ?>" onclick="nrEditTpl(this)"><i class="feather-edit-2 me-1"></i>Edit</button></td>
                                             </tr>
                                         <?php endforeach; ?>
                                         <?php if (!$templates): ?><?= listEmpty(6, false, 'No templates saved', 'The built-in default texts are used until a template is edited.', 'feather-edit-3') ?><?php endif; ?>
@@ -413,7 +434,7 @@ function nr_mask(?string $r): string
                                             <input class="form-check-input" type="checkbox" id="nrAnnPush">
                                             <label class="form-check-label" for="nrAnnPush">Also send as a push notification (<?= number_format($pushAccounts) ?> patient account<?= $pushAccounts === 1 ? '' : 's' ?> with push on)</label>
                                         </div>
-                                        <button type="submit" class="btn btn-primary"><i class="feather-send me-1"></i>Publish Announcement</button>
+                                        <button type="submit" class="btn btn-sm btn-primary es-btn-compact"><i class="feather-send me-1"></i>Publish Announcement</button>
                                     </div>
                                 </form>
                             </div>

@@ -47,10 +47,10 @@ $pageData = [
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
     <link rel="stylesheet" href="assets/css/service-records.css?v=2">
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-records.css?v=7">
     <link rel="stylesheet" href="assets/css/analytics.css?v=8">
-    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=10">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>
@@ -265,7 +265,7 @@ $pageData = [
                                     <div class="tab-pane fade" id="srTabMaterials" role="tabpanel">
                                         <div class="d-flex align-items-center justify-content-between gap-2 px-4 pt-3">
                                             <p class="text-muted small mb-0">Deducted from inventory when an appointment with this service is completed.</p>
-                                            <button class="btn btn-primary btn-sm flex-shrink-0" onclick="srOpenAddMaterial()">
+                                            <button class="btn btn-primary btn-sm flex-shrink-0 es-btn-compact" onclick="srOpenAddMaterial()">
                                                 <i class="feather-plus me-1"></i> Add Material
                                             </button>
                                         </div>

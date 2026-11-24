@@ -138,7 +138,7 @@ $selfId = (int)($_SESSION['user_id'] ?? 0);
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-records.css?v=7">
 </head>
 <body>
@@ -157,10 +157,6 @@ $selfId = (int)($_SESSION['user_id'] ?? 0);
                 <div class="page-header-right ms-auto">
                     <div class="page-header-right-items">
                         <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-                            <a href="dentist-records.php" class="btn btn-light-brand btn-sm hdr-btn"
-                               data-bs-toggle="tooltip" title="Specialization, contact number and leave status are managed in Dentist Records">
-                                <i class="feather-users me-1"></i> Dentist Records
-                            </a>
                             <button type="button" class="btn btn-primary btn-sm hdr-btn" onclick="openAddUserModal()">
                                 <i class="feather-plus me-1"></i> Add Account
                             </button>

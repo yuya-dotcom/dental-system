@@ -21,15 +21,19 @@ if (!$patientId) {
     exit;
 }
 requirePatientAccess($patientId);   // non-owners: only patients with an appointment at their branch
+// Reads don't change the session: release its lock so the tabs (and the chart) load side by side
+// instead of waiting for each other. The access check above has already cached its answer.
+if (str_starts_with($action, 'get_')) session_write_close();
 
 switch ($action) {
 
     // ── TAB: Appointments ─────────────────────────────
     case 'get_appointments':
-        $page     = max(1, (int)($_GET['page'] ?? 1));
-        $upcoming = getPatientUpcomingAppointments($patientId);
-        $history  = getPatientAppointmentHistory($patientId, $page);
-        echo json_encode(['success' => true, 'upcoming' => $upcoming, 'history' => $history]);
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        // One combined read; the separate reads are the fallback
+        $tab  = getPatientAppointmentsTab($patientId, $page)
+             ?? ['upcoming' => getPatientUpcomingAppointments($patientId), 'history' => getPatientAppointmentHistory($patientId, $page)];
+        echo json_encode(['success' => true, 'upcoming' => $tab['upcoming'], 'history' => $tab['history']]);
         break;
 
     // ── TAB: Clinical Notes ───────────────────────────
@@ -90,8 +94,9 @@ switch ($action) {
 
     // ── TAB: Billing ──────────────────────────────────
     case 'get_billing':
+        // The totals come from the same invoice rows (was a second read of the same table)
         $invoices = getPatientInvoices($patientId);
-        $summary  = getPatientFinancialSummary($patientId);
+        $summary  = patientFinancialSummaryFrom($invoices);
         echo json_encode(['success' => true, 'invoices' => $invoices, 'summary' => $summary]);
         break;
 

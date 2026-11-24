@@ -174,10 +174,10 @@ function fbTs(?string $iso): ?int
         #feedbackViewModal .fb-anon-note { margin: 1rem 0 0; font-size: .75rem; color: #6b7a90; }
     </style>
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
     <link rel="stylesheet" href="assets/css/es-records.css?v=7">
     <link rel="stylesheet" href="assets/css/analytics.css?v=8">
-    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=10">
 </head>
 <body>
     <?php include("partials/sidebar.php") ?>

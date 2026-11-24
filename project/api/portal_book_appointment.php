@@ -27,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 require_once __DIR__ . '/../dbconfig.php';
 require_once __DIR__ . '/../controllers/appointment_controller.php';
 require_once __DIR__ . '/../controllers/branch_config.php';
+require_once __DIR__ . '/../controllers/portal_patient_record.php';
 
 function bookFail(string $message, string $code = 'validation'): void
 {
@@ -131,24 +132,20 @@ if (!$patientId) {
     $suffix     = trim($account['suffix']      ?? '');
     $nameParts  = array_filter([$firstName, $middleName, $lastName, $suffix]);
     $fullName   = implode(' ', $nameParts) ?: ('Portal Patient #' . $accountId);
-    $contactNum = trim($account['contact_number'] ?? '') ?: ('__PORTAL_' . $accountId . '__');
-    $patientCode = 'PAT-P' . str_pad($accountId, 5, '0', STR_PAD_LEFT);
-
-    $newPat = supabase_request('patients', 'POST', [
-        'patient_code'   => $patientCode,
+    // Shared helper: a number already on another patient stays on the account only
+    $newPat = portal_create_patient_row((int)$accountId, [
         'full_name'      => $fullName,
-        'contact_number' => $contactNum,
+        'contact_number' => trim($account['contact_number'] ?? ''),
         'birthdate'      => $account['birthdate'] ?: null,
         'branch_id'      => $branchId,
         'last_visit'     => $date,
-        'status'         => 'active',
     ]);
 
-    if (empty($newPat['data'][0]['patient_id'])) {
+    if (!$newPat['patient_id']) {
         bookFail('Could not create patient record. Please complete your profile first.');
     }
 
-    $patientId = (int)$newPat['data'][0]['patient_id'];
+    $patientId = (int)$newPat['patient_id'];
     supabase_request('patient_accounts', 'PATCH',
         ['patient_id' => $patientId],
         'account_id=eq.' . (int)$accountId

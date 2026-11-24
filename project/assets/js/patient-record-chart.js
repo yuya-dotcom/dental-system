@@ -317,7 +317,7 @@
         } catch (e) {
             Swal.fire({ icon: 'error', title: 'Could not save chart', text: e.message || 'Network error. Please try again.' });
         } finally {
-            btn.innerHTML = '<i class="feather-save me-1"></i> Save changes';
+            btn.innerHTML = '<i class="feather-save me-1"></i> Save Changes';
             renderSaveBar();
         }
     }

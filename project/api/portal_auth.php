@@ -22,6 +22,7 @@ require_once __DIR__ . '/../controllers/portal_validation.php';   // registratio
 require_once __DIR__ . '/../controllers/notification_helper.php';
 require_once __DIR__ . '/../controllers/appointment_services_helper.php';
 require_once __DIR__ . '/../controllers/portal_loaders.php';   // parallel read loaders
+require_once __DIR__ . '/../controllers/portal_patient_record.php';   // patients row behind an account
 
 $input  = json_decode(file_get_contents('php://input'), true);
 $action = $input['action'] ?? '';
@@ -144,13 +145,12 @@ if ($action === 'register') {
 
     if ($result['status'] === 201 && !empty($result['data'][0]['account_id'])) {
         $accountId = (int)$result['data'][0]['account_id'];
-        staffn_patient_registered($accountId, trim($firstName . ' ' . $lastName));   // staff bell
 
         // $firstName, $lastName, $middleName, $suffix are already normalised above
         $birthdate   = $input['birthdate']         ?? null;
         $gender      = normalize_gender($input['gender'] ?? '') ?? '';
         $civilStatus = $civilStatusIn ?? '';   // canonical value checked above
-        $nationality = trim($input['nationality']  ?? '');
+        $nationality = mb_substr(trim($input['nationality'] ?? ''), 0, 60);
         $homePhone   = trim($input['home_phone']   ?? '');
         // Consistent address capitalisation (controllers/name_helper.php)
         $address     = normalize_address_text($input['address']  ?? '');
@@ -159,53 +159,66 @@ if ($action === 'register') {
         $province    = normalize_address_text($input['province'] ?? '');
         $zip         = trim($input['zip']          ?? '');
 
-        $newContact = trim($input['contact_number'] ?? '');
-        if ($newContact) {
-            supabase_request(
-                'patient_accounts',
-                'PATCH',
-                ['contact_number' => $newContact],
-                'account_id=eq.' . $accountId
-            );
-        }
+        // All-or-nothing: the account only counts as created once its patient
+        // and patient_profiles rows are saved and linked. Any failure removes
+        // what was written, so the person can simply register again instead of
+        // being left with an account that silently lost their details.
+        $failed   = fn($r) => ($r['status'] ?? 0) === 0 || $r['status'] >= 400;
+        $rollback = function (?int $patientId, bool $reused) use ($accountId) {
+            supabase_request('patient_accounts', 'DELETE', [], 'account_id=eq.' . $accountId);
+            if ($patientId && !$reused) {
+                supabase_request('patient_profiles', 'DELETE', [], 'patient_id=eq.' . $patientId);
+                supabase_request('patients', 'DELETE', [], 'patient_id=eq.' . $patientId);
+            }
+        };
+        $failRegistration = function (string $step, string $err, ?int $patientId = null, bool $reused = false) use ($rollback, $accountId) {
+            error_log('[portal_auth] register: ' . $step . ' failed for account ' . $accountId . ': ' . $err);
+            $rollback($patientId, $reused);
+            echo json_encode(['success' => false, 'message' => 'We could not finish creating your account. Please try again.']);
+            exit;
+        };
 
-        $nameParts   = array_filter([$firstName, $middleName, $lastName, $suffix]);
-        $fullName    = implode(' ', $nameParts);
-        $cn          = !empty($rawContact) ? $rawContact : ('__PORTAL_' . $accountId . '__');
-        $patientCode = 'PAT-P' . str_pad($accountId, 5, '0', STR_PAD_LEFT);
-
-        $newPatient = supabase_request('patients', 'POST', [
-            'patient_code'   => $patientCode,
-            'full_name'      => $fullName,
-            'contact_number' => $cn,
+        $nameParts = array_filter([$firstName, $middleName, $lastName, $suffix]);
+        $created   = portal_create_patient_row($accountId, [
+            'full_name'      => implode(' ', $nameParts),
+            'contact_number' => $rawContact,
             'gender'         => $gender    ?: null,
             'birthdate'      => $birthdate ?: null,
-            'status'         => 'active',
         ]);
-
-        if (!empty($newPatient['data'][0]['patient_id'])) {
-            $patientId = (int)$newPatient['data'][0]['patient_id'];
-
-            supabase_request(
-                'patient_accounts',
-                'PATCH',
-                ['patient_id' => $patientId],
-                'account_id=eq.' . $accountId
-            );
-
-            supabase_request('patient_profiles', 'POST', [
-                'patient_id'   => $patientId,
-                'civil_status' => $civilStatus ?: null,
-                'nationality'  => $nationality ?: null,
-                'home_phone'   => $homePhone   ?: null,
-                'address'      => $address     ?: null,
-                'barangay'     => $barangay    ?: null,
-                'city'         => $city        ?: null,
-                'province'     => $province    ?: null,
-                'zip'          => $zip         ?: null,
-                'updated_at'   => date('c'),
-            ]);
+        $patientId = $created['patient_id'];
+        if (!$patientId && stripos((string)$created['error'], 'patients_gender_check') !== false) {
+            // Database still on the old gender list (database/proposed/2026-11-25_patients_gender_values.sql)
+            $rollback(null, false);
+            echo json_encode(['success' => false, 'code' => 'INVALID_FIELD', 'field' => 'gender',
+                'message' => 'This gender option cannot be saved yet. Please choose another option or contact the clinic.']);
+            exit;
         }
+        if (!$patientId) $failRegistration('patient record', (string)$created['error']);
+
+        $link = supabase_request('patient_accounts', 'PATCH', ['patient_id' => $patientId], 'account_id=eq.' . $accountId);
+        if ($failed($link)) $failRegistration('account link', (string)($link['error'] ?? ''), $patientId, $created['reused']);
+
+        $profileRow = [
+            'civil_status' => $civilStatus ?: null,
+            'nationality'  => $nationality ?: null,
+            'home_phone'   => $homePhone   ?: null,
+            'address'      => $address     ?: null,
+            'barangay'     => $barangay    ?: null,
+            'city'         => $city        ?: null,
+            'province'     => $province    ?: null,
+            'zip'          => $zip         ?: null,
+            'updated_at'   => date('c'),
+        ];
+        // A reused patient row may already carry a profile: update it, never add a second one
+        $hasProf = $created['reused']
+            ? !empty(supabase_request('patient_profiles', 'GET', [], 'patient_id=eq.' . $patientId . '&select=profile_id&limit=1')['data'])
+            : false;
+        $prof = $hasProf
+            ? supabase_request('patient_profiles', 'PATCH', $profileRow, 'patient_id=eq.' . $patientId)
+            : supabase_request('patient_profiles', 'POST', $profileRow + ['patient_id' => $patientId]);
+        if ($failed($prof)) $failRegistration('patient profile', (string)($prof['error'] ?? ''), $patientId, $created['reused']);
+
+        staffn_patient_registered($accountId, trim($firstName . ' ' . $lastName));   // staff bell (only once fully saved)
 
         echo json_encode(['success' => true]);
     } else {
@@ -770,28 +783,22 @@ if (($accSave['status'] ?? 0) === 0 || $accSave['status'] >= 400) {
     $contactNumber = $linkRes['data'][0]['contact_number'] ?? null;
 
     if (!$patientId) {
-        $nameParts   = array_filter([$firstName, $middleName, $lastName, $suffix]);
-        $fullName    = implode(' ', $nameParts);
-        $cn          = !empty($contactNumber) ? $contactNumber : ('__PORTAL_' . $accountId . '__');
-        $patientCode = 'PAT-P' . str_pad($accountId, 5, '0', STR_PAD_LEFT);
-
-        $newPatient = supabase_request('patients', 'POST', [
-            'patient_code'   => $patientCode,
-            'full_name'      => $fullName,
-            'contact_number' => $cn,
+        // Accounts left without a patient row (e.g. by the old registration bug)
+        // get one now; a number already on another patient is kept on the account only.
+        $nameParts = array_filter([$firstName, $middleName, $lastName, $suffix]);
+        $created   = portal_create_patient_row((int)$accountId, [
+            'full_name'      => implode(' ', $nameParts),
+            'contact_number' => $contactNumber,
             'gender'         => $gender    ?: null,
             'birthdate'      => $birthdate ?: null,
-            'status'         => 'active',
         ]);
-
-        if (!empty($newPatient['data'][0]['patient_id'])) {
-            $patientId = (int)$newPatient['data'][0]['patient_id'];
-            supabase_request(
-                'patient_accounts',
-                'PATCH',
-                ['patient_id' => $patientId],
-                'account_id=eq.' . $accountId
-            );
+        $patientId = $created['patient_id'];
+        $link = $patientId
+            ? supabase_request('patient_accounts', 'PATCH', ['patient_id' => $patientId], 'account_id=eq.' . (int)$accountId)
+            : null;
+        if (!$patientId || ($link['status'] ?? 0) === 0 || $link['status'] >= 400) {
+            echo json_encode(['success' => false, 'message' => 'We could not save your profile details. Please try again.']);
+            exit;
         }
     } else {
         $nameParts    = array_filter([$firstName, $middleName, $lastName, $suffix]);
@@ -805,7 +812,8 @@ if (($accSave['status'] ?? 0) === 0 || $accSave['status'] >= 400) {
         if (!empty($newContact)) {
             $patientPatch['contact_number'] = $newContact;
         }
-        supabase_request('patients', 'PATCH', $patientPatch, 'patient_id=eq.' . $patientId);
+        // A number already on another patient stays on the account only
+        portal_patch_patient_row((int)$patientId, $patientPatch);
     }
 
     if ($patientId) {

@@ -820,7 +820,7 @@
 
     const skeleton = () => `<div class="row">${[1, 2, 3, 4].map(() => `<div class="col-xxl-3 col-md-6"><div class="card stretch stretch-full an-kpi"><div class="card-body">
         <span class="dash-skel" style="width:55%"></span><div class="an-kpi-value"><span class="dash-skel" style="width:40%"></span></div><span class="dash-skel mt-2" style="width:70%"></span></div></div></div>`).join('')}</div>
-        <div class="card"><div class="an-state"><span class="es-spin"></span>Loading the forecast…</div></div>`;
+        <div class="card" role="status" aria-label="Loading the forecast"><div class="card-header"><span class="sk" style="width:210px;height:16px"></span></div><div class="card-body pb-2"><div class="sk-chart" aria-hidden="true">${[46, 62, 38, 74, 58, 84, 52, 68].map(h => `<span class="sk" style="height:${h}%"></span>`).join('')}</div></div></div>`;
 
     // ── Render ────────────────────────────────────────────────
     const emit = () => document.dispatchEvent(new CustomEvent('fc:data'));

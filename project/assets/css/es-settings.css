@@ -136,6 +136,9 @@ html.app-skin-dark .set-shell { --set-shadow-hover: none; }
 .set-card-feature { border-color: #c6d9ef; box-shadow: 0 0 0 3px rgba(24, 95, 165, .05), var(--set-shadow); }
 html.app-skin-dark .set-card-feature { border-color: #2a4a74; box-shadow: none; }
 .set-card-head { display: flex; align-items: flex-start; gap: 14px; }
+/* Title-only head ("Good to know"): title centred on the icon's middle line */
+.set-card-head.is-center { align-items: center; }
+.set-card-head.is-center .set-card-title { margin: 0; line-height: 1.2; }
 .set-card-titles { min-width: 0; padding-top: 1px; }
 .set-card-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--set-s2); font-size: 16px !important; font-weight: 600; line-height: 1.35; }
 .set-card-desc { margin-top: var(--set-s1) !important; font-size: 13.5px; color: var(--set-muted); line-height: 1.55; }

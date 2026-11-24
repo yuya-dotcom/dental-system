@@ -158,7 +158,10 @@
         <thead><tr>${head.map((h, k) => `<th${k ? ' class="text-end"' : ''}>${h}</th>`).join('')}</tr></thead>
         <tbody>${rows.map(r => `<tr>${r.map((c, k) => `<td${k ? ' class="text-end"' : ''}>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>`;
     const state = (html, icon) => `<div class="card"><div class="an-state">${icon ? `<span class="an-ico t-slate"><i class="${icon}"></i></span>` : ''}${html}</div></div>`;
-    const loadingPane = () => `<div class="row">${[1, 2, 3, 4].map(kpiSkel).join('')}</div>${state('<span class="es-spin"></span>Loading the clinic figures…')}`;
+    // Loading: the same skeleton design as page navigation (assets/css/es-skeleton.css)
+    const skChart = () => `<div class="sk-chart" aria-hidden="true">${[46, 62, 38, 74, 58, 84, 52, 68].map(h => `<span class="sk" style="height:${h}%"></span>`).join('')}</div>`;
+    const skCard = () => `<div class="card stretch stretch-full"><div class="card-header"><span class="sk" style="width:210px;height:16px"></span></div><div class="card-body pb-2">${skChart()}</div></div>`;
+    const loadingPane = () => `<div class="row">${[1, 2, 3, 4].map(kpiSkel).join('')}</div><div class="row" role="status" aria-label="Loading the clinic figures"><div class="col-xxl-8">${skCard()}</div><div class="col-xxl-4">${skCard()}</div></div>`;
     const errorPane = () => state(`<h2 class="an-h">The clinic figures could not be loaded</h2><div class="an-state-text">Check the connection, then try again.</div>
         <button type="button" class="dash-refresh mt-1" data-an-retry><i class="feather-refresh-cw"></i>Try again</button>`, 'feather-wifi-off');
     const monthCats = L => L.map((l, k) => k === L.length - 1 ? `${shortMonth(l)}${window.innerWidth < 576 ? '*' : ' (so far)'}` : shortMonth(l));
@@ -255,7 +258,7 @@
     }
     function clinicTable() {
         if (!CFG.multi) return '';
-        if (!clinics) return card('How the clinics compare', 'loading…', '<div class="an-state"><span class="es-spin"></span>Loading clinic figures…</div>', { flush: true });
+        if (!clinics) return card('How the clinics compare', 'loading…', `<div class="card-body">${skChart()}</div>`, { flush: true });
         const rows = clinicRows(), ok = rows.filter(r => r.ok);
         if (!ok.length) return card('How the clinics compare', '', '<div class="an-state">The clinic figures could not be loaded.<button type="button" class="dash-refresh" data-an-retry><i class="feather-refresh-cw"></i>Try again</button></div>', { flush: true });
         const { i, j, L } = months(ok[0].d), mon = longMonth(L[i]);
@@ -369,7 +372,7 @@
         const pv = window.ESForecast ? window.ESForecast.preview() : null;
         const fs = window.ESForecast ? window.ESForecast.state() : null;
         let fcBody;
-        if (!pv) fcBody = fs && (fs.loadState === 'loading' || fs.loadState === 'idle') ? '<div class="an-chart sm"><div class="an-chart-state"><span class="es-spin"></span>Loading the forecast…</div></div>' : chartState('No forecast is available yet. See the Forecast tab.', 'feather-trending-up');
+        if (!pv) fcBody = fs && (fs.loadState === 'loading' || fs.loadState === 'idle') ? `<div class="an-chart sm">${skChart()}</div>` : chartState('No forecast is available yet. See the Forecast tab.', 'feather-trending-up');
         else if (!pv.hist.some(h => h.y !== null) && !pv.fc.length) fcBody = chartState('No visits recorded in the last 4 weeks.', 'feather-trending-up');
         else fcBody = chartBox('ovForecast', 'Recorded visits and forecast', 'sm');
         const fcAction = `${legend([['--an-hist', 'Recorded', 'line'], ['--an-fc', 'Forecast', 'dash']])}<button type="button" class="an-link" data-an-goto="forecast">Open forecast <i class="feather-chevron-right"></i></button>`;
@@ -620,7 +623,7 @@
                 : '<div class="an-state"><span class="an-ico t-green"><i class="feather-check"></i></span>Every material is above its minimum stock.</div>', { flush: true });
 
         let use;
-        if (!mat) use = fs && (fs.loadState === 'loading' || fs.loadState === 'idle') ? '<div class="an-state"><span class="es-spin"></span>Loading recorded use…</div>'
+        if (!mat) use = fs && (fs.loadState === 'loading' || fs.loadState === 'idle') ? `<div class="card-body">${skChart()}</div>`
             : '<div class="an-state"><span class="an-state-text">Material use is recorded by the forecast job. Nothing is available yet; see the Forecast tab.</span></div>';
         else if (!mat.rows.length) use = '<div class="an-state">No material use was recorded in the last 4 weeks.</div>';
         else {

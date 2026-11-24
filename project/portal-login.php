@@ -33,7 +33,7 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
     <link href="assets/fonts/sora/sora-300-800.css" rel="stylesheet"><!-- Sora, self-hosted (was Google Fonts) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-    <link rel="stylesheet" href="assets/css/portal-login.css?v=11">
+    <link rel="stylesheet" href="assets/css/portal-login.css?v=13">
     <link rel="stylesheet" href="assets/css/portalLogin-navbar.css?v=4">
     <link rel="stylesheet" href="assets/css/custom-select.css?v=2">
     <link rel="stylesheet" href="assets/css/es-swal.css?v=10">
@@ -643,7 +643,7 @@ if (!str_starts_with($SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_')) {
 
                         <div class="field">
                             <label for="reg_address">Home Address</label>
-                            <input type="text" id="reg_address" placeholder="House No., Street, Barangay"
+                            <input type="text" id="reg_address" placeholder="House No., Street, Village or Subd."
                                 autocomplete="street-address" onblur="normalizeAddressInput(this)">
                             <div class="field-err" id="errRegAddress"></div>
                         </div>

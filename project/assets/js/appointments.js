@@ -376,6 +376,7 @@ function confirmCompletion() {
     let _branchId = '';
     let _calEl = null;
     let _slotReq = 0;
+    let _fullDays = new Set();   // fully booked dates of the shown month (get_booked_days)
 
     const $id = (id) => document.getElementById(id);
     const _editId = () => ($id('apt_id')?.value || '').trim();
@@ -435,46 +436,70 @@ function confirmCompletion() {
         if (!wrap) return;
         _destroyAdminCal();
         _branchId = String(branchId);
+        _fullDays = new Set();
 
-        wrap.className     = 'rounded-3 border apt-cal';
-        wrap.style.cssText = 'padding: 0.35rem 0.25rem;';
+        wrap.className     = 'apt-cal-box apt-cal';
+        wrap.style.cssText = '';
         wrap.innerHTML     = '';
         const calEl = document.createElement('div');
         wrap.appendChild(calEl);
         _calEl = calEl;
+        // Legend under the month (the day states it explains are set below)
+        const legend = document.createElement('div');
+        legend.className = 'apt-cal-legend';
+        legend.innerHTML = `
+            <span><i class="apt-lg apt-lg-sel"></i>Selected</span>
+            <span><i class="apt-lg apt-lg-full"></i>Fully booked</span>
+            <span><i class="apt-lg apt-lg-off"></i>Closed / unavailable</span>`;
+        wrap.appendChild(legend);
 
         // Bookable from tomorrow (portal rule). An edit may keep an earlier saved day.
+        // Earlier days stay visible (muted, not clickable) instead of FullCalendar's
+        // blank validRange cells; the Prev button stops at the first bookable month.
         const preset = window._aptEditPreset;
         let start = _tomorrow();
         if (preset && preset.date && preset.date < start) start = preset.date;
+        const firstMonth = start.slice(0, 7);
 
         _adminCal = new FullCalendar.Calendar(calEl, {
             initialView:         'dayGridMonth',
+            initialDate:         start,
             headerToolbar:       { left: 'prev', center: 'title', right: 'next' },
             fixedWeekCount:      false,
             showNonCurrentDates: false,
             height:              'auto',
-            validRange:          { start },
+            dayHeaderFormat:     { weekday: 'short' },
+            // Selected / fully booked are also set by hand for an instant update;
+            // returning them here keeps them when FullCalendar re-renders (resize).
             dayCellClassNames(arg) {
                 const d = _iso(arg.date);
-                const isPreset = preset && preset.date === d;
-                return !_isOpenDay(d) && !isPreset ? ['fc-day-closed'] : [];
+                const cls = $id('apt_date').value === d ? ['fc-day-selected'] : [];
+                if (preset && preset.date === d) return cls;
+                if (d < start) return cls.concat('fc-day-unavail');
+                if (!_isOpenDay(d)) return cls.concat('fc-day-closed');
+                return _fullDays.has(d) ? cls.concat('fc-day-fully-booked') : cls;
             },
             dayCellDidMount(arg) {
                 const d = _iso(arg.date);
                 if (arg.el.classList.contains('fc-day-closed')) {
                     const ex = ((_rules(_branchId) || {}).exceptions || {})[d];
                     arg.el.setAttribute('title', 'Branch closed' + (ex && ex.reason ? ' — ' + ex.reason : ''));
+                } else if (arg.el.classList.contains('fc-day-unavail')) {
+                    arg.el.setAttribute('title', 'Appointments can be booked from tomorrow onward');
                 }
                 if (preset && preset.date === d && d < _tomorrow()) arg.el.setAttribute('title', 'Saved date of this appointment');
             },
             datesSet(info) {
+                const prev = calEl.querySelector('.fc-prev-button');
+                if (prev) prev.disabled = _iso(info.view.currentStart).slice(0, 7) <= firstMonth;
                 _markFullyBooked(info.startStr.slice(0, 10), info.endStr.slice(0, 10));
                 _markPresetDay();
             },
             dateClick(info) {
                 const isPreset = preset && preset.date === info.dateStr;
-                if (!isPreset && (info.dayEl.classList.contains('fc-day-fully-booked') || info.dayEl.classList.contains('fc-day-closed'))) return;
+                const cl = info.dayEl.classList;
+                if (cl.contains('fc-day-disabled')) return;   // blank cell of another month
+                if (!isPreset && (cl.contains('fc-day-fully-booked') || cl.contains('fc-day-closed') || cl.contains('fc-day-unavail'))) return;
 
                 calEl.querySelectorAll('.fc-day-selected').forEach(el => el.classList.remove('fc-day-selected'));
                 info.dayEl.classList.add('fc-day-selected');
@@ -519,6 +544,8 @@ function confirmCompletion() {
         fetch('api/get_booked_days.php?' + _qs({ start: startStr, end: endStr, branch: _branchId }), { cache: 'no-store' })
             .then(r => r.json())
             .then(data => {
+                if (calEl !== _calEl) return;   // calendar rebuilt meanwhile
+                _fullDays = new Set(data.fully_booked || []);
                 calEl.querySelectorAll('.fc-day-fully-booked').forEach(el => { el.classList.remove('fc-day-fully-booked'); el.removeAttribute('title'); });
                 (data.fully_booked || []).forEach(dateStr => {
                     const dayEl = calEl.querySelector(`[data-date="${dateStr}"]`);
@@ -533,10 +560,17 @@ function confirmCompletion() {
         const grid = $id('adminTimeSlotsGrid');
         const req  = ++_slotReq;
         $id('aptSlotsRefresh').hidden = false;
+        // Skeleton chips in the same layout as the real list (no jump when it arrives)
         if (!quiet) grid.innerHTML = `
-            <div class="slot-loading">
-                <div class="spinner-border spinner-border-sm text-primary"></div>
-                Loading available times…
+            <div class="slot-loading" aria-live="polite">
+                <div class="slot-head"><span class="slot-sk slot-sk-title"></span><span class="slot-sk slot-sk-meta"></span></div>
+                <div class="slot-body">
+                    <span class="slot-sk slot-sk-label"></span>
+                    <div class="slot-grid">${'<span class="slot-sk slot-sk-chip"></span>'.repeat(8)}</div>
+                    <span class="slot-sk slot-sk-label"></span>
+                    <div class="slot-grid">${'<span class="slot-sk slot-sk-chip"></span>'.repeat(8)}</div>
+                </div>
+                <span class="visually-hidden">Loading available times…</span>
             </div>`;
 
         fetch('api/get_timeslots.php?' + _qs({ date: dateStr, branch: _branchId }), { cache: 'no-store' })
@@ -568,55 +602,85 @@ function confirmCompletion() {
         const timeEl = $id('apt_time');
         grid.innerHTML = '';
 
+        // Panel header: the chosen day + visit length / how many times are open
+        const dayLabel = new Date(dateStr + 'T00:00:00')
+            .toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
+        const head = document.createElement('div');
+        head.className = 'slot-head';
+        grid.appendChild(head);
+
         if (data.unavailable) {
             const preset = window._aptEditPreset;
             const keeps = keepTime && preset && preset.date === dateStr;
-            grid.innerHTML = `<div class="slot-empty"><i class="feather-info me-1"></i>${_UNAVAILABLE[data.unavailable] || 'No times on this day.'}` +
-                (keeps ? `<br><span class="apt-slot-keep">This appointment keeps its saved time (${_fmtTime(keepTime)}). Pick another date to reschedule it.</span>` : '') +
-                `</div>`;
+            head.innerHTML = `<span class="slot-head-date">${_esc(dayLabel)}</span>`;
+            grid.insertAdjacentHTML('beforeend',
+                `<div class="slot-empty apt-pick-empty"><span class="apt-pick-empty-icon"><i class="feather-slash"></i></span>` +
+                `<strong>No times on this day</strong>${_UNAVAILABLE[data.unavailable] || 'Please choose another date.'}` +
+                (keeps ? `<span class="apt-slot-keep">This appointment keeps its saved time (${_fmtTime(keepTime)}). Pick another date to reschedule it.</span>` : '') +
+                `</div>`);
             if (!keeps) { timeEl.value = ''; $id('aptDateTimeSummary').style.display = 'none'; }
             return;
         }
 
-        const legend = document.createElement('div');
-        legend.className = 'slot-legend';
-        legend.innerHTML = `
-            <span><span class="legend-dot" style="background:#e8f0fe;border:1.5px solid rgba(13,110,253,0.3);"></span>Available</span>
-            <span><span class="legend-dot" style="background:#f1f4f8;border:1px solid #dee2e6;"></span>Booked / doesn't fit</span>
-            <span class="slot-visit">Visit: ${_esc(data.duration_label || '')}</span>`;
-        grid.appendChild(legend);
-
-        const btnGrid = document.createElement('div');
-        btnGrid.className = 'slot-grid';
+        const body = document.createElement('div');
+        body.className = 'slot-body';
         let available = 0, keptOk = false;
+        const allBtns = [];
 
-        slots.forEach(s => {
-            const ok  = !!s.available;
-            if (ok) available++;
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = `slot-btn ${ok ? 'slot-btn-available' : 'slot-btn-booked'}`;
-            btn.textContent = s.label || _fmtTime(s.time);
-            btn.disabled = !ok;
-            btn.dataset.time = s.time;
-            btn.title = ok ? `${s.label} – ${s.ends}` : (s.reason === 'closing' ? 'Would end after closing time' : 'Already booked');
-            if (ok && keepTime && s.time === keepTime) {
-                btn.classList.add('selected');
-                btn.title = 'Current time of this appointment';
-                keptOk = true;
-            }
-            if (ok) {
-                btn.addEventListener('click', () => {
-                    btnGrid.querySelectorAll('.slot-btn-available.selected').forEach(b => b.classList.remove('selected'));
+        // Morning / Afternoon / Evening groups keep a long day easy to scan
+        const groups = [
+            { key: 'Morning',   test: h => h < 12 },
+            { key: 'Afternoon', test: h => h >= 12 && h < 17 },
+            { key: 'Evening',   test: h => h >= 17 },
+        ];
+        groups.forEach(g => {
+            const list = slots.filter(s => g.test(parseInt(String(s.time).slice(0, 2), 10) || 0));
+            if (!list.length) return;
+            const open = list.filter(s => s.available).length;
+            const label = document.createElement('div');
+            label.className = 'slot-group-label';
+            label.innerHTML = `<span>${g.key}</span><span class="slot-group-count">${open} open</span>`;
+            const btnGrid = document.createElement('div');
+            btnGrid.className = 'slot-grid';
+
+            list.forEach(s => {
+                const ok  = !!s.available;
+                if (ok) available++;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `slot-btn ${ok ? 'slot-btn-available' : 'slot-btn-booked'}`;
+                btn.textContent = s.label || _fmtTime(s.time);
+                btn.disabled = !ok;
+                btn.dataset.time = s.time;
+                btn.title = ok ? `${s.label} – ${s.ends}` : (s.reason === 'closing' ? 'Would end after closing time' : 'Already booked');
+                if (ok && keepTime && s.time === keepTime) {
                     btn.classList.add('selected');
-                    timeEl.value = s.time;
-                    document.querySelector('#appointmentModal [data-err-for="apt_time"]')?.replaceChildren();
-                    _showSummary(dateStr, s.time);
-                });
-            }
-            btnGrid.appendChild(btn);
+                    btn.setAttribute('aria-pressed', 'true');
+                    btn.title = 'Current time of this appointment';
+                    keptOk = true;
+                }
+                if (ok) {
+                    btn.addEventListener('click', () => {
+                        allBtns.forEach(b => { b.classList.remove('selected'); b.removeAttribute('aria-pressed'); });
+                        btn.classList.add('selected');
+                        btn.setAttribute('aria-pressed', 'true');
+                        timeEl.value = s.time;
+                        document.querySelector('#appointmentModal [data-err-for="apt_time"]')?.replaceChildren();
+                        _showSummary(dateStr, s.time);
+                    });
+                }
+                allBtns.push(btn);
+                btnGrid.appendChild(btn);
+            });
+            body.append(label, btnGrid);
         });
-        grid.appendChild(btnGrid);
+
+        head.innerHTML = `
+            <span class="slot-head-date">${_esc(dayLabel)}</span>
+            <span class="slot-head-meta">
+                ${available ? '' : '<span class="slot-pill slot-pill-none">Fully booked</span>'}
+                ${data.duration_label ? `<span class="slot-pill"><i class="feather-clock"></i>${_esc(data.duration_label)} visit</span>` : ''}
+            </span>`;
 
         // The chosen time no longer fits (taken meanwhile, or a longer visit now)
         if (timeEl.value && !keptOk && !slots.some(s => s.available && s.time === timeEl.value)) {
@@ -626,13 +690,21 @@ function confirmCompletion() {
             const note = document.createElement('p');
             note.className = 'apt-slot-warn';
             note.innerHTML = `<i class="feather-alert-triangle me-1"></i>${_fmtTime(was)} is no longer available for this visit. Please pick another time.`;
-            grid.insertBefore(note, btnGrid);
+            grid.appendChild(note);
         }
 
-        const info = document.createElement('p');
-        info.className   = 'slot-count';
-        info.textContent = `${available} of ${slots.length} start times available`;
-        grid.appendChild(info);
+        if (!slots.length) {
+            body.innerHTML = `<div class="slot-empty apt-pick-empty"><span class="apt-pick-empty-icon"><i class="feather-clock"></i></span><strong>No start times</strong>There are no times for this visit length on this day.</div>`;
+        }
+        grid.appendChild(body);
+
+        const foot = document.createElement('div');
+        foot.className = 'slot-foot';
+        foot.innerHTML = `
+            <span><i class="apt-lg apt-lg-open"></i>Available</span>
+            <span><i class="apt-lg apt-lg-sel"></i>Selected</span>
+            <span><i class="apt-lg apt-lg-off"></i>Booked / doesn't fit</span>`;
+        grid.appendChild(foot);
     }
 
     // Services changed (visit length), dentist changed, Refresh pressed, or the
@@ -679,7 +751,8 @@ function confirmCompletion() {
 
     function _slotsPlaceholder() {
         $id('adminTimeSlotsGrid').innerHTML =
-            '<div class="slot-empty apt-slots-placeholder"><i class="feather-clock"></i><br>Choose a date to see the available times.</div>';
+            '<div class="slot-empty apt-pick-empty apt-slots-placeholder"><span class="apt-pick-empty-icon"><i class="feather-clock"></i></span>' +
+            '<strong>No date selected</strong>Choose a date to see the available times.</div>';
         $id('aptSlotsRefresh').hidden = true;
     }
     window._aptSlotsPlaceholder = _slotsPlaceholder;
@@ -694,17 +767,17 @@ function confirmCompletion() {
     function _showPlaceholder() {
         const wrap = $id('adminCalendarWrap');
         if (!wrap) return;
-        wrap.className     = 'rounded-3 border';
+        wrap.className     = 'apt-cal-box';
         wrap.style.cssText = '';
         wrap.innerHTML     = `
-            <div class="slot-empty">
-                <svg width="30" height="30" viewBox="0 0 32 32" fill="none" style="margin-bottom:6px;opacity:0.3;">
-                    <rect x="3" y="5" width="26" height="22" rx="3" stroke="#6b7a8d" stroke-width="1.5"/>
-                    <path d="M9 3v4M23 3v4M3 12h26" stroke="#6b7a8d" stroke-width="1.5" stroke-linecap="round"/>
-                </svg><br>
-                Select a branch to load available dates.
+            <div class="slot-empty apt-pick-empty">
+                <span class="apt-pick-empty-icon"><i class="feather-map-pin"></i></span>
+                <strong>No branch selected</strong>
+                Select a branch to load its available dates.
             </div>`;
     }
+    // Add / Edit modal reset (appointments-schedule.php): empty calendar box
+    window._aptCalPlaceholder = function () { _destroyAdminCal(); _showPlaceholder(); };
 
     function _destroyAdminCal() {
         if (_adminCal) {

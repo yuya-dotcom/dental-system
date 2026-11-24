@@ -960,7 +960,6 @@ function openFinishConfirmModal() {
   const fail = (msg, step) => { twGoStep(step); errBox.textContent = msg; errBox.style.display = "block"; errBox.scrollIntoView({ block: "nearest" }); };
 
   if (!dentistId)      return fail("Please select the dentist who performed the treatment.", 1);
-  if (!procedureNotes) return fail("Please describe the procedure performed.", 1);
   if (!_plan.length)   return fail("Add at least one procedure — select a tooth on the chart, or add a general procedure.", 2);
   if (cost <= 0)       return fail("The total cost is ₱0.00 — check the prices of the selected services in Service Pricing.", 4);
   // Fresh server check of the combined materials (the alert lists what is short)
@@ -974,7 +973,7 @@ function _openFinishConfirm(dentistId, dentistName, procedureNotes, cost) {
   document.getElementById("work_dentist_name").value = dentistName;
 
   document.getElementById("fc_patient").textContent   = document.getElementById("work_patient_name").value;
-  document.getElementById("fc_procedure").textContent = procedureNotes;
+  document.getElementById("fc_procedure").textContent = procedureNotes || "—";   // notes are optional
   document.getElementById("fc_dentist").textContent   = dentistName;
   document.getElementById("fc_branch").textContent    = document.getElementById("work_branch_name").value;
   document.getElementById("fc_cost").textContent      = _peso(cost);

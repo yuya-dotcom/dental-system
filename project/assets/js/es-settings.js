@@ -69,45 +69,78 @@
   window.addEventListener('hashchange', function () { showPage(location.hash.slice(1), true); });
   showPage(location.hash.slice(1), false);
 
-  // ── Change password (form opens from its button) ───────────
-  var pwForm = $('pwForm'), pwOpen = $('pwOpen'), pwPanel = $('pwPanel'), pwDone = $('pwDone');
-  function pwSetOpen(open) {
-    if (!pwPanel) return;
-    pwPanel.hidden = !open;
-    pwOpen.hidden = open;                       // Cancel / Save close it again
-    pwOpen.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open) {
-      pwDone.hidden = true;
-      pwPanel.classList.remove('is-opening'); void pwPanel.offsetWidth; pwPanel.classList.add('is-opening');
-      pwForm.elements.current_password.focus();
-    } else {
-      pwForm.reset();
-      $('pwMsg').hidden = true;
-      ['current_password', 'new_password', 'confirm_password'].forEach(function (n) { pwForm.elements[n].classList.remove('is-invalid'); });
-    }
+  // ── Change password (modal #pwModal, opened by "Change Password") ──
+  //    Same rules as the server (api/settings_api.php → setNewPasswordError);
+  //    the server checks everything again, including the current password.
+  var pwForm = $('pwForm'), pwOpen = $('pwOpen'), pwDone = $('pwDone'), pwModalEl = $('pwModal');
+  var PW_FIELDS = ['current_password', 'new_password', 'confirm_password'];
+  var pwModal = pwModalEl && window.bootstrap ? bootstrap.Modal.getOrCreateInstance(pwModalEl) : null;
+  var pwBusy = false;
+  function pwClearErrors() {
+    $('pwMsg').style.display = 'none';
+    $('pwMsg').textContent = '';
+    PW_FIELDS.forEach(function (n) {
+      pwForm.elements[n].classList.remove('is-invalid');
+      pwForm.querySelector('[data-err-for="' + n + '"]').textContent = '';
+    });
   }
-  if (pwOpen) {
-    pwOpen.addEventListener('click', function () { pwSetOpen(true); });
-    $('pwCancel').addEventListener('click', function () { pwSetOpen(false); pwOpen.focus(); });
+  function pwFieldError(field, text) {
+    var input = pwForm.elements[field];
+    input.classList.add('is-invalid');
+    pwForm.querySelector('[data-err-for="' + field + '"]').textContent = text;
+    input.focus();
   }
-  if (pwForm) {
+  if (pwModal) {
+    pwOpen.addEventListener('click', function () { pwDone.hidden = true; pwModal.show(); });
+    pwModalEl.addEventListener('shown.bs.modal', function () { pwForm.elements.current_password.focus(); });
+    // While saving, the dialog can't be closed half-way
+    pwModalEl.addEventListener('hide.bs.modal', function (e) { if (pwBusy) e.preventDefault(); });
+    pwModalEl.addEventListener('hidden.bs.modal', function () {
+      pwForm.reset();                         // never leave typed passwords behind
+      pwClearErrors();
+      pwForm.querySelectorAll('[data-pw-toggle]').forEach(function (b) {
+        $(b.dataset.pwToggle).type = 'password';
+        b.querySelector('i').className = 'feather-eye';
+        b.setAttribute('aria-label', 'Show password');
+      });
+      pwOpen.focus();
+    });
+    pwForm.querySelectorAll('[data-pw-toggle]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var input = $(b.dataset.pwToggle), show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        b.querySelector('i').className = show ? 'feather-eye-off' : 'feather-eye';
+        b.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      });
+    });
+    // Clear a field's error as soon as it is edited
+    PW_FIELDS.forEach(function (n) {
+      pwForm.elements[n].addEventListener('input', function () {
+        pwForm.elements[n].classList.remove('is-invalid');
+        pwForm.querySelector('[data-err-for="' + n + '"]').textContent = '';
+      });
+    });
+  }
+  if (pwForm && pwModal) {
     pwForm.addEventListener('submit', async function (e) {
       e.preventDefault();
+      if (pwBusy) return;
       var msg = $('pwMsg'), btn = $('pwSave');
       var f = pwForm.elements;
-      ['current_password', 'new_password', 'confirm_password'].forEach(function (n) { f[n].classList.remove('is-invalid'); });
-      var show = function (text, ok, field) {
-        msg.hidden = false; msg.textContent = text;
-        msg.className = 'set-form-msg ' + (ok ? 'is-ok' : 'is-bad');
-        if (field && f[field]) { f[field].classList.add('is-invalid'); f[field].focus(); }
-      };
-      if (!f.current_password.value) return show('Please enter your current password.', false, 'current_password');
-      if (f.new_password.value.length < 8) return show('Your new password needs at least 8 characters.', false, 'new_password');
-      if (f.new_password.value !== f.confirm_password.value) return show('The two new passwords are not the same. Please type them again.', false, 'confirm_password');
+      pwClearErrors();
+      var np = f.new_password.value;
+      if (!f.current_password.value) return pwFieldError('current_password', 'Please enter your current password.');
+      if (!np) return pwFieldError('new_password', 'Please enter a new password.');
+      if (np.length < 8) return pwFieldError('new_password', 'Use at least 8 characters.');
+      if (!/[A-Za-z]/.test(np) || !/\d/.test(np)) return pwFieldError('new_password', 'Use at least one letter and one number.');
+      if (np === f.current_password.value) return pwFieldError('new_password', 'Choose a password different from your current one.');
+      if (!f.confirm_password.value) return pwFieldError('confirm_password', 'Please type the new password again.');
+      if (np !== f.confirm_password.value) return pwFieldError('confirm_password', 'The two new passwords do not match.');
 
+      pwBusy = true;
       btn.disabled = true;
       var label = btn.innerHTML;
-      btn.innerHTML = '<span class="es-spin"></span><span>Saving…</span>';
+      btn.innerHTML = '<span class="es-spin"></span> Saving…';
       try {
         var res = await fetch('api/settings_api.php', {
           method: 'POST', credentials: 'same-origin', cache: 'no-store',
@@ -121,17 +154,32 @@
         });
         if (res.status === 401) { location.href = 'login.php'; return; }
         var j = await res.json().catch(function () { return {}; });
+        pwBusy = false;
         if (j.success) {
-          pwSetOpen(false);                     // close the form, keep the confirmation visible
-          pwDone.hidden = false;
+          pwModal.hide();
+          pwDone.hidden = false;                 // stays on the card after the dialog closes
           pwDone.textContent = j.message || 'Your password was changed.';
-          pwOpen.focus();
+          Swal.fire({
+            icon: 'success',
+            iconHtml: '<i class="feather-check es-swal-glyph"></i>',
+            title: 'Password changed',
+            text: j.message || 'Your password was changed.',
+            confirmButtonText: 'Done',
+            buttonsStyling: false,
+            customClass: SW(),
+          });
+        } else if (j.field && PW_FIELDS.indexOf(j.field) !== -1) {
+          if (j.field === 'current_password') f.current_password.value = '';
+          pwFieldError(j.field, j.message || "Your password couldn't be changed.");
         } else {
-          show(j.message || "Your password couldn't be changed.", false, j.field);
+          msg.textContent = j.message || "Your password couldn't be changed.";
+          msg.style.display = '';
         }
       } catch (err) {
-        show("We couldn't reach the server. Please check your internet connection and try again.", false);
+        msg.textContent = "We couldn't reach the server. Please check your internet connection and try again.";
+        msg.style.display = '';
       } finally {
+        pwBusy = false;
         btn.disabled = false;
         btn.innerHTML = label;
       }

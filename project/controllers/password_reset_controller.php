@@ -102,11 +102,7 @@ function requestPatientPasswordReset(string $email): bool {
         $mail = createMailer();
         $mail->CharSet = 'UTF-8';
         $mail->addAddress($acc['email'], $first_name);
-        $logo_src = '';
-        if (is_file(EMAIL_LOGO_PNG)) {
-            $mail->addEmbeddedImage(EMAIL_LOGO_PNG, 'essencia-logo', 'EssenciaSmile-Logo.png', 'base64', 'image/png');
-            $logo_src = 'cid:essencia-logo';
-        }
+        $logo_src = mailer_logo_src($mail, EMAIL_LOGO_PNG);   // hosted URL on the live site (no Gmail attachment chip)
         $mail->Subject = 'Reset your password – EssenciaSmile';
         $mail->Body    = password_reset_email_html($first_name, $reset_link, $logo_src);
         $mail->AltBody = "Hi $first_name,\n\nReset your EssenciaSmile Patient Portal password here:\n$reset_link\n\nThis link expires in 30 minutes and can be used only once. If you didn't request this, you can ignore this email.";

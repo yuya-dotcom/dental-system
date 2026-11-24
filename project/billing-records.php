@@ -70,13 +70,13 @@ $sortBase = listUrl('billing-records.php', ['branch' => $filterBranch, 'payment'
     <link rel="stylesheet" href="assets/css/custom.css?v=18">
     <link rel="stylesheet" href="assets/css/admin.css">
 
-    <link rel="stylesheet" href="assets/css/es-admin.css?v=7">
+    <link rel="stylesheet" href="assets/css/es-admin.css?v=8">
 
     <link rel="stylesheet" href="assets/css/es-records.css?v=7">
 
     <link rel="stylesheet" href="assets/css/analytics.css?v=8">
 
-    <link rel="stylesheet" href="assets/css/appointments-records.css?v=9">
+    <link rel="stylesheet" href="assets/css/appointments-records.css?v=10">
 </head>
 
 <body>

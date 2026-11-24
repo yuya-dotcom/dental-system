@@ -109,6 +109,63 @@ function getPatientInvoices(int $patientId): array {
 }
 
 /**
+ * Appointments tab in ONE request: upcoming (same filter / order / limit as
+ * getPatientUpcomingAppointments), one page of history and the history total,
+ * all embedded under the patient row, with every appointment's services
+ * embedded too (attachAppointmentServiceNames needs no extra read).
+ *
+ * It replaces 5 reads that ran one after another: upcoming, its services,
+ * a count that downloaded every appointment id, the history page and its
+ * services. Returns null when the combined read fails (callers fall back to
+ * the individual functions). Same output shape as before.
+ */
+function getPatientAppointmentsTab(int $patientId, int $page = 1, int $perPage = 10): ?array
+{
+    $today  = date('Y-m-d');
+    $offset = ($page - 1) * $perPage;
+    $svc    = 'services(service_name),appointment_services(sort_order,services(service_name))';
+    $sel = [
+        'patient_id',
+        'up:appointments(appointment_id,appointment_code,appointment_date,appointment_time,appointment_type,status,dentists(full_name),' . $svc . ')',
+        'hist:appointments(appointment_id,appointment_code,appointment_date,appointment_time,appointment_type,status,payment_status,notes,dentists(full_name),branches(branch_name),' . $svc . ')',
+        'n:appointments(appointment_id)',      // ids only, for the total
+    ];
+    $q = [
+        'up.appointment_date=gte.' . $today, 'up.status=in.(pending,confirmed)',
+        'up.order=appointment_date.asc,appointment_time.asc', 'up.limit=10',
+        'hist.order=appointment_date.desc,appointment_time.desc.nullslast,appointment_id.desc',
+        'hist.limit=' . $perPage, 'hist.offset=' . $offset,
+    ];
+    $res = supabase_request('patients', 'GET', [],
+        'select=' . implode(',', $sel) . '&' . implode('&', $q) . '&patient_id=eq.' . $patientId . '&limit=1');
+    if (!empty($res['error']) || !is_array($res['data'] ?? null)) return null;
+    $row   = $res['data'][0] ?? [];
+    $list  = fn(string $k) => is_array($row[$k] ?? null) ? $row[$k] : [];
+    $total = count($list('n'));
+    return [
+        'upcoming' => attachAppointmentServiceNames($list('up')),
+        'history'  => [
+            'rows'        => attachAppointmentServiceNames($list('hist')),
+            'total'       => $total,
+            'totalPages'  => (int)ceil($total / $perPage),
+            'currentPage' => $page,
+        ],
+    ];
+}
+
+/** Billing tab totals from rows already loaded (same sums as getPatientFinancialSummary). */
+function patientFinancialSummaryFrom(array $invoices): array
+{
+    $billed = 0; $paid = 0; $balance = 0;
+    foreach ($invoices as $r) {
+        $billed  += (float)($r['total_amount'] ?? 0);
+        $paid    += (float)($r['amount_paid'] ?? 0);
+        $balance += (float)($r['balance'] ?? 0);
+    }
+    return ['total_billed' => $billed, 'total_paid' => $paid, 'total_balance' => $balance, 'invoice_count' => count($invoices)];
+}
+
+/**
  * Everything the Patient Record header/Overview (and, with $forPrint, the
  * printable record) needs, in ONE request: the patient with its invoices,
  * treatments, upcoming appointments and clinical notes embedded.

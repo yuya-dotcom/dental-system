@@ -1,0 +1,369 @@
+/* =============================================================
+   assets/css/es-theme.css — staff shell: brand, responsive layout and
+   night mode. Loaded by partials/sidebar.php on every staff page, after
+   es-dark.css (generated colours for the page stylesheets).
+
+   1. Brand (sidebar logo)
+   2. Header + page header on tablets / phones
+   3. Phone card tables and toolbars
+   4. Night mode: palette, shell, Bootstrap components, SweetAlert
+   ============================================================= */
+
+/* ── 1. Brand ───────────────────────────────────────────────── */
+.nxl-navigation .m-header .b-brand { display: flex; align-items: center; min-width: 0; }
+.nxl-navigation .m-header .logo-lg { width: 182px; max-width: 100%; height: auto; }
+.nxl-navigation .m-header .logo-sm { width: 40px; height: auto; }
+/* The theme inverted the logo in dark mode (it turned orange / purple): the
+   EssenciaSmile colours read well on the dark sidebar as they are. */
+html.app-skin-dark .nxl-navigation .m-header .logo-lg,
+html.app-skin-dark .nxl-navigation .m-header .logo-sm,
+html.app-navigation-dark .nxl-navigation .m-header .logo-lg { filter: none; }
+
+/* ── 2. Header + page header ────────────────────────────────── */
+@media (max-width: 1024.98px) {
+  /* Compact top bar: 64px instead of 80px, one menu button on the left */
+  .nxl-header { min-height: 64px; }
+  .nxl-header .header-wrapper { min-height: 63px; padding: 0 12px; }   /* + 1px border = 64 */
+  .nxl-header .header-wrapper .header-left { gap: 4px !important; }
+  .nxl-header .header-wrapper .header-right .nxl-h-item { margin: 0 2px; min-height: 63px; }
+  .nxl-header .nxl-head-link.me-3 { margin-right: 4px !important; }
+  .nxl-container { top: 64px; min-height: calc(100vh - 64px); }
+  .nxl-navigation .m-header { height: 64px; padding: 12px 20px; }
+  .nxl-navigation .navbar-content { height: calc(100vh - 64px); }
+  /* Off-canvas menu: a soft shadow so it reads as a layer over the page */
+  .nxl-navigation.mob-navigation-active { box-shadow: 0 0 40px rgba(15, 23, 42, .28); }
+  .nxl-header .hamburger-box { width: 22px; }
+}
+
+@media (max-width: 767.98px) {
+  /* Title only (the breadcrumb is hidden on phones) — no trailing divider */
+  .nxl-container .nxl-content .page-header { padding: 14px 14px 12px; gap: 10px; }
+  .page-header h5 { border-right: 0; margin-right: 0; padding-right: 0; font-size: 1.05rem; }
+  .nxl-container .nxl-content .page-header .page-header-right-items-wrapper { gap: 8px !important; }
+  .nxl-container .nxl-content .page-header .page-header-right-items-wrapper > .btn,
+  .nxl-container .nxl-content .page-header .page-header-right-items-wrapper > a.btn {
+    min-height: 40px; border-radius: 8px;
+  }
+  /* The theme's tiny "refresh" dot in card headers took a row of its own */
+  .card > .card-header .card-header-btn { display: none; }
+  .card > .card-header .card-header-action:not(:has(> :not(.card-header-btn))) { display: none; }
+  /* Show / Hide Filters: its own full-width row under the card title */
+  .card > .card-header .es-ft-wrap { flex: 1 1 100%; margin: 2px 0 0; order: 10; }
+  .card > .card-header .es-ft-wrap .es-filter-toggle { width: 100%; justify-content: center; height: 38px; border-radius: 8px !important; }
+  .card > .card-header .es-ft-wrap .es-filter-toggle .es-ft-label { min-width: 0 !important; }
+  .es-ft-wrap.es-ft-standalone { padding: 10px 14px 0; }
+  .es-ft-wrap.es-ft-standalone .es-filter-toggle { width: 100%; justify-content: center; }
+  /* Toolbars inside an open filter panel: one control per row */
+  .list-toolbar { gap: 8px !important; }
+  .list-toolbar > * { flex: 1 1 100%; min-width: 0 !important; max-width: none !important; }
+  /* Status chip rows scroll sideways instead of wrapping into several lines */
+  .ar-quick, .rec-seg { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .ar-quick::-webkit-scrollbar, .rec-seg::-webkit-scrollbar { display: none; }
+  .ar-quick > *, .rec-seg > * { flex: 0 0 auto; }
+}
+
+/* ── 3. Phone card tables ───────────────────────────────────── */
+/* es-admin.css floats each label left and right-aligns the value, so values
+   (avatar + name + code, service pills) drifted around the card. Here every
+   card is a two-column list: a fixed label column and left-aligned values. */
+@media (max-width: 575.98px) {
+  .nxl-container .nxl-content .main-content { padding-left: 12px; padding-right: 12px; }
+  .nxl-container table.es-stack tbody tr { padding: 14px 16px 12px; }
+  .nxl-container table.es-stack tbody td {
+    position: relative !important; padding: 6px 0 6px 108px !important; min-height: 30px;
+    text-align: left; line-height: 1.45;
+  }
+  .nxl-container table.es-stack tbody td::before {
+    float: none; position: absolute; left: 0; top: 8px; width: 96px; max-width: none; margin: 0; padding: 0;
+    font-size: 10.5px; letter-spacing: .04em; line-height: 1.35; white-space: normal;
+  }
+  .nxl-container table.es-stack tbody td::after { content: none; }
+  .nxl-container table.es-stack tbody td > .d-flex,
+  .nxl-container table.es-stack tbody td > .rec-entity,
+  .nxl-container table.es-stack tbody td .justify-content-end { justify-content: flex-start !important; }
+  .nxl-container table.es-stack tbody td .text-end,
+  .nxl-container table.es-stack tbody td.text-end,
+  .nxl-container table.es-stack tbody td.text-center { text-align: left !important; }
+  .nxl-container table.es-stack tbody td.es-stack-primary {
+    padding: 0 52px 8px 0 !important; min-height: 0; font-size: .92rem;
+  }
+  .nxl-container table.es-stack tbody td.es-stack-act { top: 12px; right: 12px; min-height: 0; }
+  .nxl-container table.es-stack tbody td.es-stack-full,
+  .nxl-container table.es-stack tbody td:not([data-label]):not(.es-stack-primary):not(.es-stack-act) { padding-left: 0 !important; text-align: center; }
+  /* Pills / chips wrap under each other neatly */
+  .nxl-container table.es-stack tbody td .d-flex.flex-wrap,
+  .nxl-container table.es-stack tbody td .d-flex.flex-column { align-items: flex-start !important; }
+  /* Summary tiles: two per row with less padding */
+  .rec-summary { gap: 8px !important; }
+  .card .card-footer { gap: 8px; }
+}
+
+/* ── No Show status pill (every staff page) ─────────────────── */
+/* Solid dark grey: every soft tone is already taken by another status
+   (amber pending, blue confirmed, violet checked in, green completed, red
+   cancelled), and a filled pill reads as "missed" at a glance. */
+.an-pill.noshow,
+.badge.es-noshow,
+.pr-pill.pr-pill-noshow { background: #4b5563 !important; color: #fff !important; border-color: #4b5563 !important; }
+.an-pill.noshow .ar-sdot { background: #fff; }
+.ar-qdot.t-noshow { background: #4b5563; }
+html.app-skin-dark .ar-qdot.t-noshow { background: #94a3b8; }
+html.app-skin-dark .an-pill.noshow,
+html.app-skin-dark .badge.es-noshow,
+html.app-skin-dark .pr-pill.pr-pill-noshow { background: #5b6576 !important; border-color: #5b6576 !important; color: #fff !important; }
+
+/* ── 4. Night mode ──────────────────────────────────────────── */
+/* Palette (keep in step with tools/build_dark_css.py) */
+html.app-skin-dark {
+  color-scheme: dark;
+  --esd-bg: #0c1322;
+  --esd-surface: #121b2d;
+  --esd-raised: #17223a;
+  --esd-hover: #1d2a45;
+  --esd-input: #0f1728;
+  --esd-line: #26344d;
+  --esd-line-soft: #1d283d;
+  --esd-ink: #e7ecf4;
+  --esd-text: #c5cedb;
+  --esd-muted: #94a0b4;
+  --esd-primary: #6f8ff7;
+  --esd-primary-soft: rgba(111, 143, 247, .16);
+  --esd-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .18);
+
+  /* Bootstrap 5.3 tokens (forms, dropdowns, tables, modals read these) */
+  --bs-body-bg: var(--esd-bg);
+  --bs-body-color: var(--esd-text);
+  --bs-emphasis-color: var(--esd-ink);
+  --bs-secondary-color: var(--esd-muted);
+  --bs-secondary-bg: var(--esd-raised);
+  --bs-tertiary-bg: var(--esd-raised);
+  --bs-border-color: var(--esd-line);
+  --bs-border-color-translucent: rgba(148, 160, 180, .16);
+  --bs-heading-color: var(--esd-ink);
+  --bs-link-color: #8fa8ff;
+  --bs-link-hover-color: #b4c4ff;
+
+  /* Page stylesheets that read variables */
+  --rec-primary: #7fb0ea;  --rec-primary-soft: rgba(79, 143, 214, .16);
+  --rec-text: var(--esd-ink); --rec-muted: var(--esd-muted); --rec-faint: #6f7d93;
+  --rec-border: var(--esd-line); --rec-row-border: var(--esd-line-soft);
+  --rec-green: #5fd49b;  --rec-green-soft: rgba(95, 212, 155, .14);
+  --rec-amber: #f2b45a;  --rec-amber-soft: rgba(242, 180, 90, .14);
+  --rec-red: #f58a8a;    --rec-red-soft: rgba(245, 138, 138, .14);
+}
+html.app-skin-dark :is(#aptRecordModal, #viewAppointmentModal, #appointmentModal, .es-detail-modal) {
+  --ar-primary: var(--esd-primary); --ar-primary-light: var(--esd-primary-soft);
+  --ar-border: var(--esd-line); --ar-text: var(--esd-ink); --ar-muted: var(--esd-muted);
+}
+
+/* Shell */
+html.app-skin-dark body,
+html.app-skin-dark .nxl-container { background: var(--esd-bg); color: var(--esd-text); }
+html.app-skin-dark .nxl-header {
+  background: rgba(18, 27, 45, .92); border-bottom: 1px solid var(--esd-line-soft);
+  -webkit-backdrop-filter: saturate(140%) blur(8px); backdrop-filter: saturate(140%) blur(8px);
+}
+html.app-skin-dark .nxl-header .nxl-head-link,
+html.app-skin-dark .nxl-header .nxl-navigation-toggle a,
+html.app-skin-dark .nxl-header .nxl-head-mobile-toggler { color: var(--esd-text); }
+html.app-skin-dark .nxl-header .nxl-head-link:hover { background: var(--esd-hover); color: var(--esd-ink); }
+html.app-skin-dark .nxl-header .hamburger-inner,
+html.app-skin-dark .nxl-header .hamburger-inner::before,
+html.app-skin-dark .nxl-header .hamburger-inner::after { background-color: var(--esd-text); }
+html.app-skin-dark .nxl-header .text-dark { color: var(--esd-ink) !important; }
+
+html.app-skin-dark .nxl-navigation,
+html.app-skin-dark .nxl-navigation .m-header,
+html.app-skin-dark .nxl-navigation .navbar-content { background: var(--esd-surface); border-color: var(--esd-line-soft); }
+html.app-skin-dark .nxl-navigation .navbar-content .nxl-caption label { color: #6f7d93; }
+html.app-skin-dark .nxl-navigation .navbar-content .nxl-link { color: var(--esd-text); }
+html.app-skin-dark .nxl-navigation .navbar-content .nxl-link .nxl-micon i { color: var(--esd-muted); }
+html.app-skin-dark .nxl-navigation .navbar-content .nxl-link:hover,
+html.app-skin-dark .nxl-navigation .navbar-content .nxl-item:hover > .nxl-link { background: var(--esd-hover); color: var(--esd-ink); }
+html.app-skin-dark .nxl-navigation .navbar-content .nxl-item.active > .nxl-link,
+html.app-skin-dark .nxl-navigation .navbar-content .nxl-item.nxl-trigger > .nxl-link { background: var(--esd-primary-soft); color: #fff; }
+html.app-skin-dark .nxl-navigation .navbar-content .nxl-item.active > .nxl-link .nxl-micon i,
+html.app-skin-dark .nxl-navigation .navbar-content .nxl-item.nxl-trigger > .nxl-link .nxl-micon i { color: var(--esd-primary); }
+html.app-skin-dark .nxl-navigation .navbar-content .nxl-submenu .nxl-item.active > .nxl-link { background: transparent; color: #fff; font-weight: 700; }
+
+html.app-skin-dark .nxl-container .nxl-content .page-header {
+  background: var(--esd-surface); box-shadow: none; border-bottom: 1px solid var(--esd-line-soft);
+}
+html.app-skin-dark .page-header h5 { color: var(--esd-ink); border-right-color: var(--esd-line); }
+html.app-skin-dark .page-header .breadcrumb-item,
+html.app-skin-dark .page-header .breadcrumb-item a { color: var(--esd-muted); }
+
+/* Cards */
+html.app-skin-dark .card {
+  background: var(--esd-surface); border: 1px solid var(--esd-line-soft); box-shadow: var(--esd-shadow); color: var(--esd-text);
+}
+html.app-skin-dark .card .card-header,
+html.app-skin-dark .card .card-footer { background: transparent; border-color: var(--esd-line-soft); }
+html.app-skin-dark .card-title,
+html.app-skin-dark h1, html.app-skin-dark h2, html.app-skin-dark h3,
+html.app-skin-dark h4, html.app-skin-dark h5, html.app-skin-dark h6 { color: var(--esd-ink); }
+
+/* Text / background utilities used across the pages */
+html.app-skin-dark .text-dark,
+html.app-skin-dark .text-body,
+html.app-skin-dark .text-black { color: var(--esd-ink) !important; }
+html.app-skin-dark .text-muted,
+html.app-skin-dark .text-secondary { color: var(--esd-muted) !important; }
+html.app-skin-dark .bg-white,
+html.app-skin-dark .bg-body { background-color: var(--esd-surface) !important; }
+html.app-skin-dark .bg-light,
+html.app-skin-dark .bg-gray-100,
+html.app-skin-dark .bg-gray-200 { background-color: var(--esd-raised) !important; }
+html.app-skin-dark .border,
+html.app-skin-dark .border-top,
+html.app-skin-dark .border-bottom,
+html.app-skin-dark .border-start,
+html.app-skin-dark .border-end,
+html.app-skin-dark hr { border-color: var(--esd-line) !important; }
+
+/* Tables */
+html.app-skin-dark .table {
+  --bs-table-bg: transparent; --bs-table-color: var(--esd-text); --bs-table-border-color: var(--esd-line-soft);
+  --bs-table-striped-bg: rgba(255, 255, 255, .02); --bs-table-hover-bg: var(--esd-raised); --bs-table-hover-color: var(--esd-ink);
+  color: var(--esd-text);
+}
+html.app-skin-dark .table > :not(caption) > * > * { background-color: transparent; border-color: var(--esd-line-soft); color: inherit; }
+html.app-skin-dark .table thead th,
+html.app-skin-dark .nxl-container .table-responsive .rec-table thead th,
+html.app-skin-dark .nxl-container .table-responsive .rec-table thead th a { background-color: var(--esd-raised) !important; color: var(--esd-muted) !important; border-color: var(--esd-line) !important; }
+html.app-skin-dark .table-hover > tbody > tr:hover > * { background-color: var(--esd-raised) !important; }
+html.app-skin-dark .nxl-container table.es-stack tbody tr { border-bottom-color: var(--esd-line-soft); }
+html.app-skin-dark .nxl-container table.es-stack tbody td::before { color: #7c899e; }
+
+/* Forms */
+html.app-skin-dark .form-control,
+html.app-skin-dark .form-select,
+html.app-skin-dark .input-group-text,
+html.app-skin-dark .modal-cs-trigger,
+html.app-skin-dark .select2-container--default .select2-selection {
+  background-color: var(--esd-input) !important; border-color: var(--esd-line) !important; color: var(--esd-ink) !important;
+}
+html.app-skin-dark .form-control::placeholder { color: #6f7d93; }
+html.app-skin-dark .form-control:focus,
+html.app-skin-dark .form-select:focus,
+html.app-skin-dark .modal-cs-trigger:focus-visible,
+html.app-skin-dark .modal-cs-trigger.open { border-color: var(--esd-primary) !important; box-shadow: 0 0 0 3px rgba(111, 143, 247, .22) !important; }
+html.app-skin-dark .form-control:disabled,
+html.app-skin-dark .form-control[readonly],
+html.app-skin-dark .form-select:disabled { background-color: var(--esd-raised) !important; color: var(--esd-muted) !important; }
+html.app-skin-dark .form-label,
+html.app-skin-dark label { color: var(--esd-text); }
+html.app-skin-dark .form-check-input { background-color: var(--esd-input); border-color: #3a4a66; }
+html.app-skin-dark .form-check-input:checked { background-color: var(--esd-primary); border-color: var(--esd-primary); }
+
+/* Buttons that are white in the light theme */
+html.app-skin-dark .btn-light,
+html.app-skin-dark .btn-white,
+html.app-skin-dark .btn-light-brand,
+html.app-skin-dark .btn-outline-secondary,
+html.app-skin-dark .es-filter-toggle {
+  background: var(--esd-raised) !important; border-color: var(--esd-line) !important; color: var(--esd-text) !important;
+}
+html.app-skin-dark .btn-light:hover,
+html.app-skin-dark .btn-white:hover,
+html.app-skin-dark .btn-light-brand:hover,
+html.app-skin-dark .btn-outline-secondary:hover,
+html.app-skin-dark .es-filter-toggle:hover,
+html.app-skin-dark .es-filter-toggle.active { background: var(--esd-hover) !important; border-color: #34466a !important; color: var(--esd-ink) !important; }
+html.app-skin-dark .es-filter-toggle i,
+html.app-skin-dark .es-filter-toggle .es-ft-label { color: #9cb4ff; }
+html.app-skin-dark .btn-outline-primary { color: #9cb4ff; border-color: rgba(111, 143, 247, .55); }
+html.app-skin-dark .btn-outline-primary:hover { background: var(--esd-primary-soft); color: #fff; }
+html.app-skin-dark .btn-primary { background-color: #4467e3; border-color: #4467e3; }
+html.app-skin-dark .btn-primary:hover { background-color: #5677ec; border-color: #5677ec; }
+html.app-skin-dark .list-reset { background: transparent !important; color: var(--esd-muted) !important; }
+
+/* Dropdowns, popovers, tooltips */
+html.app-skin-dark .dropdown-menu {
+  --bs-dropdown-bg: var(--esd-raised); --bs-dropdown-color: var(--esd-text); --bs-dropdown-border-color: var(--esd-line);
+  --bs-dropdown-link-color: var(--esd-text); --bs-dropdown-link-hover-bg: var(--esd-hover); --bs-dropdown-link-hover-color: var(--esd-ink);
+  --bs-dropdown-divider-bg: var(--esd-line);
+  background: var(--esd-raised); border: 1px solid var(--esd-line); box-shadow: 0 12px 32px rgba(0, 0, 0, .4);
+}
+html.app-skin-dark .dropdown-item { color: var(--esd-text); }
+html.app-skin-dark .dropdown-item:hover,
+html.app-skin-dark .dropdown-item:focus { background: var(--esd-hover); color: var(--esd-ink); }
+html.app-skin-dark .dropdown-item.text-danger { color: #f58a8a !important; }
+html.app-skin-dark .dropdown-divider { border-color: var(--esd-line); }
+
+/* Modals */
+html.app-skin-dark .modal-content {
+  --bs-modal-bg: var(--esd-surface); --bs-modal-color: var(--esd-text); --bs-modal-border-color: var(--esd-line);
+  --bs-modal-header-border-color: var(--esd-line-soft); --bs-modal-footer-border-color: var(--esd-line-soft);
+  background: var(--esd-surface); border: 1px solid var(--esd-line); color: var(--esd-text);
+}
+html.app-skin-dark .modal-header,
+html.app-skin-dark .modal-footer { border-color: var(--esd-line-soft); }
+html.app-skin-dark .modal-backdrop.show { opacity: .7; }
+html.app-skin-dark .btn-close { filter: invert(1) grayscale(1) brightness(1.6); }
+
+/* Nav tabs / pills, pagination, list group, alerts */
+html.app-skin-dark .nav-tabs { border-color: var(--esd-line); }
+html.app-skin-dark .nav-tabs .nav-link { color: var(--esd-muted); }
+html.app-skin-dark .nav-tabs .nav-link.active { background: transparent; color: var(--esd-ink); border-color: var(--esd-line) var(--esd-line) var(--esd-surface); }
+html.app-skin-dark .nxl-container ul.pagination-common-style li a { background: var(--esd-raised); border-color: var(--esd-line); color: var(--esd-text); }
+html.app-skin-dark .page-link { background: var(--esd-raised); border-color: var(--esd-line); color: var(--esd-text); }
+html.app-skin-dark .list-group-item { background: transparent; border-color: var(--esd-line-soft); color: var(--esd-text); }
+html.app-skin-dark .alert-warning { background: rgba(242, 180, 90, .12); border-color: rgba(242, 180, 90, .3); color: #f5c987; }
+html.app-skin-dark .alert-info { background: rgba(79, 143, 214, .12); border-color: rgba(79, 143, 214, .3); color: #a9c8ee; }
+html.app-skin-dark .alert-danger { background: rgba(245, 138, 138, .12); border-color: rgba(245, 138, 138, .3); color: #f7a9a9; }
+html.app-skin-dark .alert-success { background: rgba(95, 212, 155, .12); border-color: rgba(95, 212, 155, .3); color: #8fe2b9; }
+html.app-skin-dark .progress { background-color: var(--esd-raised); }
+
+/* Status dots of the Appointment Records quick filters (their t-* tone classes are
+   shared with the pastel chips, whose dark tint would otherwise hide the dot) */
+html.app-skin-dark .ar-qdot.t-warn   { background: #f2b45a; }
+html.app-skin-dark .ar-qdot.t-info   { background: #5b9be0; }
+html.app-skin-dark .ar-qdot.t-violet { background: #a98be0; }
+html.app-skin-dark .ar-qdot.t-up     { background: #3cc483; }
+html.app-skin-dark .ar-qdot.t-down   { background: #f07272; }
+html.app-skin-dark .ar-qdot.t-slate  { background: #94a3b8; }
+
+/* Avatars (theme draws them dark-on-light) */
+html.app-skin-dark .avatar-text.bg-primary { background-color: #4467e3 !important; color: #fff !important; }
+
+/* SweetAlert2 */
+html.app-skin-dark .swal2-popup { background: var(--esd-surface) !important; color: var(--esd-text) !important; border: 1px solid var(--esd-line); }
+html.app-skin-dark .swal2-title { color: var(--esd-ink) !important; }
+html.app-skin-dark .swal2-html-container { color: var(--esd-text) !important; }
+html.app-skin-dark .swal2-input,
+html.app-skin-dark .swal2-textarea,
+html.app-skin-dark .swal2-select { background: var(--esd-input) !important; border-color: var(--esd-line) !important; color: var(--esd-ink) !important; }
+html.app-skin-dark .swal2-container.swal2-backdrop-show { background: rgba(3, 7, 18, .7) !important; }
+html.app-skin-dark .swal2-cancel.es-swal-btn-outline { background: var(--esd-raised) !important; border-color: var(--esd-line) !important; color: var(--esd-text) !important; }
+
+/* Flatpickr / date pickers */
+html.app-skin-dark .flatpickr-calendar { background: var(--esd-raised); border-color: var(--esd-line); box-shadow: 0 12px 32px rgba(0, 0, 0, .4); }
+html.app-skin-dark .flatpickr-day { color: var(--esd-text); }
+html.app-skin-dark .flatpickr-day:hover { background: var(--esd-hover); border-color: var(--esd-hover); }
+html.app-skin-dark .flatpickr-day.flatpickr-disabled,
+html.app-skin-dark .flatpickr-day.prevMonthDay,
+html.app-skin-dark .flatpickr-day.nextMonthDay { color: #56627a; }
+html.app-skin-dark .flatpickr-months .flatpickr-month,
+html.app-skin-dark .flatpickr-current-month,
+html.app-skin-dark span.flatpickr-weekday { color: var(--esd-ink); fill: var(--esd-ink); }
+
+/* Charts (ApexCharts draws its own tooltip / grid in light colours) */
+html.app-skin-dark .apexcharts-tooltip.apexcharts-theme-light { background: var(--esd-raised) !important; border-color: var(--esd-line) !important; color: var(--esd-ink); }
+html.app-skin-dark .apexcharts-tooltip.apexcharts-theme-light .apexcharts-tooltip-title { background: var(--esd-hover) !important; border-color: var(--esd-line) !important; }
+html.app-skin-dark .apexcharts-gridline,
+html.app-skin-dark .apexcharts-xaxis-tick { stroke: var(--esd-line-soft); }
+html.app-skin-dark .apexcharts-text,
+html.app-skin-dark .apexcharts-legend-text { fill: var(--esd-muted); color: var(--esd-muted) !important; }
+
+/* Scrollbars */
+html.app-skin-dark ::-webkit-scrollbar-thumb { background-color: #2c3a55; }
+html.app-skin-dark ::-webkit-scrollbar-track { background-color: transparent; }
+
+/* Smooth switch between light and night mode (not on page load) */
+html.es-theme-anim, html.es-theme-anim * {
+  transition: background-color .25s ease, border-color .25s ease, color .2s ease !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.es-theme-anim, html.es-theme-anim * { transition: none !important; }
+}
